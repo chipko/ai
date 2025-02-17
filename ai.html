@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Responsive viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Timed Particle Capture Game – Configurable Edition</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+    /* HUD at the top */
+    #hud {
+      width: 100%;
+      height: 50px;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      line-height: 50px;
+      font-size: 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 15;
+    }
+    /* Canvas for play area */
+    #gameCanvas {
+      display: block;
+      background: black;
+      margin-top: 50px; /* reserve space for HUD */
+    }
+    /* Pre-game options overlay */
+    #startOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      overflow-y: auto;
+    }
+    #startOverlay label {
+      font-size: 18px;
+      margin: 5px 0;
+      display: flex;
+      align-items: center;
+    }
+    #startOverlay label span {
+      margin-right: 10px;
+    }
+    #startOverlay input[type="number"] {
+      font-size: 16px;
+      width: 80px;
+      margin-left: 5px;
+    }
+    #startButton, #autoSizeButton {
+      font-size: 18px;
+      padding: 8px 16px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    /* End-of-game overlay */
+    #endOverlay {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+      text-align: center;
+    }
+    #announcement {
+      background: rgba(0,0,0,0.8);
+      color: yellow;
+      padding: 20px 40px;
+      font-size: 32px;
+      border: 2px solid yellow;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    #restartButton {
+      padding: 20px 40px;
+      font-size: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- HUD: scores and timer -->
+  <div id="hud"></div>
+  <!-- Canvas for play area -->
+  <canvas id="gameCanvas"></canvas>
+  
+  <!-- End-of-game overlay (announcement and restart button) -->
+  <div id="endOverlay">
+    <div id="announcement"></div>
+    <button id="restartButton">Restart Game</button>
+  </div>
+  
+  <!-- Pre-game Options Overlay -->
+  <div id="startOverlay">
+    <h1>Particle Capture Game Options</h1>
+    <label>
+      <span>Play Area Width (px):</span>
+      <input type="number" id="playAreaWidthInput" value="800" min="400" />
+    </label>
+    <label>
+      <span>Play Area Height (px):</span>
+      <input type="number" id="playAreaHeightInput" value="600" min="300" />
+    </label>
+    <button id="autoSizeButton">Auto-Size Play Area</button>
+    <label>
+      <span>Number of Particles:</span>
+      <input type="number" id="numParticlesInput" value="50" min="10" />
+    </label>
+    <label>
+      <span>Game Duration (sec):</span>
+      <input type="number" id="gameDurationInput" value="60" min="10" />
+    </label>
+    <!-- New Player Size input (default now is 20px) -->
+    <label>
+      <span>Player Size (px):</span>
+      <input type="number" id="playerSizeInput" value="20" step="1" min="5" />
+    </label>
+    <label>
+      <input type="checkbox" id="randomGravityCheckbox" checked />
+      <span>Enable Random Gravity Toggle</span>
+    </label>
+    <label>
+      <input type="checkbox" id="randomViscosityCheckbox" checked />
+      <span>Enable Random Viscosity Toggle</span>
+    </label>
+    <label>
+      <input type="checkbox" id="particleInteractionsCheckbox" checked />
+      <span>Enable Particle Interactions</span>
+    </label>
+    <label>
+      <input type="checkbox" id="displacerCheckbox" checked />
+      <span>Enable Powerful Displacer</span>
+    </label>
+    <label>
+      <input type="checkbox" id="visualEffectsCheckbox" checked />
+      <span>Enable Visual Effects (Trails/Glow)</span>
+    </label>
+    <label>
+      <span>Gravity Value:</span>
+      <input type="number" id="gravityValueInput" value="0.1" step="0.01" min="0" />
+    </label>
+    <label>
+      <span>Viscosity Factor:</span>
+      <input type="number" id="viscosityFactorInput" value="0.99" step="0.01" min="0" max="1" />
+    </label>
+    <label>
+      <span>Push Strength (Impulse):</span>
+      <input type="number" id="pushStrengthInput" value="3" step="0.5" min="0" />
+    </label>
+    <label>
+      <span>Displacer Strength (Displacement):</span>
+      <input type="number" id="displacerStrengthInput" value="10" step="1" min="0" />
+    </label>
+    <label>
+      <input type="checkbox" id="mobileModeCheckbox" />
+      <span>Mobile Mode</span>
+    </label>
+    <button id="startButton">Start Game</button>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Get DOM elements
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const hud = document.getElementById('hud');
+      const endOverlay = document.getElementById('endOverlay');
+      const announcement = document.getElementById('announcement');
+      const restartButton = document.getElementById('restartButton');
+      const startOverlay = document.getElementById('startOverlay');
+      const autoSizeButton = document.getElementById('autoSizeButton');
+      
+      // Inputs
+      const playAreaWidthInput = document.getElementById('playAreaWidthInput');
+      const playAreaHeightInput = document.getElementById('playAreaHeightInput');
+      const numParticlesInput = document.getElementById('numParticlesInput');
+      const gameDurationInput = document.getElementById('gameDurationInput');
+      const playerSizeInput = document.getElementById('playerSizeInput');
+      const randomGravityCheckbox = document.getElementById('randomGravityCheckbox');
+      const randomViscosityCheckbox = document.getElementById('randomViscosityCheckbox');
+      const particleInteractionsCheckbox = document.getElementById('particleInteractionsCheckbox');
+      const displacerCheckbox = document.getElementById('displacerCheckbox');
+      const visualEffectsCheckbox = document.getElementById('visualEffectsCheckbox');
+      const gravityValueInput = document.getElementById('gravityValueInput');
+      const viscosityFactorInput = document.getElementById('viscosityFactorInput');
+      const pushStrengthInput = document.getElementById('pushStrengthInput');
+      const displacerStrengthInput = document.getElementById('displacerStrengthInput');
+      const mobileModeCheckbox = document.getElementById('mobileModeCheckbox');
+      const startButton = document.getElementById('startButton');
+      
+      // --- Set default play area size to browser window size (minus HUD height) ---
+      playAreaWidthInput.value = window.innerWidth;
+      playAreaHeightInput.value = window.innerHeight - 50;
+      
+      // --- Game Settings & State Variables ---
+      let randomGravityEnabled = false;
+      let randomViscosityEnabled = false;
+      let particleInteractionsEnabled = false;
+      let displacerEnabled = false;
+      let visualEffectsEnabled = false;
+      let enableGravity = false;
+      let enableViscosity = false;
+      let gravityValue = 0.1;
+      let viscosityFactor = 0.99;
+      let pushStrength = 3;
+      let displacerStrength = 10;
+      let gameDuration = 60; // seconds
+      let gameStartTime = 0;
+      let mobileModeEnabled = false;
+      
+      // Timeout IDs for world events
+      let gravityTimeoutId, viscosityTimeoutId, displacerTimeoutId;
+      
+      // Countdown objects for toggles
+      let gravityToggleCountdown = { active: false, startTime: null, duration: 3000, targetState: null };
+      let viscosityToggleCountdown = { active: false, startTime: null, duration: 3000, targetState: null };
+      let displacerCountdown = { active: false, startTime: null, duration: 3000 };
+      
+      // Other game constants
+      let totalParticles = 50;
+      const explosionLifeInitial = 30;
+      
+      // Game state variables
+      let keys = {};
+      let player1, player2;
+      let particles = [];
+      let explosionEffects = [];
+      let gameOver = false;
+      let winnerMessage = "";
+      
+      // Mobile touch control variables
+      let player1TouchId = null;
+      let player2TouchId = null;
+      let mobileControlsInitialized = false;
+      
+      // --- Resize Canvas ---
+      function resizeCanvas() {
+        canvas.width = parseInt(playAreaWidthInput.value) || window.innerWidth;
+        canvas.height = parseInt(playAreaHeightInput.value) || window.innerHeight - 50;
+      }
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+      
+      // --- Auto-Size Play Area Button Handler ---
+      autoSizeButton.addEventListener('click', () => {
+        playAreaWidthInput.value = window.innerWidth;
+        playAreaHeightInput.value = window.innerHeight - 50; // Reserve space for HUD
+        resizeCanvas();
+      });
+      
+      // --- Update HUD ---
+      function updateHUD() {
+        let score1 = particles.filter(p => p.owner === 1).length;
+        let score2 = particles.filter(p => p.owner === 2).length;
+        let remainingTime = Math.max(0, Math.ceil(gameDuration - (performance.now() - gameStartTime) / 1000));
+        hud.innerHTML = `Player 1: ${score1} &nbsp;&nbsp; Player 2: ${score2} &nbsp;&nbsp; Time Left: ${remainingTime}s`;
+      }
+      
+      // --- Keyboard Controls (non-mobile mode) ---
+      window.addEventListener('keydown', (e) => { if (!mobileModeEnabled) keys[e.key.toLowerCase()] = true; });
+      window.addEventListener('keyup', (e) => { if (!mobileModeEnabled) keys[e.key.toLowerCase()] = false; });
+      
+      // --- Mobile Touch Handlers ---
+      function handleTouchStart(e) {
+        e.preventDefault();
+        const halfWidth = canvas.width / 2;
+        for (let touch of e.changedTouches) {
+          if (touch.clientX < halfWidth && player1TouchId === null) {
+            player1TouchId = touch.identifier;
+            player1.x = Math.max(player1.radius, Math.min(halfWidth - player1.radius, touch.clientX));
+            player1.y = Math.max(player1.radius, Math.min(canvas.height - player1.radius, touch.clientY));
+          } else if (touch.clientX >= halfWidth && player2TouchId === null) {
+            player2TouchId = touch.identifier;
+            player2.x = Math.max(halfWidth + player2.radius, Math.min(canvas.width - player2.radius, touch.clientX));
+            player2.y = Math.max(player2.radius, Math.min(canvas.height - player2.radius, touch.clientY));
+          }
+        }
+      }
+      function handleTouchMove(e) {
+        e.preventDefault();
+        const halfWidth = canvas.width / 2;
+        for (let touch of e.touches) {
+          if (touch.identifier === player1TouchId) {
+            player1.x = Math.max(player1.radius, Math.min(halfWidth - player1.radius, touch.clientX));
+            player1.y = Math.max(player1.radius, Math.min(canvas.height - player1.radius, touch.clientY));
+          }
+          if (touch.identifier === player2TouchId) {
+            player2.x = Math.max(halfWidth + player2.radius, Math.min(canvas.width - player2.radius, touch.clientX));
+            player2.y = Math.max(player2.radius, Math.min(canvas.height - player2.radius, touch.clientY));
+          }
+        }
+      }
+      function handleTouchEnd(e) {
+        e.preventDefault();
+        for (let touch of e.changedTouches) {
+          if (touch.identifier === player1TouchId) player1TouchId = null;
+          if (touch.identifier === player2TouchId) player2TouchId = null;
+        }
+      }
+      function initMobileControls() {
+        if (mobileControlsInitialized) return;
+        canvas.addEventListener('touchstart', handleTouchStart, false);
+        canvas.addEventListener('touchmove', handleTouchMove, false);
+        canvas.addEventListener('touchend', handleTouchEnd, false);
+        canvas.addEventListener('touchcancel', handleTouchEnd, false);
+        mobileControlsInitialized = true;
+      }
+      
+      // --- Initialize/Reset Game ---
+      function initGame() {
+        // Set default play area size to current window dimensions (minus HUD)
+        playAreaWidthInput.value = window.innerWidth;
+        playAreaHeightInput.value = window.innerHeight - 50;
+        resizeCanvas();
+        
+        // Read configuration values.
+        totalParticles = parseInt(numParticlesInput.value) || 50;
+        gameDuration = parseInt(gameDurationInput.value) || 60;
+        gameStartTime = performance.now();
+        gravityValue = parseFloat(gravityValueInput.value) || 0.1;
+        viscosityFactor = parseFloat(viscosityFactorInput.value) || 0.99;
+        pushStrength = parseFloat(pushStrengthInput.value) || 3;
+        displacerStrength = parseFloat(displacerStrengthInput.value) || 10;
+        mobileModeEnabled = mobileModeCheckbox.checked;
+        if (mobileModeEnabled) initMobileControls();
+        
+        const halfWidth = canvas.width / 2;
+        // Set player size from input (default now is 20px).
+        let playerSize = parseInt(playerSizeInput.value);
+        if (!playerSize) {
+          playerSize = 20;
+          playerSizeInput.value = playerSize;
+        }
+        
+        // Initialize players.
+        player1 = {
+          x: halfWidth * 0.25,
+          y: canvas.height / 2,
+          radius: playerSize,
+          color: 'red',
+          speed: 4,
+          score: 0
+        };
+        player2 = {
+          x: halfWidth + halfWidth * 0.75,
+          y: canvas.height / 2,
+          radius: playerSize,
+          color: 'blue',
+          speed: 4,
+          score: 0
+        };
+        
+        // Create particles in underlying coordinate system (x ∈ [0, halfWidth]) with neutral color.
+        // Enforce a center buffer to avoid orphaned particles.
+        const centerBuffer = 20;
+        particles = [];
+        for (let i = 0; i < totalParticles; i++) {
+          let pX = Math.random() * ((halfWidth - centerBuffer) - centerBuffer) + centerBuffer;
+          particles.push({
+            x: pX,
+            y: Math.random() * (canvas.height - 10) + 5,
+            vx: (Math.random() - 0.5) * 2,
+            vy: (Math.random() - 0.5) * 2,
+            radius: 5,
+            owner: 0,
+            color: "lightgrey"
+          });
+        }
+        explosionEffects = [];
+        gameOver = false;
+        winnerMessage = "";
+        enableGravity = false;
+        enableViscosity = false;
+        clearTimeout(gravityTimeoutId);
+        clearTimeout(viscosityTimeoutId);
+        clearTimeout(displacerTimeoutId);
+        gravityToggleCountdown.active = false;
+        viscosityToggleCountdown.active = false;
+        displacerCountdown.active = false;
+        
+        // Get toggle options.
+        randomGravityEnabled = randomGravityCheckbox.checked;
+        randomViscosityEnabled = randomViscosityCheckbox.checked;
+        particleInteractionsEnabled = particleInteractionsCheckbox.checked;
+        displacerEnabled = displacerCheckbox.checked;
+        visualEffectsEnabled = visualEffectsCheckbox.checked;
+        
+        if (randomGravityEnabled) scheduleNextGravityToggle();
+        if (randomViscosityEnabled) scheduleNextViscosityToggle();
+        if (displacerEnabled) scheduleNextDisplacerEvent();
+        
+        // Hide the end overlay.
+        endOverlay.style.display = "none";
+      }
+      
+      // --- Explosion Effect ---
+      function spawnExplosion(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+          explosionEffects.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            radius: 2,
+            life: explosionLifeInitial,
+            color: color
+          });
+        }
+      }
+      
+      // --- Random Toggle Scheduling for Gravity ---
+      function scheduleNextGravityToggle() {
+        if (!randomGravityEnabled || gameOver) return;
+        let delay = 5000 + Math.random() * 10000;
+        gravityTimeoutId = setTimeout(() => {
+          if (gameOver) return;
+          let newState = !enableGravity;
+          gravityToggleCountdown.active = true;
+          gravityToggleCountdown.startTime = performance.now();
+          gravityToggleCountdown.duration = 3000;
+          gravityToggleCountdown.targetState = newState;
+        }, delay);
+      }
+      
+      // --- Random Toggle Scheduling for Viscosity ---
+      function scheduleNextViscosityToggle() {
+        if (!randomViscosityEnabled || gameOver) return;
+        let delay = 5000 + Math.random() * 10000;
+        viscosityTimeoutId = setTimeout(() => {
+          if (gameOver) return;
+          let newState = !enableViscosity;
+          viscosityToggleCountdown.active = true;
+          viscosityToggleCountdown.startTime = performance.now();
+          viscosityToggleCountdown.duration = 3000;
+          viscosityToggleCountdown.targetState = newState;
+        }, delay);
+      }
+      
+      // --- Schedule Displacer Event ---
+      function scheduleNextDisplacerEvent() {
+        if (!displacerEnabled || gameOver) return;
+        let delay = 20000 + Math.random() * 20000;
+        displacerTimeoutId = setTimeout(() => {
+          if (gameOver) return;
+          displacerCountdown.active = true;
+          displacerCountdown.startTime = performance.now();
+          displacerCountdown.duration = 3000;
+        }, delay);
+      }
+      
+      // --- Apply Displacer Effect ---
+      function applyDisplacer() {
+        for (let p of particles) {
+          p.vx += (Math.random() * 2 - 1) * displacerStrength;
+          p.vy += (Math.random() * 2 - 1) * displacerStrength;
+        }
+      }
+      
+      // --- Update Game State ---
+      function update() {
+        let score1 = particles.filter(p => p.owner === 1).length;
+        let score2 = particles.filter(p => p.owner === 2).length;
+        if (score1 === totalParticles) {
+          gameOver = true;
+          winnerMessage = "Player 1 wins!";
+          endOverlay.style.display = "block";
+          announcement.innerHTML = winnerMessage;
+          return;
+        } else if (score2 === totalParticles) {
+          gameOver = true;
+          winnerMessage = "Player 2 wins!";
+          endOverlay.style.display = "block";
+          announcement.innerHTML = winnerMessage;
+          return;
+        }
+        let elapsedTime = (performance.now() - gameStartTime) / 1000;
+        if (elapsedTime >= gameDuration) {
+          gameOver = true;
+          if (score1 > score2) winnerMessage = "Time's Up! Player 1 wins!";
+          else if (score2 > score1) winnerMessage = "Time's Up! Player 2 wins!";
+          else winnerMessage = "Time's Up! It's a tie!";
+          endOverlay.style.display = "block";
+          announcement.innerHTML = winnerMessage;
+          return;
+        }
+        if (gameOver) return;
+        
+        const halfWidth = canvas.width / 2;
+        
+        // ----- Player Movement -----
+        if (!mobileModeEnabled) {
+          if (keys['w']) player1.y -= player1.speed;
+          if (keys['s']) player1.y += player1.speed;
+          if (keys['a']) player1.x -= player1.speed;
+          if (keys['d']) player1.x += player1.speed;
+          player1.x = Math.max(player1.radius, Math.min(halfWidth - player1.radius, player1.x));
+          player1.y = Math.max(player1.radius, Math.min(canvas.height - player1.radius, player1.y));
+          
+          if (keys['arrowup']) player2.y -= player2.speed;
+          if (keys['arrowdown']) player2.y += player2.speed;
+          if (keys['arrowleft']) player2.x -= player2.speed;
+          if (keys['arrowright']) player2.x += player2.speed;
+          player2.x = Math.max(halfWidth + player2.radius, Math.min(canvas.width - player2.radius, player2.x));
+          player2.y = Math.max(player2.radius, Math.min(canvas.height - player2.radius, player2.y));
+        }
+        
+        // ----- Particle Updates -----
+        for (let p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          if (enableGravity) p.vy += gravityValue;
+          if (enableViscosity) {
+            p.vx *= viscosityFactor;
+            p.vy *= viscosityFactor;
+          }
+          if (p.x < p.radius || p.x > (halfWidth - p.radius)) p.vx *= -1;
+          if (p.y < p.radius || p.y > (canvas.height - p.radius)) p.vy *= -1;
+          // Enforce center buffer to avoid orphaned particles
+          const centerBuffer = 20;
+          if (p.x < centerBuffer) { p.x = centerBuffer; p.vx = Math.abs(p.vx); }
+          if (p.x > (halfWidth - centerBuffer)) { p.x = halfWidth - centerBuffer; p.vx = -Math.abs(p.vx); }
+        }
+        
+        // ----- Particle-Player Collisions -----
+        for (let p of particles) {
+          if (p.x < halfWidth) {
+            let dx1 = p.x - player1.x;
+            let dy1 = p.y - player1.y;
+            if (Math.hypot(dx1, dy1) < p.radius + player1.radius) {
+              let angle = Math.atan2(dy1, dx1);
+              if (p.owner !== 1) {
+                p.owner = 1;
+                p.color = player1.color;
+                spawnExplosion(p.x, p.y, player1.color);
+                p.vx = pushStrength * Math.cos(angle);
+                p.vy = pushStrength * Math.sin(angle);
+              } else {
+                p.vx += (pushStrength / 2) * Math.cos(angle);
+                p.vy += (pushStrength / 2) * Math.sin(angle);
+              }
+            }
+          }
+        }
+        let player2UnderlyingX = player2.x - halfWidth;
+        for (let p of particles) {
+          if (p.x >= 0 && p.x <= halfWidth) {
+            let dx2 = p.x - player2UnderlyingX;
+            let dy2 = p.y - player2.y;
+            if (Math.hypot(dx2, dy2) < p.radius + player2.radius) {
+              let angle = Math.atan2(dy2, dx2);
+              if (p.owner !== 2) {
+                p.owner = 2;
+                p.color = player2.color;
+                spawnExplosion(p.x, p.y, player2.color);
+                p.vx = pushStrength * Math.cos(angle);
+                p.vy = pushStrength * Math.sin(angle);
+              } else {
+                p.vx += (pushStrength / 2) * Math.cos(angle);
+                p.vy += (pushStrength / 2) * Math.sin(angle);
+              }
+            }
+          }
+        }
+        
+        // ----- Particle-Particle Interactions -----
+        if (particleInteractionsEnabled) {
+          for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+              let p1 = particles[i];
+              let p2 = particles[j];
+              let dx = p2.x - p1.x;
+              let dy = p2.y - p1.y;
+              let dist = Math.hypot(dx, dy);
+              let minDist = p1.radius + p2.radius;
+              if (dist < minDist && dist > 0) {
+                let overlap = (minDist - dist) / 2;
+                let nx = dx / dist;
+                let ny = dy / dist;
+                p1.x -= nx * overlap;
+                p1.y -= ny * overlap;
+                p2.x += nx * overlap;
+                p2.y += ny * overlap;
+                let v1n = p1.vx * nx + p1.vy * ny;
+                let v2n = p2.vx * nx + p2.vy * ny;
+                let diff = v1n - v2n;
+                p1.vx -= diff * nx;
+                p1.vy -= diff * ny;
+                p2.vx += diff * nx;
+                p2.vy += diff * ny;
+              }
+            }
+          }
+        }
+        
+        // ----- Explosion Effects -----
+        for (let i = explosionEffects.length - 1; i >= 0; i--) {
+          let exp = explosionEffects[i];
+          exp.x += exp.vx;
+          exp.y += exp.vy;
+          exp.life--;
+          if (exp.life <= 0) explosionEffects.splice(i, 1);
+        }
+        
+        // ----- Check Toggle Countdowns -----
+        if (gravityToggleCountdown.active) {
+          let elapsed = performance.now() - gravityToggleCountdown.startTime;
+          if (elapsed >= gravityToggleCountdown.duration) {
+            enableGravity = gravityToggleCountdown.targetState;
+            gravityToggleCountdown.active = false;
+            scheduleNextGravityToggle();
+          }
+        }
+        if (viscosityToggleCountdown.active) {
+          let elapsed = performance.now() - viscosityToggleCountdown.startTime;
+          if (elapsed >= viscosityToggleCountdown.duration) {
+            enableViscosity = viscosityToggleCountdown.targetState;
+            viscosityToggleCountdown.active = false;
+            scheduleNextViscosityToggle();
+          }
+        }
+        if (displacerCountdown.active) {
+          let elapsed = performance.now() - displacerCountdown.startTime;
+          if (elapsed >= displacerCountdown.duration) {
+            displacerCountdown.active = false;
+            applyDisplacer();
+            scheduleNextDisplacerEvent();
+          }
+        }
+      }
+      
+      // --- Draw Everything ---
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = visualEffectsEnabled ? "rgba(0, 0, 0, 0.15)" : "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const halfWidth = canvas.width / 2;
+        // Draw dividing line.
+        ctx.strokeStyle = "gray";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(halfWidth, 0);
+        ctx.lineTo(halfWidth, canvas.height);
+        ctx.stroke();
+        
+        // Draw particles.
+        for (let p of particles) {
+          ctx.save();
+          if (visualEffectsEnabled) {
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = p.color;
+          }
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          ctx.restore();
+          
+          ctx.save();
+          if (visualEffectsEnabled) {
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = p.color;
+          }
+          ctx.beginPath();
+          ctx.arc(p.x + halfWidth, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          ctx.restore();
+        }
+        
+        // Draw players.
+        // Draw player1 normally on left.
+        ctx.save();
+        if (visualEffectsEnabled) {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = player1.color;
+        }
+        ctx.beginPath();
+        ctx.arc(player1.x, player1.y, player1.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player1.color;
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = "white";
+        ctx.font = "14px Arial";
+        ctx.fillText("P1", player1.x - 10, player1.y + 5);
+        
+        // Draw player2 normally on right.
+        ctx.save();
+        if (visualEffectsEnabled) {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = player2.color;
+        }
+        ctx.beginPath();
+        ctx.arc(player2.x, player2.y, player2.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player2.color;
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = "white";
+        ctx.font = "14px Arial";
+        ctx.fillText("P2", player2.x - 10, player2.y + 5);
+        
+        // Draw ghost copies of the opposing player in each play area.
+        // In the left half, draw a ghost copy of player2 using its underlying coordinate.
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        // Underlying coordinate for player2: subtract halfWidth.
+        ctx.arc(player2.x - halfWidth, player2.y, player2.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player2.color;
+        ctx.fill();
+        ctx.restore();
+        // In the right half, draw a ghost copy of player1 using its underlying coordinate.
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        // Underlying coordinate for player1: add halfWidth.
+        ctx.arc(player1.x + halfWidth, player1.y, player1.radius, 0, Math.PI * 2);
+        ctx.fillStyle = player1.color;
+        ctx.fill();
+        ctx.restore();
+        
+        // Draw explosion effects.
+        if (visualEffectsEnabled) {
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          for (let exp of explosionEffects) {
+            let grad = ctx.createRadialGradient(exp.x, exp.y, 0, exp.x, exp.y, exp.radius);
+            grad.addColorStop(0, "white");
+            grad.addColorStop(0.5, exp.color);
+            grad.addColorStop(1, "transparent");
+            ctx.beginPath();
+            ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.globalAlpha = Math.max(exp.life / explosionLifeInitial, 0);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(exp.x + halfWidth, exp.y, exp.radius, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          for (let exp of explosionEffects) {
+            ctx.beginPath();
+            ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+            ctx.fillStyle = exp.color;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(exp.x + halfWidth, exp.y, exp.radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        
+        // Update HUD.
+        updateHUD();
+      }
+      
+      // --- Main Game Loop ---
+      function gameLoop() {
+        update();
+        draw();
+        if (!gameOver) requestAnimationFrame(gameLoop);
+      }
+      
+      // --- Restart Game on End Overlay ---
+      restartButton.addEventListener('click', () => {
+        endOverlay.style.display = "none";
+        startOverlay.style.display = "flex";
+      });
+      
+      // --- Start Game from Overlay ---
+      function startGameHandler() {
+        console.log("Start Game clicked");
+        // Hide the end overlay and the start overlay
+        endOverlay.style.display = "none";
+        startOverlay.style.display = "none";
+        initGame();
+        gameLoop();
+      }
+      startButton.addEventListener('click', startGameHandler);
+      startButton.addEventListener('touchstart', startGameHandler);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Magnetic Particle System</title>
+    <style>
+      /* Remove default margins and hide scrollbars */
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Include Three.js from a CDN -->
+    <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+    <script>
+      ///////////////////////////
+      // GLOBAL CONFIGURATION  //
+      ///////////////////////////
+      const NUM_PARTICLES = 2000;
+      const FIELD_ATTRACTION = 0.001; // Base attraction (pulls particles toward center)
+      const FIELD_SWIRL = 0.005; // Perpendicular (tangential) force for swirling
+      const VELOCITY_DAMPING = 0.98; // Friction per frame
+
+      // Mouse interaction strengths (applied only if mouse button is pressed)
+      const MOUSE_REPEL_STRENGTH = 1000;
+      const MOUSE_ATTRACT_STRENGTH = 1000;
+      // For disturbance from mouse movement (applied even when not clicking)
+      const MOUSE_DISTURB_RADIUS = 150;
+      const MOUSE_DISTURB_FACTOR = 0.5;
+
+      // Colors (hex): neutral (default), for attract and repel modes.
+      const COLOR_NEUTRAL = 0x9932cc; // purple
+      const COLOR_ATTRACT = 0x00bfff; // electric blue
+      const COLOR_REPEL = 0xff4500;   // warm orange/red
+
+      ///////////////////////////
+      // SETUP THREE.JS SCENE  //
+      ///////////////////////////
+      let scene, camera, renderer, clock;
+      let particles, geometry, material;
+      // Buffers for particle positions and velocities:
+      let positions, velocities;
+
+      // Global variables for mouse state
+      let mouseAction = "none"; // "repel", "attract", or "none"
+      let mouse = new THREE.Vector2(); // normalized screen coordinates
+      let mouseWorld = new THREE.Vector3(); // position in world (on z=0)
+      let lastMouseWorld = new THREE.Vector3();
+      let mouseDelta = new THREE.Vector3(0, 0, 0); // difference between last and current mouse positions
+
+      // For converting mouse to world coordinates:
+      let raycaster = new THREE.Raycaster();
+      const planeZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // z = 0 plane
+
+      // For smoothly interpolating the particle color
+      let currentColor = new THREE.Color(COLOR_NEUTRAL);
+
+      init();
+      animate();
+
+      ///////////////////////////
+      // INITIALIZATION        //
+      ///////////////////////////
+      function init() {
+        scene = new THREE.Scene();
+
+        // Setup perspective camera
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          2000
+        );
+        // Position the camera so that our XY-plane is visible.
+        camera.position.set(0, 0, 500);
+        scene.add(camera);
+
+        // Create the renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        clock = new THREE.Clock();
+
+        // Create particles as a Points system
+        geometry = new THREE.BufferGeometry();
+        positions = new Float32Array(NUM_PARTICLES * 3);
+        velocities = new Float32Array(NUM_PARTICLES * 3);
+        // Initialize positions randomly within a square region and zero velocities.
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          positions[i * 3] = (Math.random() - 0.5) * 400;
+          positions[i * 3 + 1] = (Math.random() - 0.5) * 400;
+          positions[i * 3 + 2] = 0; // all in the z=0 plane
+          velocities[i * 3] = 0;
+          velocities[i * 3 + 1] = 0;
+          velocities[i * 3 + 2] = 0;
+        }
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage)
+        );
+
+        // Create a glowing particle texture from a canvas.
+        const sprite = createParticleTexture();
+
+        material = new THREE.PointsMaterial({
+          size: 4,
+          map: sprite,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          transparent: true,
+          color: currentColor
+        });
+
+        particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // Add event listeners
+        window.addEventListener("resize", onWindowResize, false);
+        document.addEventListener("mousedown", onMouseDown, false);
+        document.addEventListener("mouseup", onMouseUp, false);
+        document.addEventListener("mousemove", onMouseMove, false);
+        // Prevent the context menu so right-click works
+        document.addEventListener("contextmenu", (e) => e.preventDefault());
+      }
+
+      ///////////////////////////
+      // PARTICLE TEXTURE      //
+      ///////////////////////////
+      // Create a radial gradient texture for the particles.
+      function createParticleTexture() {
+        const size = 128;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        // Create a radial gradient (center bright, fading to transparent)
+        const gradient = ctx.createRadialGradient(
+          size / 2,
+          size / 2,
+          0,
+          size / 2,
+          size / 2,
+          size / 2
+        );
+        gradient.addColorStop(0, "rgba(255,255,255,1)");
+        gradient.addColorStop(0.2, "rgba(255,255,255,0.8)");
+        gradient.addColorStop(0.4, "rgba(128,128,255,0.6)");
+        gradient.addColorStop(1, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+
+        const texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+        return texture;
+      }
+
+      ///////////////////////////
+      // EVENT HANDLERS        //
+      ///////////////////////////
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onMouseDown(event) {
+        // Left button (0): repel; Right button (2): attract.
+        if (event.button === 0) {
+          mouseAction = "repel";
+        } else if (event.button === 2) {
+          mouseAction = "attract";
+        }
+      }
+
+      function onMouseUp(event) {
+        mouseAction = "none";
+      }
+
+      function onMouseMove(event) {
+        // Update normalized device coordinates.
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // Use raycaster to convert to world coordinates on z=0.
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(planeZ, mouseWorld);
+
+        // Compute mouse movement delta.
+        if (!lastMouseWorld.equals(new THREE.Vector3(0, 0, 0))) {
+          mouseDelta.subVectors(mouseWorld, lastMouseWorld);
+        }
+        lastMouseWorld.copy(mouseWorld);
+      }
+
+      ///////////////////////////
+      // ANIMATION LOOP        //
+      ///////////////////////////
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = clock.getDelta();
+        updateParticles(dt);
+        updateParticleColor();
+        renderer.render(scene, camera);
+      }
+
+      ///////////////////////////
+      // PARTICLE SIMULATION   //
+      ///////////////////////////
+      function updateParticles(dt) {
+        // For each particle, compute forces and update position.
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+          let idx = i * 3;
+          // Current position and velocity (only using x,y; z remains 0)
+          let x = positions[idx],
+              y = positions[idx + 1];
+          let vx = velocities[idx],
+              vy = velocities[idx + 1];
+
+          // --- Base Magnetic Field Forces ---
+          // Compute vector from the center (0,0) to the particle.
+          let fx = -FIELD_ATTRACTION * x;
+          let fy = -FIELD_ATTRACTION * y;
+          // Add a swirling (tangential) force: perpendicular to (x,y)
+          fx += -FIELD_SWIRL * y;
+          fy += FIELD_SWIRL * x;
+
+          // --- Mouse Interaction Forces ---
+          // Compute the vector from the mouse (in world space) to the particle.
+          let dx = x - mouseWorld.x;
+          let dy = y - mouseWorld.y;
+          let distSq = dx * dx + dy * dy;
+          // (Avoid division by zero.)
+          let factor = 1 / (distSq + 1);
+
+          // If a mouse button is pressed, add a strong interaction force.
+          if (mouseAction === "repel") {
+            // Repelling: push away from mouse.
+            fx += (dx * MOUSE_REPEL_STRENGTH) * factor;
+            fy += (dy * MOUSE_REPEL_STRENGTH) * factor;
+          } else if (mouseAction === "attract") {
+            // Attracting: pull toward mouse.
+            fx -= (dx * MOUSE_ATTRACT_STRENGTH) * factor;
+            fy -= (dy * MOUSE_ATTRACT_STRENGTH) * factor;
+          }
+
+          // --- Mouse Movement Disturbance ---
+          // If the particle is near the mouse, add a disturbance based on mouse movement.
+          const dist = Math.sqrt(distSq);
+          if (dist < MOUSE_DISTURB_RADIUS) {
+            // The closer to the mouse, the stronger the disturbance.
+            const influence = (1 - dist / MOUSE_DISTURB_RADIUS) * MOUSE_DISTURB_FACTOR;
+            fx += mouseDelta.x * influence;
+            fy += mouseDelta.y * influence;
+          }
+
+          // --- Update Velocity and Position ---
+          vx += fx * dt;
+          vy += fy * dt;
+          // Apply simple damping to simulate friction.
+          vx *= VELOCITY_DAMPING;
+          vy *= VELOCITY_DAMPING;
+          x += vx;
+          y += vy;
+
+          // Write back the updated values.
+          positions[idx] = x;
+          positions[idx + 1] = y;
+          velocities[idx] = vx;
+          velocities[idx + 1] = vy;
+        }
+
+        // After updating all particles, mark the position attribute as needing an update.
+        geometry.attributes.position.needsUpdate = true;
+
+        // Slowly decay the mouseDelta so the disturbance fades away.
+        mouseDelta.multiplyScalar(0.9);
+      }
+
+      ///////////////////////////
+      // UPDATE PARTICLE COLOR //
+      ///////////////////////////
+      function updateParticleColor() {
+        // Choose a target color based on the current mouse action.
+        let target;
+        if (mouseAction === "repel") {
+          target = new THREE.Color(COLOR_REPEL);
+        } else if (mouseAction === "attract") {
+          target = new THREE.Color(COLOR_ATTRACT);
+        } else {
+          target = new THREE.Color(COLOR_NEUTRAL);
+        }
+        // Gradually interpolate the current color toward the target.
+        currentColor.lerp(target, 0.05);
+        material.color.copy(currentColor);
+      }
+    </script>
+  </body>
+</html>

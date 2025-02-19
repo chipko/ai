@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fireflies Simulation</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Include Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <!-- Vertex Shader: Positions each particle and scales its size (further particles become smaller) -->
+  <script id="vertexShader" type="x-shader/x-vertex">
+    attribute float size;
+    attribute vec3 customColor;
+    varying vec3 vColor;
+    void main() {
+      vColor = customColor;
+      vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+      // Scale the point size by distance so it appears consistent
+      gl_PointSize = size * (300.0 / -mvPosition.z);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  </script>
+  
+  <!-- Fragment Shader: Renders a soft radial glow using gl_PointCoord -->
+  <script id="fragmentShader" type="x-shader/x-fragment">
+    varying vec3 vColor;
+    void main() {
+      // Calculate distance from center of the point
+      float dist = length(gl_PointCoord - vec2(0.5));
+      // Use a smooth radial gradient for a soft halo effect
+      float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
+      gl_FragColor = vec4(vColor, alpha);
+    }
+  </script>
+  
+  <script>
+  // --- Simulation Parameters ---
+  const NUM_FIREFLIES = 500;       // Total number of particles
+  const AREA_SIZE = 500;           // Defines the width/height of the region in which fireflies roam
+  const BASE_SIZE = 10;            // Base size of each particle (will be modulated by flicker and speed)
+  const DRAG = 0.98;               // Easing drag applied to slow the particles naturally
+  const FLICKER_DECAY = 0.95;      // How quickly an excited flicker subsides
+  const FLUTTER_CHANCE = 0.01;     // Chance per frame for a quick “flutter” (burst of velocity)
+
+  // Global Three.js objects
+  let scene, camera, renderer;
+  // Particle data arrays
+  let positions, sizes, colors;
+  let geometry, material, points;
+  // Array of firefly objects
+  let fireflies = [];
+  // Store mouse position (in world coordinates)
+  let mouse = new THREE.Vector2(-9999, -9999);
+
+  // --- Firefly Class ---
+  // Each firefly holds its own position, velocity, acceleration, and flicker state.
+  class Firefly {
+    constructor() {
+      this.position = new THREE.Vector3(
+        (Math.random()-0.5) * AREA_SIZE,
+        (Math.random()-0.5) * AREA_SIZE,
+        (Math.random()-0.5) * AREA_SIZE/2
+      );
+      this.velocity = new THREE.Vector3(
+        (Math.random()-0.5) * 0.2,
+        (Math.random()-0.5) * 0.2,
+        (Math.random()-0.5) * 0.2
+      );
+      this.acceleration = new THREE.Vector3();
+      this.flicker = 0;  // Additional brightness (pulsing effect)
+    }
+    
+    update() {
+      // Apply a very small random acceleration for organic drifting
+      let randomAccel = new THREE.Vector3(
+        (Math.random()-0.5)*0.02,
+        (Math.random()-0.5)*0.02,
+        (Math.random()-0.5)*0.02
+      );
+      this.acceleration.add(randomAccel);
+      
+      // --- Mouse Interaction ---
+      // Convert the stored mouse position (world coords) into a force if nearby.
+      let diff = new THREE.Vector3().subVectors(mouse, this.position);
+      let dist = diff.length();
+      if (dist < 50) {
+        diff.normalize();
+        // Attract the firefly to the cursor and trigger an excited flicker.
+        this.acceleration.add(diff.multiplyScalar(0.1));
+        this.flicker = 5.0;
+      }
+      
+      // --- Occasional Flutter ---
+      // Random chance to add a burst of velocity (quick flutter)
+      if (Math.random() < FLUTTER_CHANCE) {
+        let flutter = new THREE.Vector3(
+          (Math.random()-0.5)*2,
+          (Math.random()-0.5)*2,
+          (Math.random()-0.5)*2
+        );
+        this.velocity.add(flutter);
+        this.flicker = 10.0;
+      }
+      
+      // Update velocity and then position, applying a gentle drag for smooth easing.
+      this.velocity.add(this.acceleration);
+      this.velocity.multiplyScalar(DRAG);
+      this.position.add(this.velocity);
+      this.acceleration.set(0,0,0);
+      
+      // Gradually reduce the flicker effect.
+      this.flicker *= FLICKER_DECAY;
+      
+      // Wrap around boundaries so the particles reappear on the opposite side.
+      if (this.position.x > AREA_SIZE/2) this.position.x = -AREA_SIZE/2;
+      if (this.position.x < -AREA_SIZE/2) this.position.x = AREA_SIZE/2;
+      if (this.position.y > AREA_SIZE/2) this.position.y = -AREA_SIZE/2;
+      if (this.position.y < -AREA_SIZE/2) this.position.y = AREA_SIZE/2;
+      if (this.position.z > AREA_SIZE/4) this.position.z = -AREA_SIZE/4;
+      if (this.position.z < -AREA_SIZE/4) this.position.z = AREA_SIZE/4;
+    }
+  }
+
+  // --- Initialization ---
+  function init() {
+    // Create the scene and camera.
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 2000);
+    camera.position.z = 300;
+    
+    // Create the WebGL renderer.
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    
+    // Allocate arrays for positions, sizes, and colors.
+    positions = new Float32Array(NUM_FIREFLIES * 3);
+    sizes = new Float32Array(NUM_FIREFLIES);
+    colors = new Float32Array(NUM_FIREFLIES * 3);
+    
+    // Create each firefly and assign it a random starting position, velocity, and color.
+    for (let i = 0; i < NUM_FIREFLIES; i++) {
+      let firefly = new Firefly();
+      fireflies.push(firefly);
+      
+      positions[3*i]   = firefly.position.x;
+      positions[3*i+1] = firefly.position.y;
+      positions[3*i+2] = firefly.position.z;
+      sizes[i] = BASE_SIZE;
+      
+      // Randomly choose between warm golden yellow and soft green.
+      let color;
+      if (Math.random() < 0.5) {
+        color = new THREE.Color(0xffd27f);  // Warm golden yellow
+      } else {
+        color = new THREE.Color(0xa8e6cf);   // Soft green
+      }
+      colors[3*i]   = color.r;
+      colors[3*i+1] = color.g;
+      colors[3*i+2] = color.b;
+    }
+    
+    // Create a BufferGeometry and add the particle attributes.
+    geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    geometry.setAttribute('customColor', new THREE.BufferAttribute(colors, 3));
+    
+    // Create the shader material.
+    material = new THREE.ShaderMaterial({
+      uniforms: {},
+      vertexShader: document.getElementById('vertexShader').textContent,
+      fragmentShader: document.getElementById('fragmentShader').textContent,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: false
+    });
+    
+    // Combine geometry and material into a Points object.
+    points = new THREE.Points(geometry, material);
+    scene.add(points);
+    
+    // Handle window resize and mouse interactions.
+    window.addEventListener('resize', onWindowResize, false);
+    window.addEventListener('mousemove', onMouseMove, false);
+    window.addEventListener('click', onMouseClick, false);
+  }
+
+  // --- Resize Handler ---
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  // --- Mouse Move Handler ---
+  function onMouseMove(event) {
+    // Convert mouse coordinates from screen space to normalized device coordinates (-1 to 1).
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+    
+    // Unproject the 2D mouse position to 3D world space at z = 0.
+    let vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+    vector.unproject(camera);
+    mouse.x = vector.x;
+    mouse.y = vector.y;
+  }
+
+  // --- Mouse Click Handler ---
+  function onMouseClick(event) {
+    // On left-click, have nearby fireflies “scatter” with a burst of velocity.
+    for (let i = 0; i < fireflies.length; i++) {
+      let firefly = fireflies[i];
+      let diff = new THREE.Vector3(firefly.position.x - mouse.x, firefly.position.y - mouse.y, firefly.position.z);
+      if (diff.length() < 50) {
+        // Apply a random impulse
+        let impulse = new THREE.Vector3(
+          (Math.random()-0.5)*4,
+          (Math.random()-0.5)*4,
+          (Math.random()-0.5)*4
+        );
+        firefly.velocity.add(impulse);
+        firefly.flicker = 15.0;
+      }
+    }
+  }
+
+  // --- Animation Loop ---
+  function animate() {
+    requestAnimationFrame(animate);
+    updateFireflies();
+    renderer.render(scene, camera);
+  }
+
+  // Update each firefly’s simulation and refresh the particle attributes.
+  function updateFireflies() {
+    for (let i = 0; i < fireflies.length; i++) {
+      let firefly = fireflies[i];
+      firefly.update();
+      
+      positions[3*i]   = firefly.position.x;
+      positions[3*i+1] = firefly.position.y;
+      positions[3*i+2] = firefly.position.z;
+      
+      // Adjust the particle size based on its base size, current flicker state, and speed.
+      let speed = firefly.velocity.length();
+      sizes[i] = BASE_SIZE + firefly.flicker + speed * 2;
+    }
+    // Inform Three.js that the attributes have been updated.
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.size.needsUpdate = true;
+  }
+
+  // --- Initialize and Start Animation ---
+  init();
+  animate();
+  </script>
+</body>
+</html>

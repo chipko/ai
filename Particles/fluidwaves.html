@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fluid Particle Wave Simulation</title>
+  <style>
+    /* Ensure the canvas fills the screen with a dark, high–tech aesthetic */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Three.js and dat.GUI libraries are loaded via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+  <script>
+    /* ----- GLOBAL VARIABLES ----- */
+    let scene, camera, renderer, particleSystem, geometry, material;
+    let basePositions = []; // Original positions for each particle
+    let params;              // Parameters for controls
+    let mouse = new THREE.Vector2(0, 0);
+    let mouseWorld = new THREE.Vector3();
+    const raycaster = new THREE.Raycaster();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // y = 0 plane
+    let ripples = [];      // Stores active ripple effects from clicks
+
+    /* ----- DEFAULT PARAMETERS ----- */
+    params = {
+      particleDensity: 100,    // Grid will be 100x100 particles
+      speed: 1.0,              // Wave speed multiplier
+      interactionStrength: 2.0 // Strength of mouse–driven ripple effects
+    };
+
+    init();
+    animate();
+
+    /* ----- INITIALIZATION FUNCTION ----- */
+    function init() {
+      // Set up scene, camera, and renderer
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        1000
+      );
+      camera.position.set(0, 150, 300);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create the particle system (grid of points)
+      createParticleSystem();
+
+      // Listen for window resize events
+      window.addEventListener("resize", onWindowResize, false);
+      // Listen for mouse movement and clicks
+      window.addEventListener("mousemove", onMouseMove, false);
+      window.addEventListener("click", onMouseClick, false);
+
+      // Create UI controls using dat.GUI
+      const gui = new dat.GUI();
+      gui.add(params, "particleDensity", 50, 200, 1)
+        .name("Particle Density")
+        .onFinishChange(recreateParticleSystem);
+      gui.add(params, "speed", 0.1, 5.0, 0.1).name("Wave Speed");
+      gui.add(params, "interactionStrength", 0.1, 5.0, 0.1)
+        .name("Interaction Strength");
+    }
+
+    /* ----- CREATE/RECREATE PARTICLE SYSTEM ----- */
+    function createParticleSystem() {
+      // Remove any existing particle system
+      if (particleSystem) {
+        scene.remove(particleSystem);
+        geometry.dispose();
+        material.dispose();
+      }
+      basePositions = []; // Reset base positions
+
+      const density = params.particleDensity;
+      const totalParticles = density * density;
+      geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(totalParticles * 3);
+
+      // Define grid dimensions (a square grid)
+      const gridSize = 200; // world units (width and depth)
+      const halfGrid = gridSize / 2;
+      const step = gridSize / (density - 1);
+      let index = 0;
+
+      // Create particles in a grid (x, y, z)
+      for (let i = 0; i < density; i++) {
+        for (let j = 0; j < density; j++) {
+          const x = -halfGrid + j * step;
+          const z = -halfGrid + i * step;
+          const y = 0; // Start flat; y will be updated dynamically
+          positions[index] = x;
+          positions[index + 1] = y;
+          positions[index + 2] = z;
+          basePositions.push(new THREE.Vector3(x, y, z));
+          index += 3;
+        }
+      }
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+      // Create a PointsMaterial for a high–tech look
+      material = new THREE.PointsMaterial({
+        color: 0x00ffff,
+        size: 2,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.8
+      });
+
+      particleSystem = new THREE.Points(geometry, material);
+      scene.add(particleSystem);
+    }
+
+    // Called when particle density is changed via the GUI
+    function recreateParticleSystem() {
+      createParticleSystem();
+    }
+
+    /* ----- EVENT HANDLERS ----- */
+    // Adjust the renderer and camera on window resize
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Update mouse position and calculate its world–space intersection with the y=0 plane
+    function onMouseMove(event) {
+      // Normalized Device Coordinates (-1 to 1)
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      
+      // Update mouseWorld by intersecting the ray from the camera with the plane y = 0
+      raycaster.setFromCamera(mouse, camera);
+      raycaster.ray.intersectPlane(plane, mouseWorld);
+    }
+
+    // On click, add a ripple at the current mouseWorld position
+    function onMouseClick(event) {
+      const ripple = {
+        position: new THREE.Vector2(mouseWorld.x, mouseWorld.z),
+        time: performance.now() / 1000 // seconds
+      };
+      ripples.push(ripple);
+    }
+
+    /* ----- ANIMATION LOOP ----- */
+    function animate() {
+      requestAnimationFrame(animate);
+      render();
+    }
+
+    function render() {
+      const time = performance.now() / 1000; // Current time in seconds
+      const positions = geometry.attributes.position.array;
+      const density = params.particleDensity;
+      const baseWaveAmplitude = 5; // Base amplitude for the sine wave
+      const waveFrequency = 0.1;     // Frequency factor
+
+      // Remove ripples older than 1.5 seconds
+      const rippleDuration = 1.5;
+      ripples = ripples.filter(r => (time - r.time) < rippleDuration);
+
+      // Loop over all particles to update their y–position
+      for (let i = 0; i < basePositions.length; i++) {
+        const basePos = basePositions[i];
+        const x = basePos.x;
+        const z = basePos.z;
+        let y = 0;
+
+        // --- Base wave displacement ---
+        y += baseWaveAmplitude *
+             Math.sin((x + time * 50 * params.speed) * waveFrequency) *
+             Math.cos((z + time * 50 * params.speed) * waveFrequency);
+
+        // --- Continuous mouse influence ---
+        const dxMouse = x - mouseWorld.x;
+        const dzMouse = z - mouseWorld.z;
+        const distMouse = Math.sqrt(dxMouse * dxMouse + dzMouse * dzMouse);
+        const mouseInfluenceRadius = 30;
+        if (distMouse < mouseInfluenceRadius) {
+          // The closer the particle to the mouse, the stronger the effect
+          const influence = params.interactionStrength * (1 - distMouse / mouseInfluenceRadius);
+          y += influence * Math.sin(time * 10);
+        }
+
+        // --- Ripple effects from mouse clicks ---
+        ripples.forEach(ripple => {
+          const dx = x - ripple.position.x;
+          const dz = z - ripple.position.y; // Note: ripple.position.y holds the z coordinate
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          const rippleTime = time - ripple.time;
+          // Ripple expands outward; calculate its current radius
+          const rippleRadius = rippleTime * 100 * params.speed;
+          const rippleWidth = 20;
+          let rippleEffect = 0;
+          if (Math.abs(dist - rippleRadius) < rippleWidth) {
+            // Sinusoidal effect that fades as the particle lies away from the ripple front
+            rippleEffect = params.interactionStrength *
+                           Math.sin(((dist - rippleRadius) * Math.PI) / rippleWidth);
+          }
+          y += rippleEffect;
+        });
+
+        // Update the y–coordinate in the positions array (x at i*3, y at i*3+1, z at i*3+2)
+        positions[i * 3 + 1] = y;
+      }
+
+      // Inform Three.js that the positions have been updated
+      geometry.attributes.position.needsUpdate = true;
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

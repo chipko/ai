@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Particle Dance – WebGL Eye Candy</title>
+    <style>
+      /* Remove margins and hide scrollbars */
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      canvas {
+        display: block;
+      }
+      /* A simple custom cursor indicator */
+      #cursor {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        mix-blend-mode: difference;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Optional custom cursor element -->
+    <div id="cursor"></div>
+
+    <!-- Include Three.js from a CDN -->
+    <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+    <script>
+      // ----- Global variables -----
+      let scene, camera, renderer, points, geometry, material;
+      let numParticles = 5000;
+      // We'll use typed arrays to store the particle home positions and current velocities
+      let origins, velocities;
+      // Mouse position in world coordinates
+      let mousePos = new THREE.Vector3(0, 0, 0);
+      // Which action is active? (null, 'repel', or 'attract')
+      let mouseAction = null;
+
+      // ----- Initialization -----
+      init();
+      animate();
+
+      function init() {
+        // Create the scene
+        scene = new THREE.Scene();
+
+        // Create a Perspective Camera; placed a bit away so our particles (in the XY plane at z=0)
+        // are in view.
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.z = 100;
+
+        // Create the WebGL renderer with antialiasing
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Create a BufferGeometry to hold our particle positions
+        geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(numParticles * 3);
+        origins = new Float32Array(numParticles * 3);
+        velocities = new Float32Array(numParticles * 3);
+
+        // Initialize particle positions (and keep a copy as the “home” positions)
+        // We’ll scatter particles randomly in a square region centered at (0,0)
+        for (let i = 0; i < numParticles; i++) {
+          const ix = i * 3;
+          // Range: -50 to +50 on both X and Y
+          let x = (Math.random() - 0.5) * 100;
+          let y = (Math.random() - 0.5) * 100;
+          let z = 0; // All particles in the same plane
+
+          positions[ix] = x;
+          positions[ix + 1] = y;
+          positions[ix + 2] = z;
+
+          origins[ix] = x;
+          origins[ix + 1] = y;
+          origins[ix + 2] = z;
+
+          velocities[ix] = 0;
+          velocities[ix + 1] = 0;
+          velocities[ix + 2] = 0;
+        }
+        // Attach our position attribute to the geometry
+        geometry.setAttribute(
+          "position",
+          new THREE.BufferAttribute(positions, 3)
+        );
+
+        // Create a PointsMaterial – adjust the color and point size as desired.
+        material = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 1.5,
+        });
+
+        // Create the Points (particle system) and add it to the scene.
+        points = new THREE.Points(geometry, material);
+        scene.add(points);
+
+        // ----- Event Listeners -----
+        window.addEventListener("resize", onWindowResize, false);
+        window.addEventListener("mousemove", onMouseMove, false);
+        window.addEventListener("mousedown", onMouseDown, false);
+        window.addEventListener("mouseup", onMouseUp, false);
+        // Prevent the context menu so the right button can be used interactively.
+        window.addEventListener(
+          "contextmenu",
+          function (event) {
+            event.preventDefault();
+          },
+          false
+        );
+      }
+
+      // ----- Event Handlers -----
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onMouseMove(event) {
+        // Convert mouse coordinates to normalized device coordinates (-1 to +1)
+        const mouseNDC = new THREE.Vector2();
+        mouseNDC.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouseNDC.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // To find the world coordinate at z=0, unproject a vector from the camera.
+        const vector = new THREE.Vector3(mouseNDC.x, mouseNDC.y, 0.5);
+        vector.unproject(camera);
+        const dir = vector.sub(camera.position).normalize();
+        const distance = -camera.position.z / dir.z;
+        mousePos.copy(camera.position).add(dir.multiplyScalar(distance));
+
+        // Also update the custom cursor’s position.
+        const cursor = document.getElementById("cursor");
+        if (cursor) {
+          cursor.style.left = event.clientX + "px";
+          cursor.style.top = event.clientY + "px";
+        }
+      }
+
+      function onMouseDown(event) {
+        // Left mouse button (0) will repel; right mouse button (2) will attract.
+        if (event.button === 0) {
+          mouseAction = "repel";
+        } else if (event.button === 2) {
+          mouseAction = "attract";
+        }
+      }
+
+      function onMouseUp(event) {
+        mouseAction = null;
+      }
+
+      // ----- Animation Loop -----
+      function animate() {
+        requestAnimationFrame(animate);
+        updateParticles();
+        renderer.render(scene, camera);
+      }
+
+      // ----- Particle Update Function -----
+      function updateParticles() {
+        // Retrieve the positions array from the BufferGeometry.
+        const positions = geometry.attributes.position.array;
+        // Constants for the simulation
+        const k = 0.01; // spring constant: how strongly a particle is pulled back to its origin.
+        const damping = 0.95; // damping factor for velocity.
+        const dt = 1; // time step (can be tuned if needed).
+        const effectRadius = 20; // distance within which the mouse will affect particles.
+        const forceMagnitude = 0.5; // strength of the mouse force.
+
+        for (let i = 0; i < numParticles; i++) {
+          let ix = i * 3,
+            iy = i * 3 + 1,
+            iz = i * 3 + 2;
+
+          // Current particle position
+          let x = positions[ix],
+            y = positions[iy],
+            z = positions[iz];
+
+          // Original (home) position of the particle
+          let ox = origins[ix],
+            oy = origins[iy],
+            oz = origins[iz];
+
+          // Spring force: pull particle back to its original position.
+          let fx = (ox - x) * k;
+          let fy = (oy - y) * k;
+          let fz = (oz - z) * k;
+
+          // If a mouse action is active, add a force based on the distance from the mouse.
+          let dx = x - mousePos.x,
+            dy = y - mousePos.y,
+            dz = z - mousePos.z;
+          let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < effectRadius) {
+            // The closer the particle, the stronger the effect.
+            let effect = (effectRadius - dist) / effectRadius;
+            // Normalize the direction vector (avoid division by zero)
+            let nx = dx / (dist + 0.0001);
+            let ny = dy / (dist + 0.0001);
+            let nz = dz / (dist + 0.0001);
+
+            if (mouseAction === "repel") {
+              // Push particles away from the mouse.
+              fx += nx * forceMagnitude * effect;
+              fy += ny * forceMagnitude * effect;
+              fz += nz * forceMagnitude * effect;
+            } else if (mouseAction === "attract") {
+              // Pull particles toward the mouse.
+              // (Simply reverse the direction of the force.)
+              fx -= nx * forceMagnitude * effect;
+              fy -= ny * forceMagnitude * effect;
+              fz -= nz * forceMagnitude * effect;
+            }
+          }
+
+          // Update velocities based on the force.
+          velocities[ix] += fx * dt;
+          velocities[iy] += fy * dt;
+          velocities[iz] += fz * dt;
+
+          // Apply damping to reduce velocity over time.
+          velocities[ix] *= damping;
+          velocities[iy] *= damping;
+          velocities[iz] *= damping;
+
+          // Update particle positions based on the velocity.
+          positions[ix] += velocities[ix] * dt;
+          positions[iy] += velocities[iy] * dt;
+          positions[iz] += velocities[iz] * dt;
+        }
+        // Inform Three.js that the positions have changed.
+        geometry.attributes.position.needsUpdate = true;
+      }
+    </script>
+  </body>
+</html>

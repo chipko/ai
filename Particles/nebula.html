@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cosmic Explosion</title>
+  <style>
+    /* Make the canvas fill the window and hide scrollbars */
+    body { margin: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Include Three.js from a CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // Global variables
+    let scene, camera, renderer, clock;
+    let explosions = [];
+    let starField;
+    let mouse = new THREE.Vector2();
+    let mouseWorld = new THREE.Vector3();
+    let chargeStart = 0;
+    let isCharging = false;
+
+    init();
+    animate();
+
+    function init() {
+      // Create the scene
+      scene = new THREE.Scene();
+
+      // Create a perspective camera
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 5000);
+      camera.position.z = 1000;
+
+      // Create the WebGL renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create a clock for timing
+      clock = new THREE.Clock();
+
+      // Create a star field background
+      createStarField();
+
+      // Event listeners for resize and mouse interactions
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('mousemove', onMouseMove, false);
+      window.addEventListener('mousedown', onMouseDown, false);
+      window.addEventListener('mouseup', onMouseUp, false);
+    }
+
+    // Create a simple star field with 1000 points
+    function createStarField() {
+      const starCount = 1000;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(starCount * 3);
+      for (let i = 0; i < starCount; i++) {
+        positions[i * 3]     = (Math.random() - 0.5) * window.innerWidth * 2;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * window.innerHeight * 2;
+        // Place stars behind the explosions (z < 0)
+        positions[i * 3 + 2] = -Math.random() * 2000;
+      }
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const material = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+      starField = new THREE.Points(geometry, material);
+      scene.add(starField);
+    }
+
+    // Update camera and renderer on window resize
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Update the mouse vector and compute its corresponding world position (assuming explosions occur at z=0)
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      // Unproject the mouse position onto a plane at z=0
+      let vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+      vector.unproject(camera);
+      let dir = vector.sub(camera.position).normalize();
+      let distance = -camera.position.z / dir.z;
+      mouseWorld = camera.position.clone().add(dir.multiplyScalar(distance));
+      
+      // Update each explosion’s shader uniform for mouse position (affects the subtle distortion)
+      explosions.forEach(exp => {
+        exp.points.material.uniforms.u_mouse.value.copy(mouseWorld);
+      });
+    }
+
+    // Start charging on mouse down
+    function onMouseDown(event) {
+      isCharging = true;
+      chargeStart = clock.getElapsedTime();
+    }
+
+    // When mouse is released, create an explosion at the current mouse world position.
+    // The longer the mouse is held (up to 1 second), the larger and longer‐lasting the explosion.
+    function onMouseUp(event) {
+      isCharging = false;
+      let chargeTime = clock.getElapsedTime() - chargeStart;
+      chargeTime = Math.min(chargeTime, 1.0); // Cap the charge to 1 second
+      // Particle count scales from 200 to 1000 and lifetime from 2 to 4 seconds
+      let particleCount = Math.floor(200 + chargeTime * 800);
+      let lifetime = 2.0 + chargeTime * 2.0;
+      let explosionPos = mouseWorld.clone();
+      createExplosion(explosionPos, particleCount, lifetime);
+    }
+
+    // Create an explosion effect at a given position with a specified particle count and lifetime.
+    function createExplosion(position, particleCount, lifetime) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const startPositions = new Float32Array(particleCount * 3);
+      const velocities = new Float32Array(particleCount * 3);
+      const startTimes = new Float32Array(particleCount);
+      const lifetimes = new Float32Array(particleCount);
+      const colors = new Float32Array(particleCount * 3);
+      const currentTime = clock.getElapsedTime();
+
+      for (let i = 0; i < particleCount; i++) {
+        // Every particle starts at the explosion center
+        startPositions[i * 3]     = position.x;
+        startPositions[i * 3 + 1] = position.y;
+        startPositions[i * 3 + 2] = position.z;
+        positions[i * 3]     = position.x;
+        positions[i * 3 + 1] = position.y;
+        positions[i * 3 + 2] = position.z;
+        
+        // Create a random direction (uniformly distributed over the sphere)
+        let theta = Math.random() * 2 * Math.PI;
+        let phi = Math.acos(2 * Math.random() - 1);
+        let speed = Math.random() * 50 + 50; // Speed between 50 and 100
+        velocities[i * 3]     = speed * Math.sin(phi) * Math.cos(theta);
+        velocities[i * 3 + 1] = speed * Math.sin(phi) * Math.sin(theta);
+        velocities[i * 3 + 2] = speed * Math.cos(phi);
+        
+        startTimes[i] = currentTime;
+        lifetimes[i] = lifetime;
+        
+        // Choose a color from a palette of vibrant purples, blues, magentas, and oranges.
+        const palette = [
+          [0.6, 0.0, 1.0],
+          [0.0, 0.5, 1.0],
+          [1.0, 0.0, 1.0],
+          [1.0, 0.5, 0.0]
+        ];
+        let col = palette[Math.floor(Math.random() * palette.length)];
+        // Add a slight random variation to each color
+        colors[i * 3]     = col[0] + (Math.random() - 0.5) * 0.2;
+        colors[i * 3 + 1] = col[1] + (Math.random() - 0.5) * 0.2;
+        colors[i * 3 + 2] = col[2] + (Math.random() - 0.5) * 0.2;
+      }
+
+      // Set up custom attributes for the particle system
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('a_startPosition', new THREE.BufferAttribute(startPositions, 3));
+      geometry.setAttribute('a_velocity', new THREE.BufferAttribute(velocities, 3));
+      geometry.setAttribute('a_startTime', new THREE.BufferAttribute(startTimes, 1));
+      geometry.setAttribute('a_lifetime', new THREE.BufferAttribute(lifetimes, 1));
+      geometry.setAttribute('a_color', new THREE.BufferAttribute(colors, 3));
+
+      // Create a ShaderMaterial that computes each particle’s current position, glow, and fade-out
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          u_time: { value: currentTime },
+          u_mouse: { value: mouseWorld.clone() }
+        },
+        vertexShader: `
+          uniform float u_time;
+          uniform vec3 u_mouse;
+          attribute vec3 a_startPosition;
+          attribute vec3 a_velocity;
+          attribute float a_startTime;
+          attribute float a_lifetime;
+          attribute vec3 a_color;
+          varying float v_alpha;
+          varying vec3 v_color;
+          
+          void main() {
+            // Compute the age of this particle and a normalized lifetime factor t
+            float age = u_time - a_startTime;
+            float t = clamp(age / a_lifetime, 0.0, 1.0);
+            // Base position from explosion center plus velocity over time
+            vec3 pos = a_startPosition + a_velocity * age;
+            
+            // Add a gentle oscillation (a noise‐like offset) that diminishes with time
+            pos.x += sin(pos.y * 0.1 + u_time) * 5.0 * (1.0 - t);
+            pos.y += cos(pos.x * 0.1 + u_time) * 5.0 * (1.0 - t);
+            pos.z += sin(pos.x * 0.1 + u_time) * 5.0 * (1.0 - t);
+            
+            // Apply a subtle “gravitational” distortion pulling toward the mouse position
+            vec3 dirToMouse = u_mouse - pos;
+            float dist = length(dirToMouse);
+            pos += (dirToMouse / (dist + 0.001)) * 2.0 * (1.0 - t);
+            
+            // Fade the particle and shrink its point size over its lifetime
+            gl_PointSize = mix(10.0, 0.0, t);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            v_alpha = 1.0 - t;
+            v_color = a_color;
+          }
+        `,
+        fragmentShader: `
+          precision mediump float;
+          varying float v_alpha;
+          varying vec3 v_color;
+          void main() {
+            // Create a radial gradient so that each point looks like a glowing soft particle.
+            vec2 coord = gl_PointCoord - vec2(0.5);
+            float dist = length(coord);
+            float alpha = smoothstep(0.5, 0.0, dist) * v_alpha;
+            gl_FragColor = vec4(v_color, alpha);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const points = new THREE.Points(geometry, material);
+      scene.add(points);
+
+      // Store this explosion so we can update and eventually remove it
+      explosions.push({
+        points: points,
+        startTime: currentTime,
+        lifetime: lifetime
+      });
+    }
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      const currentTime = clock.getElapsedTime();
+
+      // Update each explosion’s shader uniform for time; remove expired explosions
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        let exp = explosions[i];
+        exp.points.material.uniforms.u_time.value = currentTime;
+        if (currentTime - exp.startTime > exp.lifetime) {
+          scene.remove(exp.points);
+          explosions.splice(i, 1);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

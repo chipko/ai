@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bioluminescent Particles</title>
+    <style>
+      /* Full‐screen canvas with an animated deep‐sea gradient background */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        background: linear-gradient(0deg, #001d3d, #003566);
+        animation: gradientShift 20s ease infinite;
+      }
+      @keyframes gradientShift {
+        0% {
+          background: linear-gradient(0deg, #001d3d, #003566);
+        }
+        50% {
+          background: linear-gradient(0deg, #002244, #004466);
+        }
+        100% {
+          background: linear-gradient(0deg, #001d3d, #003566);
+        }
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Import Three.js and simplex-noise from CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <script>
+      /* 
+        Interactive Particle-based Bioluminescence Effect
+        – Glowing particles (plankton / deep–sea vibe) that drift organically,
+          respond to mouse movement, left–click pulses, and right–click bursts.
+      */
+
+      // Scene, camera, and renderer setup:
+      let scene, camera, renderer, particleSystem;
+      let geometry, material;
+      const particleCount = 2000;
+      let positions, colors, brightnessArray, velocities;
+      const simplex = new SimplexNoise();
+      const clock = new THREE.Clock();
+
+      // Mouse state (world coordinates on the z=0 plane)
+      const mouse = new THREE.Vector2(0, 0);
+      const mouseWorld = new THREE.Vector3();
+
+      init();
+      animate();
+
+      function init() {
+        // Create scene and camera:
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          1,
+          500
+        );
+        camera.position.z = 100;
+
+        // Renderer with transparency (so the CSS animated gradient shows behind):
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000000, 0); // transparent clear color
+        document.body.appendChild(renderer.domElement);
+
+        // Create a BufferGeometry for our particles:
+        geometry = new THREE.BufferGeometry();
+        positions = new Float32Array(particleCount * 3);
+        colors = new Float32Array(particleCount * 3);
+        brightnessArray = new Float32Array(particleCount);
+        velocities = new Float32Array(particleCount * 3);
+
+        // Define a palette of deep‐sea / bioluminescent colors
+        const palette = [
+          new THREE.Color(0x001d3d), // deep blue
+          new THREE.Color(0x00d1b2), // turquoise
+          new THREE.Color(0x39ff14) // neon green
+        ];
+
+        // Initialize each particle’s position, color, brightness, and velocity.
+        for (let i = 0; i < particleCount; i++) {
+          const ix = i * 3;
+          // Random position within a box of about 100×100×100 centered at the origin:
+          positions[ix] = (Math.random() - 0.5) * 100;
+          positions[ix + 1] = (Math.random() - 0.5) * 100;
+          positions[ix + 2] = (Math.random() - 0.5) * 100;
+
+          // Randomly choose a color from the palette
+          const col = palette[Math.floor(Math.random() * palette.length)];
+          colors[ix] = col.r;
+          colors[ix + 1] = col.g;
+          colors[ix + 2] = col.b;
+
+          // All particles start with normal brightness (1.0)
+          brightnessArray[i] = 1.0;
+
+          // Small random initial velocity
+          velocities[ix] = (Math.random() - 0.5) * 0.02;
+          velocities[ix + 1] = (Math.random() - 0.5) * 0.02;
+          velocities[ix + 2] = (Math.random() - 0.5) * 0.02;
+        }
+
+        // Set the attributes on the geometry:
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute("brightness", new THREE.BufferAttribute(brightnessArray, 1));
+
+        // Define custom shaders for a glowing point effect:
+        const vertexShader = `
+          attribute float brightness;
+          attribute vec3 color;
+          varying vec3 vColor;
+          varying float vBrightness;
+          void main(){
+            vColor = color;
+            vBrightness = brightness;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            // Size adjusts with distance (and multiplies by brightness for extra impact)
+            gl_PointSize = 5.0 * (300.0 / -mvPosition.z) * brightness;
+            gl_Position = projectionMatrix * mvPosition;
+          }
+        `;
+
+        const fragmentShader = `
+          varying vec3 vColor;
+          varying float vBrightness;
+          void main(){
+            // Create a soft, radial gradient for each particle
+            float dist = length(gl_PointCoord - vec2(0.5));
+            float alpha = smoothstep(0.5, 0.0, dist);
+            gl_FragColor = vec4(vColor * vBrightness, alpha * vBrightness);
+          }
+        `;
+
+        // Create a ShaderMaterial using additive blending for a glowing effect.
+        material = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: { value: 0.0 }
+          },
+          vertexShader: vertexShader,
+          fragmentShader: fragmentShader,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          transparent: true
+        });
+
+        // Create the particle system and add it to the scene:
+        particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+
+        // Event listeners for resizing and user interaction:
+        window.addEventListener("resize", onWindowResize, false);
+        document.addEventListener("mousemove", onMouseMove, false);
+        document.addEventListener("click", onMouseClick, false);
+        document.addEventListener("contextmenu", onRightClick, false);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      // Update mouse position and compute a corresponding world coordinate (at z=0).
+      function onMouseMove(event) {
+        // Normalize mouse coordinates (-1 to 1)
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // Convert to world coordinates:
+        const vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+        vector.unproject(camera);
+        const dir = vector.sub(camera.position).normalize();
+        const distance = -camera.position.z / dir.z;
+        mouseWorld.copy(camera.position).add(dir.multiplyScalar(distance));
+
+        // As the mouse moves, add a subtle disturbance around the pointer.
+        disturbParticles(mouseWorld, 0.2, 10);
+      }
+
+      // Left–click sends a gentle pulse (ripple) through nearby particles.
+      function onMouseClick(event) {
+        disturbParticles(mouseWorld, 1.0, 20);
+      }
+
+      // Right–click (context menu) triggers a burst of brighter, extra–energetic particles.
+      function onRightClick(event) {
+        event.preventDefault(); // Prevent the context menu from appearing.
+        burstParticles(mouseWorld, 2.0, 15);
+      }
+
+      // Apply a disturbance force to particles within a given radius.
+      // "strength" controls the force magnitude.
+      function disturbParticles(center, strength, radius) {
+        for (let i = 0; i < particleCount; i++) {
+          const ix = i * 3;
+          const dx = positions[ix] - center.x;
+          const dy = positions[ix + 1] - center.y;
+          const dz = positions[ix + 2] - center.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < radius) {
+            const factor = (1 - dist / radius) * strength;
+            // Add a radial force (with a tiny safeguard against division by zero)
+            velocities[ix] += (dx / (dist + 0.0001)) * factor;
+            velocities[ix + 1] += (dy / (dist + 0.0001)) * factor;
+            velocities[ix + 2] += (dz / (dist + 0.0001)) * factor;
+          }
+        }
+      }
+
+      // On a right–click burst, also temporarily boost particle brightness.
+      function burstParticles(center, extraBrightness, radius) {
+        for (let i = 0; i < particleCount; i++) {
+          const ix = i * 3;
+          const dx = positions[ix] - center.x;
+          const dy = positions[ix + 1] - center.y;
+          const dz = positions[ix + 2] - center.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < radius) {
+            const factor = (1 - dist / radius);
+            velocities[ix] += (dx / (dist + 0.0001)) * extraBrightness * factor;
+            velocities[ix + 1] += (dy / (dist + 0.0001)) * extraBrightness * factor;
+            velocities[ix + 2] += (dz / (dist + 0.0001)) * extraBrightness * factor;
+            // Increase brightness for a dramatic burst.
+            brightnessArray[i] = 3.0;
+          }
+        }
+        geometry.attributes.brightness.needsUpdate = true;
+      }
+
+      // Animate the scene: update particle positions using perlin–noise drift and user–induced forces.
+      function animate() {
+        requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        const elapsed = clock.getElapsedTime();
+        material.uniforms.uTime.value = elapsed;
+
+        // Noise parameters for organic drifting:
+        const scale = 0.01;
+        const noiseFactor = 0.05;
+        const bound = 50;
+
+        for (let i = 0; i < particleCount; i++) {
+          const ix = i * 3;
+          // Add subtle perlin noise to each particle’s velocity.
+          const nx = simplex.noise3D(positions[ix] * scale, positions[ix + 1] * scale, elapsed);
+          const ny = simplex.noise3D(positions[ix + 1] * scale, positions[ix + 2] * scale, elapsed);
+          const nz = simplex.noise3D(positions[ix + 2] * scale, positions[ix] * scale, elapsed);
+          velocities[ix] += nx * noiseFactor;
+          velocities[ix + 1] += ny * noiseFactor;
+          velocities[ix + 2] += nz * noiseFactor;
+
+          // Update positions using the computed velocities.
+          positions[ix] += velocities[ix];
+          positions[ix + 1] += velocities[ix + 1];
+          positions[ix + 2] += velocities[ix + 2];
+
+          // Wrap particles around the bounds for a continuous flow.
+          if (positions[ix] > bound) positions[ix] = -bound;
+          else if (positions[ix] < -bound) positions[ix] = bound;
+          if (positions[ix + 1] > bound) positions[ix + 1] = -bound;
+          else if (positions[ix + 1] < -bound) positions[ix + 1] = bound;
+          if (positions[ix + 2] > bound) positions[ix + 2] = -bound;
+          else if (positions[ix + 2] < -bound) positions[ix + 2] = bound;
+
+          // Gradually slow down (velocity decay) so disturbances calm out.
+          velocities[ix] *= 0.98;
+          velocities[ix + 1] *= 0.98;
+          velocities[ix + 2] *= 0.98;
+
+          // Gradually return brightness to its base value (1.0)
+          brightnessArray[i] += (1.0 - brightnessArray[i]) * 0.02;
+        }
+        // Notify Three.js that the attributes have been updated.
+        geometry.attributes.position.needsUpdate = true;
+        geometry.attributes.brightness.needsUpdate = true;
+
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
+</html>

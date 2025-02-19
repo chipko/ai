@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dust Devil Vortex – Updated Colors & Secondary Vortex</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+  </style>
+</head>
+<body>
+  <!-- Include Three.js from a CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // --- Global Variables ---
+    let scene, camera, renderer, particleSystem;
+    let particles = []; // Array to store particle objects
+    const maxParticles = 5000;
+    let positions;      // Float32Array for BufferGeometry positions
+    let geometry, material;
+
+    // Interaction variables
+    let mouse = new THREE.Vector2(0, 0);
+    // vortexCenter defines the horizontal (X, Z) center of the main vortex.
+    let vortexCenter = new THREE.Vector2(0, 0);
+    let mouseDown = false;
+    let mouseDownStart = 0;
+    let clickStrength = 0;
+    // For the secondary vortex, we compute a world coordinate (on the X–Z plane at y = 0)
+    let secondaryVortexCenter = null;
+
+    init();
+    animate();
+
+    function init() {
+      // Create the scene and camera.
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        75, window.innerWidth / window.innerHeight, 0.1, 1000
+      );
+      camera.position.set(0, 0, 300);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+      // Create the WebGL renderer.
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create BufferGeometry to hold particle positions.
+      geometry = new THREE.BufferGeometry();
+      positions = new Float32Array(maxParticles * 3);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setDrawRange(0, 0);
+
+      // --- Custom Shader Material ---
+      // The vertex shader passes the y-coordinate to the fragment shader.
+      const vertexShader = `
+        varying float vY;
+        void main() {
+          vY = position.y;
+          gl_PointSize = 3.0;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `;
+      /* 
+        The fragment shader now:
+          • Uses a uniform "time" to cycle through colors.
+          • Mixes a base light (pastel-like) color (which itself is interpolated based on the y coordinate)
+            with a cyclic color computed from sine functions.
+      */
+      const fragmentShader = `
+        uniform float time;
+        uniform float minY;
+        uniform float maxY;
+        varying float vY;
+        void main(){
+          // Map the y coordinate to a 0.0–1.0 range.
+          float t = clamp((vY - minY) / (maxY - minY), 0.0, 1.0);
+          // Base colors: start with light pastel tones.
+          vec3 baseColor = mix(vec3(1.0, 0.9, 0.8), vec3(1.0, 1.0, 1.0), t);
+          // Cycle through colors over time.
+          vec3 cycle = vec3(
+            0.5 + 0.5 * sin(time + 0.0),
+            0.5 + 0.5 * sin(time + 2.094),
+            0.5 + 0.5 * sin(time + 4.188)
+          );
+          // Mix the base color with the cyclic color.
+          vec3 finalColor = mix(baseColor, cycle, 0.5);
+          float alpha = 0.7;
+          // Create a soft-edged circular point.
+          vec2 circ = gl_PointCoord - vec2(0.5);
+          if(length(circ) > 0.5) discard;
+          gl_FragColor = vec4(finalColor, alpha);
+        }
+      `;
+      material = new THREE.ShaderMaterial({
+        uniforms: {
+          time: { value: 0 },
+          minY: { value: -150 },
+          maxY: { value: 250 }
+        },
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+
+      // Create the Points object and add it to the scene.
+      particleSystem = new THREE.Points(geometry, material);
+      scene.add(particleSystem);
+
+      // --- Event Listeners ---
+      window.addEventListener('resize', onWindowResize, false);
+      document.addEventListener('mousemove', onMouseMove, false);
+      document.addEventListener('mousedown', onMouseDown, false);
+      document.addEventListener('mouseup', onMouseUp, false);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Update the mouse vector (normalized to -1…1) and update the main vortex center.
+    function onMouseMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      // Scale the mouse offset so that the vortex center “wobbles” within a limited range.
+      vortexCenter.x = mouse.x * 30;
+      vortexCenter.y = mouse.y * 30;
+    }
+
+    function onMouseDown(event) {
+      mouseDown = true;
+      mouseDownStart = Date.now();
+      clickStrength = 1.0;
+      // Compute the secondary vortex center by projecting the mouse to the X–Z plane (y = 0).
+      secondaryVortexCenter = getMouseWorldPosition();
+    }
+
+    function onMouseUp(event) {
+      mouseDown = false;
+      clickStrength = 0;
+      secondaryVortexCenter = null;
+    }
+
+    // Helper: Projects the current mouse coordinates to a point on the plane y = 0.
+    function getMouseWorldPosition() {
+      let vector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+      vector.unproject(camera);
+      // Compute the direction from the camera to the unprojected vector.
+      let dir = vector.sub(camera.position).normalize();
+      // Determine the distance along this direction to reach y = 0.
+      let distance = -camera.position.y / dir.y;
+      let pos = camera.position.clone().add(dir.multiplyScalar(distance));
+      return pos;
+    }
+
+    // --- Particle Definition and Spawning ---
+    function Particle(position, velocity) {
+      this.position = position.clone();
+      this.velocity = velocity.clone();
+      this.acceleration = new THREE.Vector3(0, 0, 0);
+    }
+    
+    function spawnParticle() {
+      const x = (Math.random() - 0.5) * 40;
+      const z = (Math.random() - 0.5) * 40;
+      const y = -150;
+      const pos = new THREE.Vector3(x, y, z);
+      const vy = 1 + Math.random() * 0.5;
+      const vx = (Math.random() - 0.5) * 0.2;
+      const vz = (Math.random() - 0.5) * 0.2;
+      const vel = new THREE.Vector3(vx, vy, vz);
+      return new Particle(pos, vel);
+    }
+
+    // --- Particle Physics Update ---
+    function updateParticles(delta) {
+      // Spawn a few new particles per frame if we haven’t reached the maximum.
+      if (particles.length < maxParticles) {
+        const spawnCount = 10;
+        for (let i = 0; i < spawnCount; i++) {
+          particles.push(spawnParticle());
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.acceleration.set(0, 0, 0); // Reset acceleration
+
+        // Upward force.
+        const upwardForce = 0.02;
+        p.acceleration.y += upwardForce;
+
+        // --- Main Vortex Swirl ---
+        // Compute the horizontal difference from the current (possibly offset) vortex center.
+        const center = new THREE.Vector3(vortexCenter.x, p.position.y, vortexCenter.y);
+        const dir = new THREE.Vector3().subVectors(p.position, center);
+        const horizontal = new THREE.Vector3(dir.x, 0, dir.z);
+        const distance = horizontal.length();
+        if (distance > 0.001) {
+          // Get a perpendicular (tangent) direction in the X–Z plane.
+          const tangent = new THREE.Vector3(-horizontal.z, 0, horizontal.x).normalize();
+          let swirlStrength = 0.05;
+          swirlStrength += clickStrength * 0.1; // Increase strength on click.
+          tangent.multiplyScalar(swirlStrength);
+          p.acceleration.add(tangent);
+
+          // A slight outward radial force when clicking.
+          const radialForce = 0.001 * clickStrength;
+          const radial = horizontal.clone().normalize().multiplyScalar(radialForce);
+          p.acceleration.add(radial);
+        }
+
+        // --- Secondary Vortex ---
+        // After holding the mouse for more than 500ms, apply a swirling force from the secondary vortex.
+        if (mouseDown && (Date.now() - mouseDownStart > 500) && secondaryVortexCenter) {
+          const diff = new THREE.Vector3(
+            p.position.x - secondaryVortexCenter.x, 
+            0, 
+            p.position.z - secondaryVortexCenter.z
+          );
+          const d = diff.length();
+          if (d < 100) {  // Increased threshold for more visible effect.
+            const secondaryStrength = 0.1; // Adjust strength as needed.
+            const secTangent = new THREE.Vector3(-diff.z, 0, diff.x)
+                                  .normalize()
+                                  .multiplyScalar(secondaryStrength);
+            p.acceleration.add(secTangent);
+          }
+        }
+
+        // --- Random Turbulence ---
+        const turbulence = 0.005;
+        p.acceleration.x += (Math.random() - 0.5) * turbulence;
+        p.acceleration.z += (Math.random() - 0.5) * turbulence;
+
+        // Update velocity and position.
+        p.velocity.add(p.acceleration);
+        p.position.add(p.velocity);
+
+        // Remove particles that have gone too far.
+        if (
+          p.position.y > 250 ||
+          p.position.x > 300 || p.position.x < -300 ||
+          p.position.z > 300 || p.position.z < -300
+        ) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    // Update the BufferGeometry’s position attribute from the particles array.
+    function updateGeometry() {
+      let index = 0;
+      for (let i = 0; i < particles.length; i++) {
+        positions[index++] = particles[i].position.x;
+        positions[index++] = particles[i].position.y;
+        positions[index++] = particles[i].position.z;
+      }
+      geometry.attributes.position.needsUpdate = true;
+      geometry.setDrawRange(0, particles.length);
+    }
+
+    // --- Render Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = 0.016; // Roughly 60fps
+      updateParticles(delta);
+      updateGeometry();
+      // Update the time uniform for color cycling.
+      material.uniforms.time.value = performance.now() / 1000.0;
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

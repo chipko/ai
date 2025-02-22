@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive Particle Eye Candy</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        let particles = [];
+        let particleColor;
+        let forceDirection = 1;
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            particleColor = color(200, 200, 255);
+            
+            // Create initial particles
+            for(let i = 0; i < 500; i++) {
+                particles.push(new Particle(random(width), random(height)));
+            }
+        }
+
+        function draw() {
+            background(0, 15); // Create trail effect
+            
+            // Update and display particles
+            particles.forEach(particle => {
+                particle.update();
+                particle.display();
+            });
+        }
+
+        class Particle {
+            constructor(x, y) {
+                this.pos = createVector(x, y);
+                this.vel = createVector(0, 0);
+                this.acc = createVector(0, 0);
+                this.maxSpeed = 4;
+                this.size = random(2, 5);
+            }
+
+            update() {
+                // Mouse interaction
+                let mouse = createVector(mouseX, mouseY);
+                let dir = p5.Vector.sub(mouse, this.pos);
+                let distance = dir.mag();
+                
+                if (mouseIsPressed) {
+                    if (mouseButton === LEFT) {
+                        // Repulsion
+                        dir.mult(-0.1/distance);
+                    } else if (mouseButton === RIGHT) {
+                        // Attraction
+                        dir.mult(0.1/distance);
+                    }
+                    this.acc.add(dir);
+                }
+                
+                // Add random movement
+                this.acc.add(p5.Vector.random2D().mult(0.1));
+                
+                this.vel.add(this.acc);
+                this.vel.limit(this.maxSpeed);
+                this.pos.add(this.vel);
+                this.acc.mult(0);
+                
+                // Edge wrapping
+                if (this.pos.x > width) this.pos.x = 0;
+                if (this.pos.x < 0) this.pos.x = width;
+                if (this.pos.y > height) this.pos.y = 0;
+                if (this.pos.y < 0) this.pos.y = height;
+            }
+
+            display() {
+                let speed = this.vel.mag();
+                let alpha = map(speed, 0, this.maxSpeed, 50, 255);
+                fill(red(particleColor), green(particleColor), blue(particleColor), alpha);
+                noStroke();
+                ellipse(this.pos.x, this.pos.y, this.size);
+            }
+        }
+
+        function mousePressed() {
+            // Change color based on click
+            if (mouseButton === LEFT) {
+                particleColor = color(random(150, 255), random(100, 200), random(100, 200));
+            } else if (mouseButton === RIGHT) {
+                particleColor = color(random(100, 200), random(100, 200), random(150, 255));
+            }
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+
+        // Prevent right-click menu
+        document.addEventListener('contextmenu', event => event.preventDefault());
+    </script>
+</body>
+</html>

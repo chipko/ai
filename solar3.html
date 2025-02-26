@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Solar System Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000000; } /* Black background */
+        canvas { display: block; }
+        #controls { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; }
+        #controls label { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label for="speed">Orbit Speed Factor:</label>
+        <input type="range" id="speed" min="0" max="10" step="0.1" value="1"><br>
+        <label for="scale">Real Size Scaling:</label>
+        <input type="range" id="scale" min="100000" max="10000000" step="10000" value="5000000"><br>
+        <input type="checkbox" id="realScaling"> Use Real Scaling<br>
+        <input type="checkbox" id="showOrbits" checked> Show Orbits
+    </div>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Scene Setup
+        const canvas = document.getElementById('canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 100, 200);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        // Celestial Bodies Data (8 planets, no Pluto)
+        const bodies = [
+            { name: 'Sun', orbitRadius: 0, period: 0, realRadius: 696340 / 149597870, fakeRadius: 5, color: 0xffff00 },
+            { name: 'Mercury', orbitRadius: 0.39, period: 88, realRadius: 2440 / 149597870, fakeRadius: 0.5, color: 0xaaaaaa },
+            { name: 'Venus', orbitRadius: 0.72, period: 225, realRadius: 6052 / 149597870, fakeRadius: 1.2, color: 0xffcc00 },
+            { name: 'Earth', orbitRadius: 1, period: 365.25, realRadius: 6371 / 149597870, fakeRadius: 1.3, color: 0x0000ff },
+            { name: 'Mars', orbitRadius: 1.52, period: 687, realRadius: 3390 / 149597870, fakeRadius: 0.7, color: 0xff0000 },
+            { name: 'Jupiter', orbitRadius: 5.2, period: 4333, realRadius: 71492 / 149597870, fakeRadius: 3.5, color: 0xffa500 },
+            { name: 'Saturn', orbitRadius: 9.5, period: 10759, realRadius: 60268 / 149597870, fakeRadius: 3.0, color: 0xd4a017 },
+            { name: 'Uranus', orbitRadius: 19.2, period: 30687, realRadius: 25559 / 149597870, fakeRadius: 2.0, color: 0x00ffff },
+            { name: 'Neptune', orbitRadius: 30.1, period: 60190, realRadius: 24764 / 149597870, fakeRadius: 1.9, color: 0x000080 }
+        ];
+
+        const distanceScale = 10;
+
+        // Create Meshes and Orbits
+        bodies.forEach(body => {
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: body.color,
+                emissive: body.name === 'Sun' ? 0xffff00 : 0x000000,
+                emissiveIntensity: body.name === 'Sun' ? 0.5 : 0
+            });
+            body.mesh = new THREE.Mesh(geometry, material);
+            body.mesh.position.set(0, 0, 0);
+            scene.add(body.mesh);
+
+            if (body.orbitRadius > 0) {
+                const points = [];
+                const segments = 64;
+                const scaledRadius = body.orbitRadius * distanceScale;
+                for (let i = 0; i <= segments; i++) {
+                    const theta = (i / segments) * Math.PI * 2;
+                    points.push(
+                        new THREE.Vector3(
+                            scaledRadius * Math.cos(theta),
+                            0,
+                            scaledRadius * Math.sin(theta)
+                        )
+                    );
+                }
+                const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                body.orbitLine = new THREE.LineLoop(orbitGeometry, new THREE.LineBasicMaterial({ color: 0x888888 }));
+                body.orbitLine.rotation.x = Math.PI / 2;
+                scene.add(body.orbitLine);
+            } else {
+                body.orbitLine = null;
+            }
+        });
+
+        // Lighting
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(0, 0, 0);
+        scene.add(pointLight);
+
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+
+        // Animation Variables
+        let time = 0;
+        let speed = 1; // Speed factor (1 = base rate, 10 = 10x faster)
+        let sizeScale = 5000000;
+        let useRealScaling = false;
+        let trackedObject = bodies[0]; // Start tracking the sun
+        const clock = new THREE.Clock();
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            time += delta * speed; // Time progresses with speed factor
+
+            // Update planet positions
+            bodies.forEach(body => {
+                if (body.orbitRadius > 0) {
+                    const theta = (2 * Math.PI * time) / body.period;
+                    const scaledRadius = body.orbitRadius * distanceScale;
+                    body.mesh.position.set(
+                        scaledRadius * Math.cos(theta),
+                        0,
+                        scaledRadius * Math.sin(theta)
+                    );
+                }
+            });
+
+            // Update scales
+            bodies.forEach(body => {
+                let scaledRadius;
+                if (body.name === 'Sun') {
+                    scaledRadius = 5;
+                } else if (useRealScaling) {
+                    scaledRadius = Math.max(body.realRadius * sizeScale, 0.1);
+                } else {
+                    scaledRadius = body.fakeRadius;
+                }
+                body.mesh.scale.set(scaledRadius, scaledRadius, scaledRadius);
+            });
+
+            // Update camera target
+            controls.target.copy(trackedObject.mesh.position);
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Mouse Interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        canvas.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(bodies.map(body => body.mesh));
+            if (event.button === 0 && intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                trackedObject = bodies.find(body => body.mesh === clickedMesh);
+            } else if (event.button === 2) {
+                trackedObject = bodies[0]; // Sun
+            }
+        });
+
+        // UI Controls
+        document.getElementById('speed').addEventListener('input', (e) => {
+            speed = parseFloat(e.target.value);
+        });
+
+        document.getElementById('scale').addEventListener('input', (e) => {
+            sizeScale = parseFloat(e.target.value);
+        });
+
+        document.getElementById('realScaling').addEventListener('change', (e) => {
+            useRealScaling = e.target.checked;
+        });
+
+        document.getElementById('showOrbits').addEventListener('change', (e) => {
+            bodies.forEach(body => {
+                if (body.orbitLine) body.orbitLine.visible = e.target.checked;
+            });
+        });
+
+        // Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        console.log('Simulation running. Grid removed. Speed factor adjusts orbit times.');
+    </script>
+</body>
+</html>

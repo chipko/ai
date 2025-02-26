@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Particle Interaction Fix</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+<script>
+let particles = [];
+let connectionDistance = 80;
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    noStroke();
+    
+    // Create initial particles
+    for(let i = 0; i < 200; i++) {
+        particles.push(new Particle(random(width), random(height)));
+    }
+}
+
+function draw() {
+    background(0);
+    
+    // Update and display particles
+    particles.forEach(particle => {
+        particle.update();
+        particle.display();
+    });
+    
+    // Draw connections
+    drawConnections();
+}
+
+class Particle {
+    constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.vel = createVector.random2D().mult(2);
+        this.size = random(3, 6);
+        this.color = color(random(150, 255), random(150, 255), random(150, 255));
+    }
+
+    update() {
+        // Mouse interaction
+        let mouseDist = dist(mouseX, mouseY, this.pos.x, this.pos.y);
+        if(mouseDist < 150) {
+            let force = p5.Vector.sub(this.pos, createVector(mouseX, mouseY));
+            force.setMag(map(mouseDist, 0, 150, 2, 0));
+            
+            if(mouseIsPressed) {
+                if(mouseButton === LEFT) {
+                    this.vel.add(force.mult(0.5));
+                } else {
+                    this.vel.sub(force.mult(0.3));
+                }
+            }
+        }
+
+        // Update physics
+        this.pos.add(this.vel);
+        this.vel.mult(0.99);
+        
+        // Bounce off walls
+        if(this.pos.x < 0 || this.pos.x > width) this.vel.x *= -1;
+        if(this.pos.y < 0 || this.pos.y > height) this.vel.y *= -1;
+    }
+
+    display() {
+        fill(this.color);
+        ellipse(this.pos.x, this.pos.y, this.size);
+    }
+}
+
+function drawConnections() {
+    for(let i = 0; i < particles.length; i++) {
+        for(let j = i+1; j < particles.length; j++) {
+            let d = dist(
+                particles[i].pos.x, particles[i].pos.y,
+                particles[j].pos.x, particles[j].pos.y
+            );
+            
+            if(d < connectionDistance) {
+                strokeWeight(map(d, 0, connectionDistance, 2, 0));
+                stroke(255, map(d, 0, connectionDistance, 150, 50));
+                line(
+                    particles[i].pos.x, particles[i].pos.y,
+                    particles[j].pos.x, particles[j].pos.y
+                );
+            }
+        }
+    }
+}
+
+function mousePressed() {
+    // Change connection distance on click
+    connectionDistance = mouseButton === LEFT ? 120 : 60;
+}
+
+function windowResized() {
+    resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>

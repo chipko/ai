@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Enhanced Solar System Simulation with Zoom and Improved UI</title>
+    <!-- p5.js for graphics and vector math -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: black;
+        color: white;
+        font-family: sans-serif;
+      }
+      /* Position our UI controls in the upper left */
+      #ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 10;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 10px;
+        border-radius: 5px;
+      }
+      #ui label, #ui h3, #ui p {
+        font-size: 14px;
+      }
+      #ui input, #ui span {
+        vertical-align: middle;
+      }
+      #asteroidList li {
+        list-style: none;
+        margin: 4px 0;
+      }
+      #asteroidList div {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 8px;
+      }
+      #asteroidList button {
+        padding: 2px 4px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <label>
+        <input type="checkbox" id="fadeCheckbox"> Fade Trails
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" id="collisionCheckbox" checked> Enable Collision
+      </label>
+      <br>
+      <label>
+        Collision Multiplier: 
+        <input type="range" id="collisionSlider" min="1" max="3" step="0.1" value="1">
+      </label>
+      <span id="collisionValue">1</span>
+      <hr>
+      <h3>Tracked Asteroids</h3>
+      <ul id="asteroidList"></ul>
+      <hr>
+      <p>Zoom: Use Mouse Wheel</p>
+    </div>
+    <script>
+      // Global simulation variables
+      let sun;
+      let planets = [];
+      let asteroids = [];
+      const G = 1; // Gravitational constant (arbitrary units)
+      let asteroidCounter = 0; // Unique ID counter for asteroids
+
+      // UI elements
+      let fadeCheckbox, collisionSlider, collisionValueDisplay, collisionCheckbox;
+
+      // For left-click drag asteroid creation (in simulation coords)
+      let leftDragging = false;
+      let dragStart = null;
+
+      // For right-click rotation of the world
+      let rotating = false;
+      let rotationStartX = 0;
+      let initialRotationAngle = 0;
+      let worldRotationAngle = 0;
+
+      // Zoom factor for the simulation
+      let zoom = 1;
+
+      let cnv; // to hold the canvas reference
+
+      function setup() {
+        cnv = createCanvas(windowWidth, windowHeight);
+        // Disable the context menu on right-click over our canvas
+        cnv.elt.oncontextmenu = () => false;
+
+        // Setup UI elements
+        fadeCheckbox = select('#fadeCheckbox');
+        collisionSlider = select('#collisionSlider');
+        collisionValueDisplay = select('#collisionValue');
+        collisionCheckbox = select('#collisionCheckbox');
+
+        // Set up the Sun at the center (simulation coordinates are canvas coordinates)
+        sun = {
+          pos: createVector(width / 2, height / 2),
+          mass: 10000,
+          radius: 30,
+          color: 'yellow'
+        };
+
+        // Define eight planets with arbitrary orbital parameters
+        planets = [
+          { name: "Mercury", distance: 60,  mass: 10,  angle: random(TWO_PI), angularSpeed: 0.03, radius: 4,  color: 'gray' },
+          { name: "Venus",   distance: 90,  mass: 20,  angle: random(TWO_PI), angularSpeed: 0.025, radius: 6,  color: 'orange' },
+          { name: "Earth",   distance: 120, mass: 30,  angle: random(TWO_PI), angularSpeed: 0.02, radius: 6,  color: 'blue' },
+          { name: "Mars",    distance: 150, mass: 25,  angle: random(TWO_PI), angularSpeed: 0.018, radius: 5,  color: 'red' },
+          { name: "Jupiter", distance: 200, mass: 100, angle: random(TWO_PI), angularSpeed: 0.015, radius: 12, color: 'orange' },
+          { name: "Saturn",  distance: 250, mass: 80,  angle: random(TWO_PI), angularSpeed: 0.012, radius: 10, color: 'goldenrod' },
+          { name: "Uranus",  distance: 300, mass: 60,  angle: random(TWO_PI), angularSpeed: 0.01, radius: 8,  color: 'lightblue' },
+          { name: "Neptune", distance: 350, mass: 60,  angle: random(TWO_PI), angularSpeed: 0.009, radius: 8,  color: 'blue' }
+        ];
+      }
+
+      // Convert canvas (screen) coordinates to simulation coordinates
+      // Now accounting for both the zoom and world rotation transforms.
+      function canvasToSim(x, y) {
+        let v = createVector(x, y);
+        v.sub(sun.pos);
+        v.div(zoom);
+        v.rotate(-worldRotationAngle);
+        v.add(sun.pos);
+        return v;
+      }
+
+      function draw() {
+        // Update collision slider display
+        collisionValueDisplay.html(collisionSlider.value());
+        let collisionMultiplier = parseFloat(collisionSlider.value());
+        let collisionsEnabled = collisionCheckbox.checked();
+
+        // Handle trail fading or clear background
+        if (fadeCheckbox && fadeCheckbox.checked()) {
+          noStroke();
+          fill(0, 30);
+          rect(0, 0, width, height);
+        } else {
+          background(0);
+        }
+
+        push();
+        // Apply zoom around the Sun's center
+        translate(sun.pos.x, sun.pos.y);
+        scale(zoom);
+        translate(-sun.pos.x, -sun.pos.y);
+
+        // Apply world rotation around the Sun's center:
+        push();
+        translate(sun.pos.x, sun.pos.y);
+        rotate(worldRotationAngle);
+        translate(-sun.pos.x, -sun.pos.y);
+
+        // Draw the orbits of the planets (as circles around the Sun)
+        stroke(100);
+        noFill();
+        for (let planet of planets) {
+          ellipse(sun.pos.x, sun.pos.y, planet.distance * 2, planet.distance * 2);
+        }
+
+        // Draw the Sun
+        noStroke();
+        fill(sun.color);
+        ellipse(sun.pos.x, sun.pos.y, sun.radius * 2);
+
+        // Update and draw each planet along its orbit
+        for (let planet of planets) {
+          planet.angle += planet.angularSpeed;
+          planet.pos = createVector(
+            sun.pos.x + planet.distance * cos(planet.angle),
+            sun.pos.y + planet.distance * sin(planet.angle)
+          );
+          fill(planet.color);
+          ellipse(planet.pos.x, planet.pos.y, planet.radius * 2);
+        }
+
+        // If left mouse is being dragged, draw the intended velocity vector for the new asteroid.
+        if (leftDragging && dragStart) {
+          let currentSim = canvasToSim(mouseX, mouseY);
+          stroke(255);
+          line(dragStart.x, dragStart.y, currentSim.x, currentSim.y);
+          push();
+          let arrowVec = p5.Vector.sub(currentSim, dragStart);
+          translate(currentSim.x, currentSim.y);
+          rotate(arrowVec.heading());
+          let arrowSize = 7;
+          line(0, 0, -arrowSize, -arrowSize / 2);
+          line(0, 0, -arrowSize, arrowSize / 2);
+          pop();
+        }
+
+        // Update and draw all asteroids
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+          let a = asteroids[i];
+          // Sum gravitational accelerations from the Sun and each planet
+          let acceleration = createVector(0, 0);
+          function applyGravity(bodyPos, bodyMass) {
+            let force = p5.Vector.sub(bodyPos, a.pos);
+            let distance = force.mag();
+            distance = max(distance, 5); // avoid singularity at short distances
+            force.normalize();
+            let strength = (G * bodyMass) / (distance * distance);
+            force.mult(strength);
+            acceleration.add(force);
+          }
+          applyGravity(sun.pos, sun.mass);
+          for (let planet of planets) {
+            applyGravity(planet.pos, planet.mass);
+          }
+          a.vel.add(acceleration);
+          a.pos.add(a.vel);
+          a.path.push(a.pos.copy());
+
+          // Collision detection (only if enabled)
+          if (collisionsEnabled) {
+            if (p5.Vector.dist(a.pos, sun.pos) < sun.radius * collisionMultiplier) {
+              if (a.uiElement) a.uiElement.remove();
+              asteroids.splice(i, 1);
+              continue;
+            }
+            for (let planet of planets) {
+              if (p5.Vector.dist(a.pos, planet.pos) < planet.radius * collisionMultiplier) {
+                if (a.uiElement) a.uiElement.remove();
+                asteroids.splice(i, 1);
+                break;
+              }
+            }
+          }
+
+          // Draw the asteroid’s trail
+          noFill();
+          stroke(a.trailColor);
+          beginShape();
+          for (let v of a.path) {
+            vertex(v.x, v.y);
+          }
+          endShape();
+
+          // Draw the asteroid itself
+          fill(a.trailColor);
+          noStroke();
+          ellipse(a.pos.x, a.pos.y, 8);
+        }
+        pop(); // End rotation transformation
+        pop(); // End zoom transformation
+      }
+
+      // Mouse event handlers
+      function mousePressed() {
+        if (mouseButton === LEFT) {
+          // Begin left-drag to set asteroid velocity.
+          leftDragging = true;
+          dragStart = canvasToSim(mouseX, mouseY);
+        } else if (mouseButton === RIGHT) {
+          // Begin right-drag for world rotation.
+          rotating = true;
+          rotationStartX = mouseX;
+          initialRotationAngle = worldRotationAngle;
+        }
+      }
+
+      function mouseDragged() {
+        if (rotating) {
+          // Update world rotation based on horizontal mouse movement.
+          worldRotationAngle = initialRotationAngle + (mouseX - rotationStartX) * 0.01;
+        }
+      }
+
+      function mouseReleased() {
+        if (mouseButton === LEFT && leftDragging) {
+          leftDragging = false;
+          let dragEnd = canvasToSim(mouseX, mouseY);
+          // The initial velocity is scaled from the drag vector (adjust multiplier as desired)
+          let initialVelocity = p5.Vector.sub(dragEnd, dragStart).mult(0.05);
+          // Each asteroid is given a random trail color.
+          let trailColor = color(random(100, 255), random(100, 255), random(100, 255));
+          // Create the new asteroid object with a unique ID.
+          let newAsteroid = {
+            id: asteroidCounter++,
+            pos: dragStart.copy(),
+            vel: initialVelocity,
+            path: [dragStart.copy()],
+            trailColor: trailColor,
+            uiElement: null  // will be set when added to UI
+          };
+          asteroids.push(newAsteroid);
+          addAsteroidToUI(newAsteroid);
+        } else if (mouseButton === RIGHT && rotating) {
+          rotating = false;
+        }
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        sun.pos = createVector(width / 2, height / 2);
+      }
+
+      // Mouse wheel to control zoom level
+      function mouseWheel(event) {
+        zoom += event.delta * -0.001;  // Adjust zoom sensitivity as needed
+        zoom = constrain(zoom, 0.1, 5);
+        return false;  // Prevent default scrolling
+      }
+
+      // Utility: Add the new asteroid to the tracked UI list.
+      function addAsteroidToUI(asteroid) {
+        let li = createElement('li');
+        // Create a small colored box that matches the asteroid's trail color.
+        let colorBox = createDiv('');
+        colorBox.style('display', 'inline-block');
+        colorBox.style('width', '12px');
+        colorBox.style('height', '12px');
+        colorBox.style('background', asteroid.trailColor.toString());
+        colorBox.style('margin-right', '8px');
+        // Create a text label.
+        let textSpan = createSpan('Asteroid ' + asteroid.id);
+        textSpan.style('margin-right', '8px');
+        // Create a removal button.
+        let removeBtn = createButton('X');
+        removeBtn.style('padding', '2px 4px');
+        // Attach a native event listener to stop propagation so the click doesn’t trigger canvas events.
+        removeBtn.elt.addEventListener('click', (e) => {
+          e.stopPropagation();
+          removeAsteroidById(asteroid.id);
+          li.remove();
+        });
+        li.child(colorBox);
+        li.child(textSpan);
+        li.child(removeBtn);
+        // Append the list item to the UI.
+        let asteroidList = select('#asteroidList');
+        asteroidList.child(li);
+        // Store a reference for later removal if needed.
+        asteroid.uiElement = li;
+      }
+
+      // Utility: Remove an asteroid from the simulation by its ID.
+      function removeAsteroidById(id) {
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+          if (asteroids[i].id === id) {
+            asteroids.splice(i, 1);
+            break;
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

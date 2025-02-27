@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Solar System Gravity Simulation</title>
+    <!-- p5.js CDN for graphics and vector math -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+    <style>
+      body { margin: 0; padding: 0; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <script>
+      let sun;
+      let planets = [];
+      let asteroid = null;
+      let dragging = false;
+      let dragStart = null;
+      const G = 1; // Gravitational constant (arbitrary units)
+
+      function setup() {
+        createCanvas(windowWidth, windowHeight);
+        // Define the Sun at the center
+        sun = {
+          pos: createVector(width / 2, height / 2),
+          mass: 10000,
+          radius: 30,
+          color: 'yellow'
+        };
+
+        // Define eight planets with arbitrary parameters
+        planets = [
+          { name: "Mercury", distance: 60,  mass: 10,  angle: random(TWO_PI), angularSpeed: 0.03, radius: 4,  color: 'gray' },
+          { name: "Venus",   distance: 90,  mass: 20,  angle: random(TWO_PI), angularSpeed: 0.025, radius: 6,  color: 'orange' },
+          { name: "Earth",   distance: 120, mass: 30,  angle: random(TWO_PI), angularSpeed: 0.02, radius: 6,  color: 'blue' },
+          { name: "Mars",    distance: 150, mass: 25,  angle: random(TWO_PI), angularSpeed: 0.018, radius: 5,  color: 'red' },
+          { name: "Jupiter", distance: 200, mass: 100, angle: random(TWO_PI), angularSpeed: 0.015, radius: 12, color: 'orange' },
+          { name: "Saturn",  distance: 250, mass: 80,  angle: random(TWO_PI), angularSpeed: 0.012, radius: 10, color: 'goldenrod' },
+          { name: "Uranus",  distance: 300, mass: 60,  angle: random(TWO_PI), angularSpeed: 0.01, radius: 8,  color: 'lightblue' },
+          { name: "Neptune", distance: 350, mass: 60,  angle: random(TWO_PI), angularSpeed: 0.009, radius: 8,  color: 'blue' }
+        ];
+      }
+
+      function draw() {
+        background(0);
+
+        // Draw orbits (for visualization)
+        stroke(100);
+        noFill();
+        for (let planet of planets) {
+          ellipse(sun.pos.x, sun.pos.y, planet.distance * 2, planet.distance * 2);
+        }
+
+        // Draw the Sun
+        noStroke();
+        fill(sun.color);
+        ellipse(sun.pos.x, sun.pos.y, sun.radius * 2);
+
+        // Update and draw each planet along its circular orbit
+        for (let planet of planets) {
+          planet.angle += planet.angularSpeed;
+          let planetPos = createVector(
+            sun.pos.x + planet.distance * cos(planet.angle),
+            sun.pos.y + planet.distance * sin(planet.angle)
+          );
+          planet.pos = planetPos;
+          fill(planet.color);
+          ellipse(planetPos.x, planetPos.y, planet.radius * 2);
+        }
+
+        // If the user is dragging, draw the drag vector
+        if (dragging && dragStart) {
+          stroke(255);
+          line(dragStart.x, dragStart.y, mouseX, mouseY);
+          push();
+          let arrowVec = createVector(mouseX - dragStart.x, mouseY - dragStart.y);
+          translate(mouseX, mouseY);
+          rotate(arrowVec.heading());
+          let arrowSize = 7;
+          line(0, 0, -arrowSize, -arrowSize / 2);
+          line(0, 0, -arrowSize, arrowSize / 2);
+          pop();
+        }
+
+        // Update and draw the asteroid if it exists
+        if (asteroid && asteroid.active) {
+          // Compute gravitational acceleration from the Sun and each planet
+          let acceleration = createVector(0, 0);
+
+          // Helper function to compute gravity from a body
+          function applyGravity(bodyPos, bodyMass) {
+            let force = p5.Vector.sub(bodyPos, asteroid.pos);
+            let distance = force.mag();
+            distance = max(distance, 5); // Prevent singularity at very short distances
+            force.normalize();
+            let strength = (G * bodyMass) / (distance * distance);
+            force.mult(strength);
+            acceleration.add(force);
+          }
+
+          // Gravity from the Sun
+          applyGravity(sun.pos, sun.mass);
+          // Gravity from each planet
+          for (let planet of planets) {
+            applyGravity(planet.pos, planet.mass);
+          }
+
+          // Update the asteroid's velocity and position
+          asteroid.vel.add(acceleration);
+          asteroid.pos.add(asteroid.vel);
+          asteroid.path.push(asteroid.pos.copy());
+
+          // Draw the asteroid's path
+          noFill();
+          stroke(255, 255, 0);
+          beginShape();
+          for (let v of asteroid.path) {
+            vertex(v.x, v.y);
+          }
+          endShape();
+
+          // Draw the asteroid itself
+          fill(255, 0, 255);
+          noStroke();
+          ellipse(asteroid.pos.x, asteroid.pos.y, 8);
+        }
+      }
+
+      // Start dragging when left mouse is pressed
+      function mousePressed() {
+        if (mouseButton === LEFT) {
+          dragging = true;
+          dragStart = createVector(mouseX, mouseY);
+        }
+      }
+
+      // On release, create an asteroid with an initial velocity from the drag vector
+      function mouseReleased() {
+        if (dragging && mouseButton === LEFT) {
+          dragging = false;
+          let dragEnd = createVector(mouseX, mouseY);
+          // The initial velocity is scaled from the drag vector (adjust the multiplier as needed)
+          let initialVelocity = p5.Vector.sub(dragEnd, dragStart).mult(0.05);
+          asteroid = {
+            pos: dragStart.copy(),
+            vel: initialVelocity,
+            active: true,
+            path: [dragStart.copy()]
+          };
+        }
+      }
+
+      // Adjust canvas size on window resize
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        sun.pos = createVector(width / 2, height / 2);
+      }
+    </script>
+  </body>
+</html>

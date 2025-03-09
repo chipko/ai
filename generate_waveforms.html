@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Audio Waveform Generator – Steps, Loops & Crisp Canvas</title>
+  <style>
+    body {
+      background: #222;
+      color: #fff;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .control-panel {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      max-width: 1000px;
+      margin: 0 auto 20px auto;
+      padding: 10px;
+      background: #333;
+      border-radius: 4px;
+    }
+    .group {
+      flex: 1;
+      min-width: 250px;
+    }
+    .group h2 {
+      text-align: center;
+      margin-top: 0;
+      font-size: 1.1em;
+      border-bottom: 1px solid #555;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+    .group div {
+      margin: 8px 0;
+    }
+    .group label {
+      display: inline-block;
+      width: 140px;
+      vertical-align: middle;
+    }
+    .group input[type="range"],
+    .group input[type="number"] {
+      width: 120px;
+      vertical-align: middle;
+    }
+    .group select {
+      width: 130px;
+      vertical-align: middle;
+    }
+    .group input[type="color"] {
+      width: 60px;
+      height: 30px;
+      vertical-align: middle;
+    }
+    .sequencer {
+      margin-top: 10px;
+    }
+    .sequencer label {
+      margin-right: 4px;
+      font-size: 0.9em;
+    }
+    .sequencer br {
+      margin-bottom: 5px;
+    }
+    .btn-group {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    #canvasContainer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    #liveCanvas {
+      display: inline-block;
+      background: transparent;
+      border: 1px solid #fff;
+    }
+  </style>
+  <!-- Include JSZip from CDN for bundling frames -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <h1>Audio Waveform Generator – Steps, Loops & Crisp Canvas</h1>
+
+  <div class="control-panel">
+    <!-- Waveform Settings -->
+    <div class="group">
+      <h2>Waveform Settings</h2>
+      <div>
+        <label for="stepCount">Step Count:</label>
+        <select id="stepCount">
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="12" selected>12</option>
+          <option value="16">16</option>
+        </select>
+      </div>
+      <div>
+        <label for="sineAmp">Sine Amplitude:</label>
+        <input type="range" id="sineAmp" min="0" max="1" step="0.01" value="0.4">
+        <span id="sineAmpVal">0.40</span>
+      </div>
+      <div>
+        <label for="modAmp">Modulation Amplitude:</label>
+        <input type="range" id="modAmp" min="0" max="1" step="0.01" value="0.3">
+        <span id="modAmpVal">0.30</span>
+      </div>
+      <div>
+        <label for="gain">Gain:</label>
+        <input type="range" id="gain" min="1" max="3" step="0.1" value="1.5">
+        <span id="gainVal">1.5</span>
+      </div>
+      <div>
+        <label for="beatOverlay">Beat Overlay:</label>
+        <input type="checkbox" id="beatOverlay">
+      </div>
+      <div>
+        <label for="beatIntensity">Beat Intensity:</label>
+        <input type="range" id="beatIntensity" min="0" max="1" step="0.01" value="0.3" disabled>
+        <span id="beatIntensityVal">0.30</span>
+      </div>
+      <div>
+        <label>Sequencer Pattern:</label>
+        <div class="sequencer" id="sequencerContainer">
+          <!-- Checkboxes are dynamically generated -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Bar Appearance -->
+    <div class="group">
+      <h2>Bar Appearance</h2>
+      <div>
+        <label for="outline">Outline Thickness:</label>
+        <input type="range" id="outline" min="1" max="6" step="1" value="3">
+        <span id="outlineVal">3</span>
+      </div>
+      <div>
+        <label for="barWidth">Bar Width:</label>
+        <input type="range" id="barWidth" min="5" max="30" step="1" value="10">
+        <span id="barWidthVal">10</span>
+      </div>
+      <div>
+        <label for="barSpacing">Bar Spacing:</label>
+        <input type="range" id="barSpacing" min="0" max="20" step="1" value="5">
+        <span id="barSpacingVal">5</span>
+      </div>
+      <div>
+        <label for="barColor">Bar Color:</label>
+        <input type="color" id="barColor" value="#ffffff">
+      </div>
+      <div>
+        <label for="alignment">Alignment:</label>
+        <select id="alignment">
+          <option value="top">Top</option>
+          <option value="center" selected>Center</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+      <div>
+        <label for="maxAmplitude">Max Amplitude:</label>
+        <input type="range" id="maxAmplitude" min="0" max="1" step="0.01" value="1">
+        <span id="maxAmplitudeVal">1.00</span>
+      </div>
+    </div>
+
+    <!-- Display & Export -->
+    <div class="group">
+      <h2>Display & Export</h2>
+      <div>
+        <label for="canvasWidth">Canvas Width:</label>
+        <input type="number" id="canvasWidth" min="1" value="480">
+      </div>
+      <div>
+        <label for="canvasHeight">Canvas Height:</label>
+        <input type="number" id="canvasHeight" min="1" value="270">
+      </div>
+      <div>
+        <label>Canvas Resolution:</label>
+        <span id="canvasResolution"></span>
+      </div>
+      <div>
+        <label for="transparentBg">Transparent BG:</label>
+        <input type="checkbox" id="transparentBg" checked>
+      </div>
+      <div>
+        <label for="bgColor">Background Color:</label>
+        <input type="color" id="bgColor" value="#222222">
+      </div>
+      <div>
+        <label for="exportScale">Export Scale (×):</label>
+        <input type="range" id="exportScale" min="1" max="4" step="0.1" value="1">
+        <input type="number" id="exportScaleNumber" min="1" max="4" step="0.1" value="1">
+        <span id="exportScaleVal">1.0</span>
+      </div>
+      <div>
+        <label>Export Resolution:</label>
+        <span id="exportResolution"></span>
+      </div>
+      <div>
+        <label for="loopDuration">Loop Duration (s):</label>
+        <input type="range" id="loopDuration" min="0.1" max="10" step="0.1" value="4">
+        <input type="number" id="loopDurationNumber" min="0.1" max="10" step="0.1" value="4">
+        <span id="loopDurationVal">4.0</span>
+      </div>
+      <div>
+        <label for="loopsToExport">Loops to Export:</label>
+        <input type="number" id="loopsToExport" min="1" step="1" value="1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Button group -->
+  <div class="btn-group">
+    <button id="updateBtn">Update Waveform</button>
+    <button id="playPauseBtn">Play</button>
+    <button id="exportPngBtn">Export PNG</button>
+    <button id="exportZipBtn">Export Frames as ZIP</button>
+  </div>
+
+  <div id="canvasContainer">
+    <canvas id="liveCanvas"></canvas>
+  </div>
+
+  <!-- Offscreen canvas for exporting frames -->
+  <canvas id="exportCanvas" style="display: none;"></canvas>
+
+  <script>
+    // Basic wave/waveform parameters
+    let stepCount     = 12;  // can be 4,8,12,16
+    let currentPattern= [];
+    let playing       = false;
+    let animationFrameId = null;
+    let animationStartTime= null;
+
+    // We'll dynamically build the sequencer checkboxes:
+    function generateSequencerUI() {
+      const container = document.getElementById('sequencerContainer');
+      container.innerHTML = ''; // clear
+      const sc = parseInt(document.getElementById('stepCount').value);
+      stepCount = sc;
+      // build sc checkboxes, grouped in rows of 4
+      let rowHTML = '';
+      for (let i=0; i<sc; i++) {
+        rowHTML += `<label><input type="checkbox" class="seqStep" data-step="${i}">${i+1}</label>`;
+        if ((i+1)%4===0) {
+          rowHTML += '<br>';
+        } else {
+          rowHTML += ' ';
+        }
+      }
+      container.innerHTML = rowHTML;
+      // attach event listener
+      container.querySelectorAll('.seqStep').forEach(cb=>{
+        cb.addEventListener('change', updateWaveform);
+      });
+    }
+
+    // clamp
+    function clamp01(x){ return Math.min(1, Math.max(0,x)); }
+
+    // show numeric values
+    function updateDisplayValues(){
+      document.getElementById('sineAmpVal').textContent =
+        parseFloat(document.getElementById('sineAmp').value).toFixed(2);
+      document.getElementById('modAmpVal').textContent =
+        parseFloat(document.getElementById('modAmp').value).toFixed(2);
+      document.getElementById('gainVal').textContent =
+        parseFloat(document.getElementById('gain').value).toFixed(1);
+      document.getElementById('beatIntensityVal').textContent =
+        parseFloat(document.getElementById('beatIntensity').value).toFixed(2);
+      document.getElementById('outlineVal').textContent =
+        document.getElementById('outline').value;
+      document.getElementById('barWidthVal').textContent =
+        document.getElementById('barWidth').value;
+      document.getElementById('barSpacingVal').textContent =
+        document.getElementById('barSpacing').value;
+      document.getElementById('maxAmplitudeVal').textContent =
+        parseFloat(document.getElementById('maxAmplitude').value).toFixed(2);
+      document.getElementById('exportScaleVal').textContent =
+        parseFloat(document.getElementById('exportScale').value).toFixed(1);
+      document.getElementById('loopDurationVal').textContent =
+        parseFloat(document.getElementById('loopDuration').value).toFixed(1);
+    }
+
+    // compute base pattern
+    function computeBasePattern(){
+      const sc        = parseInt(document.getElementById('stepCount').value);
+      const sineAmp   = parseFloat(document.getElementById('sineAmp').value);
+      const modAmp    = parseFloat(document.getElementById('modAmp').value);
+      const gainVal   = parseFloat(document.getElementById('gain').value);
+      const beatOn    = document.getElementById('beatOverlay').checked;
+      const beatInt   = parseFloat(document.getElementById('beatIntensity').value);
+
+      const pattern = [];
+      for (let i=0; i<sc; i++){
+        const sineVal = 0.5 + sineAmp*Math.sin(2*Math.PI*i/sc);
+        const modVal  = 0.5 + modAmp *Math.sin(4*Math.PI*i/sc);
+        let val = (sineVal+modVal)/2;
+        val = 0.5 + gainVal*(val-0.5);
+        // overlay
+        const cb = document.querySelector(`.seqStep[data-step="${i}"]`);
+        if (beatOn && cb && cb.checked){
+          val += beatInt;
+        }
+        val = clamp01(val);
+        pattern.push(val);
+      }
+      return pattern;
+    }
+
+    // generate the 2-cycle pattern
+    function generateFullLoopPattern(){
+      const base = computeBasePattern();
+      return base.concat(base); // repeat once => 2 cycles
+    }
+
+    // draw bars
+    function drawWaveform(ctx, cW, cH, pattern, offset=0){
+      // background
+      ctx.clearRect(0,0,cW,cH);
+      if (!document.getElementById('transparentBg').checked){
+        ctx.fillStyle = document.getElementById('bgColor').value;
+        ctx.fillRect(0,0,cW,cH);
+      }
+      const outline   = parseInt(document.getElementById('outline').value);
+      const barW      = parseInt(document.getElementById('barWidth').value);
+      const spacing   = parseInt(document.getElementById('barSpacing').value);
+      const alignment = document.getElementById('alignment').value; // top,center,bottom
+      const maxAmp    = parseFloat(document.getElementById('maxAmplitude').value);
+
+      const sc        = parseInt(document.getElementById('stepCount').value);
+      const baseCycleWidth = sc*(barW+spacing);
+      // total 2 cycles => pattern.length = sc*2
+      // we draw 2 copies => total 4 cycles for seamless wrap
+      for (let copy=0; copy<2; copy++){
+        for (let i=0; i<pattern.length; i++){
+          const pVal = pattern[i]; // [0..1]
+          let barHeight=0, barY=0;
+          if (alignment==="top"){
+            const amplitude = maxAmp*cH;
+            barHeight = pVal*amplitude;
+            barY = 0;
+          }
+          else if (alignment==="bottom"){
+            const amplitude = maxAmp*cH;
+            barHeight = pVal*amplitude;
+            barY = cH - barHeight;
+          }
+          else { // center
+            const halfAmp = maxAmp*(cH/2);
+            barHeight = pVal*(halfAmp*2);
+            barY = (cH/2) - (barHeight/2);
+          }
+          const x = offset + copy*baseCycleWidth + i*(barW+spacing);
+          // outline
+          ctx.fillStyle="black";
+          ctx.fillRect(x, barY, barW+2*outline, barHeight+2*outline);
+          // fill
+          ctx.fillStyle = document.getElementById('barColor').value;
+          ctx.fillRect(x+outline, barY+outline, barW, barHeight);
+        }
+      }
+    }
+
+    // animation
+    let loopDurMs=4000;
+    function animate(timestamp){
+      if (!animationStartTime) animationStartTime = timestamp;
+      const elapsed = timestamp - animationStartTime;
+      loopDurMs = parseFloat(document.getElementById('loopDuration').value)*1000;
+      const cW = liveCanvas.width, cH = liveCanvas.height;
+      const sc = parseInt(document.getElementById('stepCount').value);
+      const barW = parseInt(document.getElementById('barWidth').value);
+      const spacing = parseInt(document.getElementById('barSpacing').value);
+      const baseCycleWidth = sc*(barW+spacing);
+      const offsetFrac = (elapsed % loopDurMs)/loopDurMs;
+      const offset = -baseCycleWidth*offsetFrac;
+      const ctx = liveCanvas.getContext('2d');
+      drawWaveform(ctx,cW,cH,currentPattern,offset);
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    function startAnimation(){
+      playing=true;
+      animationStartTime=null;
+      document.getElementById('playPauseBtn').textContent="Stop";
+      animationFrameId=requestAnimationFrame(animate);
+    }
+    function stopAnimation(){
+      playing=false;
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId=null;
+      const cW=liveCanvas.width, cH=liveCanvas.height;
+      const ctx=liveCanvas.getContext('2d');
+      drawWaveform(ctx,cW,cH,currentPattern,0);
+      document.getElementById('playPauseBtn').textContent="Play";
+    }
+
+    // update all
+    function updateWaveform(){
+      updateDisplayValues();
+      // if stepCount changed => regenerate sequencer?
+      generateSequencerUIIfNeeded();
+
+      // read canvas w/h
+      const cW = parseInt(document.getElementById('canvasWidth').value) || 1;
+      const cH = parseInt(document.getElementById('canvasHeight').value) || 1;
+      liveCanvas.width  = cW;
+      liveCanvas.height = cH;
+
+      // generate pattern
+      currentPattern=generateFullLoopPattern();
+
+      // if not playing => draw offset=0
+      if (!playing){
+        const ctx = liveCanvas.getContext('2d');
+        drawWaveform(ctx,cW,cH,currentPattern,0);
+      }
+
+      // show canvas resolution
+      document.getElementById('canvasResolution').textContent = cW+" x "+cH+" px";
+
+      // compute export resolution
+      const eScale = parseFloat(document.getElementById('exportScale').value);
+      const eW = Math.round(cW* eScale);
+      const eH = Math.round(cH* eScale);
+      document.getElementById('exportResolution').textContent = eW+" x "+eH+" px";
+    }
+
+    let lastStepCount=12;
+    function generateSequencerUIIfNeeded(){
+      const sc = parseInt(document.getElementById('stepCount').value);
+      if (sc !== lastStepCount){
+        // rebuild the sequencer checkboxes
+        generateSequencerUI();
+        lastStepCount=sc;
+      }
+    }
+
+    // Export single PNG
+    function exportPNG(){
+      const cW = parseInt(document.getElementById('canvasWidth').value) || 1;
+      const cH = parseInt(document.getElementById('canvasHeight').value) || 1;
+      const eScale = parseFloat(document.getElementById('exportScale').value);
+      const eW = Math.round(cW* eScale);
+      const eH = Math.round(cH* eScale);
+
+      const exportCanvas=document.getElementById('exportCanvas');
+      exportCanvas.width=eW;
+      exportCanvas.height=eH;
+
+      const ctx=exportCanvas.getContext('2d');
+      ctx.save();
+      ctx.scale(eScale,eScale);
+      drawWaveform(ctx,cW,cH,currentPattern,0);
+      ctx.restore();
+
+      const dataURL=exportCanvas.toDataURL("image/png");
+      const link=document.createElement("a");
+      link.download="waveform.png";
+      link.href=dataURL;
+      link.click();
+    }
+
+    // Export frames as ZIP
+    async function exportFramesAsZip(){
+      const cW=parseInt(document.getElementById('canvasWidth').value)||1;
+      const cH=parseInt(document.getElementById('canvasHeight').value)||1;
+      const eScale=parseFloat(document.getElementById('exportScale').value);
+      const eW=Math.round(cW* eScale);
+      const eH=Math.round(cH* eScale);
+
+      const loopsToExport = parseInt(document.getElementById('loopsToExport').value)||1;
+      const loopDurSec = parseFloat(document.getElementById('loopDuration').value)||4;
+      // We use 30fps
+      const fps=30;
+      const framesPerLoop = Math.round(loopDurSec*fps);
+      const totalFrames = framesPerLoop*loopsToExport;
+
+      // base cycle
+      const sc = parseInt(document.getElementById('stepCount').value);
+      const barW = parseInt(document.getElementById('barWidth').value);
+      const spacing=parseInt(document.getElementById('barSpacing').value);
+      const baseCycleWidth= sc*(barW+spacing);
+
+      const exportCanvas=document.getElementById('exportCanvas');
+      exportCanvas.width=eW;
+      exportCanvas.height=eH;
+      const ctx=exportCanvas.getContext('2d');
+
+      const zip=new JSZip();
+
+      for (let i=0; i<totalFrames; i++){
+        // offset fraction from 0..1 for each loop
+        // i%framesPerLoop => frame index within the current loop
+        const frameInLoop = i%framesPerLoop;
+        const offsetFrac = frameInLoop/framesPerLoop;
+        const offset=-baseCycleWidth*offsetFrac;
+
+        ctx.save();
+        ctx.scale(eScale,eScale);
+        drawWaveform(ctx,cW,cH,currentPattern,offset);
+        ctx.restore();
+
+        const dataURL=exportCanvas.toDataURL("image/png");
+        const base64Data=dataURL.split(',')[1];
+        const filename=`waveform_frame_${String(i).padStart(3,'0')}.png`;
+        zip.file(filename,base64Data,{base64:true});
+
+        // small delay
+        await new Promise(res=>setTimeout(res,20));
+      }
+
+      zip.generateAsync({type:'blob'}).then(content=>{
+        const link=document.createElement('a');
+        link.href=URL.createObjectURL(content);
+        link.download="waveform_frames.zip";
+        link.click();
+      });
+    }
+
+    // hooking up
+    const liveCanvas=document.getElementById('liveCanvas');
+
+    document.getElementById('stepCount').addEventListener('change',()=>{
+      generateSequencerUIIfNeeded();
+      updateWaveform();
+    });
+
+    // waveform settings
+    document.getElementById('sineAmp').addEventListener('input',updateWaveform);
+    document.getElementById('modAmp').addEventListener('input',updateWaveform);
+    document.getElementById('gain').addEventListener('input',updateWaveform);
+    document.getElementById('beatOverlay').addEventListener('change',()=>{
+      document.getElementById('beatIntensity').disabled=!document.getElementById('beatOverlay').checked;
+      updateWaveform();
+    });
+    document.getElementById('beatIntensity').addEventListener('input',updateWaveform);
+
+    // bar appearance
+    document.getElementById('outline').addEventListener('input',updateWaveform);
+    document.getElementById('barWidth').addEventListener('input',updateWaveform);
+    document.getElementById('barSpacing').addEventListener('input',updateWaveform);
+    document.getElementById('barColor').addEventListener('input',updateWaveform);
+    document.getElementById('alignment').addEventListener('change',updateWaveform);
+    document.getElementById('maxAmplitude').addEventListener('input',()=>{
+      document.getElementById('maxAmplitudeVal').textContent =
+        parseFloat(document.getElementById('maxAmplitude').value).toFixed(2);
+      updateWaveform();
+    });
+
+    // display & export
+    document.getElementById('canvasWidth').addEventListener('change',updateWaveform);
+    document.getElementById('canvasHeight').addEventListener('change',updateWaveform);
+    document.getElementById('transparentBg').addEventListener('change',updateWaveform);
+    document.getElementById('bgColor').addEventListener('input',updateWaveform);
+    document.getElementById('exportScale').addEventListener('input',()=>{
+      document.getElementById('exportScaleNumber').value=document.getElementById('exportScale').value;
+      updateDisplayValues();
+      updateWaveform();
+    });
+    document.getElementById('exportScaleNumber').addEventListener('change',()=>{
+      document.getElementById('exportScale').value=document.getElementById('exportScaleNumber').value;
+      updateDisplayValues();
+      updateWaveform();
+    });
+    document.getElementById('loopDuration').addEventListener('input',()=>{
+      document.getElementById('loopDurationNumber').value=document.getElementById('loopDuration').value;
+      updateDisplayValues();
+      updateWaveform();
+    });
+    document.getElementById('loopDurationNumber').addEventListener('change',()=>{
+      document.getElementById('loopDuration').value=document.getElementById('loopDurationNumber').value;
+      updateDisplayValues();
+      updateWaveform();
+    });
+    document.getElementById('loopsToExport').addEventListener('change',updateWaveform);
+
+    // Buttons
+    document.getElementById('updateBtn').addEventListener('click',updateWaveform);
+    document.getElementById('playPauseBtn').addEventListener('click',()=>{
+      if (playing) stopAnimation();
+      else startAnimation();
+    });
+    document.getElementById('exportPngBtn').addEventListener('click',exportPNG);
+    document.getElementById('exportZipBtn').addEventListener('click',exportFramesAsZip);
+
+    // animation control
+    function startAnimation(){
+      playing=true;
+      animationStartTime=null;
+      document.getElementById('playPauseBtn').textContent="Stop";
+      requestAnimationFrame(animate);
+    }
+    function stopAnimation(){
+      playing=false;
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId=null;
+      const ctx=liveCanvas.getContext('2d');
+      ctx.clearRect(0,0,liveCanvas.width,liveCanvas.height);
+      drawWaveform(ctx,liveCanvas.width,liveCanvas.height,currentPattern,0);
+      document.getElementById('playPauseBtn').textContent="Play";
+    }
+    function animate(timestamp){
+      animationFrameId=requestAnimationFrame(animate);
+      if (!animationStartTime) animationStartTime=timestamp;
+      const elapsed=timestamp-animationStartTime;
+      const loopDurMs = parseFloat(document.getElementById('loopDuration').value)*1000;
+      const sc = parseInt(document.getElementById('stepCount').value);
+      const barW=parseInt(document.getElementById('barWidth').value);
+      const spacing=parseInt(document.getElementById('barSpacing').value);
+      const baseCycleWidth=sc*(barW+spacing);
+      const offsetFrac=(elapsed%loopDurMs)/loopDurMs;
+      const offset=-baseCycleWidth*offsetFrac;
+      const ctx=liveCanvas.getContext('2d');
+      drawWaveform(ctx,liveCanvas.width,liveCanvas.height,currentPattern,offset);
+    }
+
+    // init
+    generateSequencerUI();  // default 12 steps
+    updateDisplayValues();
+    updateWaveform();
+  </script>
+</body>
+</html>

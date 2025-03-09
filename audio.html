@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Grouped Dynamic Waveform with Particle Effects</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #111;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Waveform parameters
+  let centerY = 0;
+  let maxHeight = 0; // maximum amplitude (half the total bar height)
+  let bars = [];     // Each bar: { x, currentHeight, targetHeight, hasSpawned }
+  const barWidth = 30;     // Wider bands
+  const barSpacing = 15;   // Spacing between bands
+  const scrollSpeed = 2;   // Pixels per frame
+  const barThreshold = 0.75; // Fraction of maxHeight for triggering particles
+
+  // Grouping parameters: number of consecutive bars to group together
+  const groupSize = 4;
+
+  // Particle system parameters
+  const particles = [];
+  const maxParticles = 300; // For performance
+
+  // Utility: clamp value between 0 and maxHeight
+  function clamp(val) {
+    return Math.max(0, Math.min(val, maxHeight));
+  }
+
+  // Initialize bars to fill the canvas
+  function initBars() {
+    bars = [];
+    const totalBars = Math.ceil(canvas.width / (barWidth + barSpacing)) + 1;
+    let initialHeight = maxHeight * 0.5;
+    for (let i = 0; i < totalBars; i++) {
+      const newHeight = clamp(initialHeight + (Math.random() - 0.5) * maxHeight * 0.2);
+      bars.push({
+        x: i * (barWidth + barSpacing),
+        currentHeight: newHeight,
+        targetHeight: newHeight,
+        hasSpawned: false
+      });
+      initialHeight = newHeight;
+    }
+  }
+
+  // Resize canvas and update variables
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    centerY = canvas.height / 2;
+    maxHeight = canvas.height * 0.45; // Bars extend above & below center
+    initBars();
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Particle class: each particle starts red (hue=0) and shifts toward orange (hue ~40)
+  class Particle {
+    constructor(x, y, vx, vy, size) {
+      this.x = x;
+      this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.size = size;
+      this.alpha = 1;
+      this.hue = 0;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      // Fade faster to limit lifetime
+      this.alpha -= 0.02;
+      if (this.hue < 40) this.hue += 1;
+    }
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = this.alpha;
+      ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Spawn a burst of particles at (x,y), only if we’re not near the particle limit.
+  function spawnParticles(x, y, count = 10) {
+    if (particles.length > maxParticles * 0.8) return;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 2 + 1;
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed;
+      const size = Math.random() * 3 + 1;
+      particles.push(new Particle(x, y, vx, vy, size));
+    }
+  }
+
+  // Main animation loop
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update each bar: move left and update dynamic height changes
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i];
+      // Move bar leftward
+      bar.x -= scrollSpeed;
+      // Smooth interpolation for a fluid effect
+      bar.currentHeight += (bar.targetHeight - bar.currentHeight) * 0.05;
+      
+      // Occasionally force a dramatic jump (to 0 or max) with a small chance
+      if (Math.random() < 0.005) {
+        bar.targetHeight = Math.random() < 0.5 ? 0 : maxHeight;
+      } else {
+        // Otherwise, vary targetHeight with a dynamic delta
+        const delta = (Math.random() - 0.5) * maxHeight * 0.02;
+        bar.targetHeight = clamp(bar.targetHeight + delta);
+      }
+      
+      // If the bar is high and hasn't spawned particles, spawn a burst
+      if (bar.currentHeight > maxHeight * barThreshold && !bar.hasSpawned && Math.random() < 0.5) {
+        spawnParticles(bar.x + barWidth / 2, centerY - bar.currentHeight, 3);
+        bar.hasSpawned = true;
+      }
+      // Reset the spawn flag once it falls below the threshold
+      if (bar.currentHeight < maxHeight * barThreshold * 0.9) {
+        bar.hasSpawned = false;
+      }
+    }
+    
+    // --- GROUPING STEP ---
+    // Process bars in groups so that nearby bars share a similar target height.
+    for (let i = 0; i < bars.length; i += groupSize) {
+      let sum = 0, count = 0;
+      for (let j = i; j < Math.min(i + groupSize, bars.length); j++) {
+        sum += bars[j].targetHeight;
+        count++;
+      }
+      const groupAvg = sum / count;
+      // Assign each bar in the group a common target with slight variation
+      for (let j = i; j < Math.min(i + groupSize, bars.length); j++) {
+        bars[j].targetHeight = clamp(groupAvg + (Math.random() - 0.5) * maxHeight * 0.05);
+      }
+    }
+    // --- END GROUPING STEP ---
+
+    // Remove bars that have moved off the left edge
+    while (bars.length && bars[0].x < -barWidth) {
+      bars.shift();
+    }
+    
+    // Add new bars at the right edge to fill the canvas
+    if (bars.length) {
+      let lastBar = bars[bars.length - 1];
+      while (lastBar.x < canvas.width) {
+        const newX = lastBar.x + barWidth + barSpacing;
+        const newHeight = clamp(lastBar.currentHeight + (Math.random() - 0.5) * maxHeight * 0.1);
+        bars.push({
+          x: newX,
+          currentHeight: newHeight,
+          targetHeight: newHeight,
+          hasSpawned: false
+        });
+        lastBar = bars[bars.length - 1];
+      }
+    }
+
+    // Draw the waveform bars as vertical rectangles
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i];
+      const x = bar.x;
+      const yTop = centerY - bar.currentHeight;
+      const height = bar.currentHeight * 2;
+      ctx.fillRect(x, yTop, barWidth, height);
+    }
+
+    // Update and draw particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.update();
+      p.draw(ctx);
+      if (p.alpha <= 0) {
+        particles.splice(i, 1);
+      }
+    }
+    if (particles.length > maxParticles) {
+      particles.splice(0, particles.length - maxParticles);
+    }
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // Mouse and touch events: spawn extra particles for added pizzazz
+  canvas.addEventListener('mousemove', (e) => {
+    spawnParticles(e.clientX, e.clientY, 2);
+  });
+  canvas.addEventListener('mousedown', (e) => {
+    spawnParticles(e.clientX, e.clientY, 8);
+  });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    spawnParticles(touch.clientX, touch.clientY, 2);
+  }, {passive: false});
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    spawnParticles(touch.clientX, touch.clientY, 8);
+  }, {passive: false});
+</script>
+</body>
+</html>

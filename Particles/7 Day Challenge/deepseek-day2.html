@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Magic Particle Field</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        canvas { display: block; }
+        body { background: #000; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <canvas id="c"></canvas>
+
+<script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+    const particles = [];
+    const mouse = { x: null, y: null, radius: 150 };
+    const touch = { x: null, y: null, radius: 150 };
+    let hue = 0;
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.size = Math.random() * 3 + 1;
+            this.speedX = Math.random() * 3 - 1.5;
+            this.speedY = Math.random() * 3 - 1.5;
+            this.color = `hsl(${hue}, 100%, 50%)`;
+        }
+
+        update() {
+            // Mouse interaction
+            const dx = mouse.x - this.x;
+            const dy = mouse.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < mouse.radius) {
+                const force = (mouse.radius - distance) / mouse.radius;
+                const directionX = dx / distance;
+                const directionY = dy / distance;
+                this.speedX -= directionX * force;
+                this.speedY -= directionY * force;
+            }
+
+            // Touch interaction
+            const tdx = touch.x - this.x;
+            const tdy = touch.y - this.y;
+            const tDistance = Math.sqrt(tdx * tdx + tdy * tdy);
+            if (tDistance < touch.radius) {
+                const tForce = (touch.radius - tDistance) / touch.radius;
+                const tDirectionX = tdx / tDistance;
+                const tDirectionY = tdy / tDistance;
+                this.speedX -= tDirectionX * tForce;
+                this.speedY -= tDirectionY * tForce;
+            }
+
+            this.x += this.speedX;
+            this.y += this.speedY;
+
+            // Bounce off walls
+            if (this.x <= 0 || this.x >= width) this.speedX *= -1;
+            if (this.y <= 0 || this.y >= height) this.speedY *= -1;
+
+            // Friction
+            this.speedX *= 0.99;
+            this.speedY *= 0.99;
+
+            // Color transition
+            this.color = `hsl(${hue}, 100%, 50%)`;
+        }
+
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function init() {
+        for (let i = 0; i < 300; i++) {
+            particles.push(new Particle());
+        }
+    }
+
+    function animate() {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(0, 0, width, height);
+
+        for (let particle of particles) {
+            particle.update();
+            particle.draw();
+        }
+
+        hue += 0.5;
+        requestAnimationFrame(animate);
+    }
+
+    // Mouse handlers
+    canvas.addEventListener('mousemove', e => {
+        mouse.x = e.x;
+        mouse.y = e.y;
+    });
+
+    canvas.addEventListener('mouseout', () => {
+        mouse.x = null;
+        mouse.y = null;
+    });
+
+    // Touch handlers
+    canvas.addEventListener('touchstart', handleTouch);
+    canvas.addEventListener('touchmove', handleTouch);
+    canvas.addEventListener('touchend', () => {
+        touch.x = null;
+        touch.y = null;
+    });
+
+    function handleTouch(e) {
+        e.preventDefault();
+        touch.x = e.touches[0].clientX;
+        touch.y = e.touches[0].clientY;
+    }
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        particles.length = 0;
+        init();
+    });
+
+    init();
+    animate();
+
+    // Mobile hover prevention
+    document.body.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+    }, { passive: false });
+</script>
+
+</body>
+</html>

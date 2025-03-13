@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesmerizing Particle Field with Mouse Boost</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(ellipse at center, #1b2735 0%, #090a0f 100%);
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    let scene, camera, renderer, particleSystem, particleMaterial;
+    let boost = 0;
+    let time = 0;
+    
+    // Initialization
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        1,
+        5000
+      );
+      camera.position.z = 1000;
+      
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      
+      const particleCount = 10000;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const colors = new Float32Array(particleCount * 3);
+      const color = new THREE.Color();
+      
+      for (let i = 0; i < particleCount; i++) {
+        // Distribute particles randomly in a cube-like volume
+        const x = (Math.random() * 2 - 1) * 800;
+        const y = (Math.random() * 2 - 1) * 800;
+        const z = (Math.random() * 2 - 1) * 800;
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        
+        // Color varies with x position using HSL values
+        const hue = (x / 800 + 1) / 2;
+        color.setHSL(hue, 1.0, 0.5);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      
+      particleMaterial = new THREE.PointsMaterial({
+        size: 4,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.7
+      });
+      
+      particleSystem = new THREE.Points(geometry, particleMaterial);
+      scene.add(particleSystem);
+      
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('mousedown', onMouseDown, false);
+    }
+    
+    // Update renderer and camera on window resize
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    // On mouse click, trigger a boost effect
+    function onMouseDown() {
+      boost = 10;
+    }
+    
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.001;
+      
+      // Apply rotation with an extra boost if active
+      const extraRotation = boost * 0.001;
+      particleSystem.rotation.y += 0.0005 + extraRotation;
+      particleSystem.rotation.x += 0.0003 + extraRotation;
+      
+      // Apply a subtle wave effect along the y-axis
+      const positions = particleSystem.geometry.attributes.position.array;
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i + 1] += Math.sin(time + positions[i]) * 0.1;
+      }
+      particleSystem.geometry.attributes.position.needsUpdate = true;
+      
+      // Increase particle size based on boost
+      particleMaterial.size = 4 + boost * 0.2;
+      
+      // Gradually decay the boost effect
+      boost = boost > 0.01 ? boost * 0.98 : 0;
+      
+      renderer.render(scene, camera);
+    }
+    
+    init();
+    animate();
+  </script>
+</body>
+</html>

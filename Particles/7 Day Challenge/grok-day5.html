@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Kaleidoscope</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle, #1a0033, #000);
+        }
+        canvas {
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            text-shadow: 0 0 5px rgba(255, 0, 255, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Move mouse to twist, click to pulse!</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Particle rings
+        const ringCount = 5;
+        const particlesPerRing = 300;
+        const particleSystems = [];
+        const velocities = [];
+
+        for (let r = 0; r < ringCount; r++) {
+            const particles = new THREE.BufferGeometry();
+            const positions = new Float32Array(particlesPerRing * 3);
+            const colors = new Float32Array(particlesPerRing * 3);
+            const sizes = new Float32Array(particlesPerRing);
+            const ringVelocities = new Float32Array(particlesPerRing * 3);
+
+            const radius = 20 + r * 15;
+            for (let i = 0; i < particlesPerRing; i++) {
+                const angle = (i / particlesPerRing) * Math.PI * 2;
+                const offset = Math.sin(angle * 3 + r) * 5; // Wavy ring
+                positions[i * 3] = Math.cos(angle) * (radius + offset);
+                positions[i * 3 + 1] = Math.sin(r) * 10; // Slight Y variation
+                positions[i * 3 + 2] = Math.sin(angle) * (radius + offset);
+
+                const color = new THREE.Color();
+                color.setHSL((r / ringCount + i / particlesPerRing) % 1, 1, 0.7);
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+
+                sizes[i] = 1 + Math.random() * 2;
+                ringVelocities[i * 3] = 0;
+                ringVelocities[i * 3 + 1] = 0;
+                ringVelocities[i * 3 + 2] = 0;
+            }
+
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            particles.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            const material = new THREE.PointsMaterial({
+                vertexColors: true,
+                size: 3,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+
+            const particleSystem = new THREE.Points(particles, material);
+            scene.add(particleSystem);
+            particleSystems.push(particleSystem);
+            velocities.push(ringVelocities);
+        }
+
+        // Central geometric shape (tetrahedron)
+        const geo = new THREE.TetrahedronGeometry(10, 0);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true, transparent: true, opacity: 0.5 });
+        const tetra = new THREE.Mesh(geo, mat);
+        scene.add(tetra);
+
+        camera.position.z = 100;
+
+        // Mouse interaction
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        document.addEventListener('click', () => {
+            for (let r = 0; r < ringCount; r++) {
+                const ringVelocities = velocities[r];
+                for (let i = 0; i < particlesPerRing; i++) {
+                    ringVelocities[i * 3] += (Math.random() - 0.5) * 3;
+                    ringVelocities[i * 3 + 1] += (Math.random() - 0.5) * 3;
+                    ringVelocities[i * 3 + 2] += (Math.random() - 0.5) * 3;
+                }
+            }
+        });
+
+        // Animation
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.02;
+
+            // Animate particle rings
+            for (let r = 0; r < ringCount; r++) {
+                const positions = particleSystems[r].geometry.attributes.position.array;
+                const ringVelocities = velocities[r];
+                for (let i = 0; i < particlesPerRing; i++) {
+                    const i3 = i * 3;
+                    let x = positions[i3];
+                    let y = positions[i3 + 1];
+                    let z = positions[i3 + 2];
+
+                    // Twist rings with mouse
+                    const twist = Math.sin(time + r) * 0.5 + mouseX * 2;
+                    positions[i3] = x * Math.cos(twist * 0.02) - z * Math.sin(twist * 0.02);
+                    positions[i3 + 2] = z * Math.cos(twist * 0.02) + x * Math.sin(twist * 0.02);
+                    positions[i3 + 1] += Math.sin(time + i * 0.1) * 0.2 + mouseY * 0.5;
+
+                    // Apply velocities from click
+                    positions[i3] += ringVelocities[i3];
+                    positions[i3 + 1] += ringVelocities[i3 + 1];
+                    positions[i3 + 2] += ringVelocities[i3 + 2];
+                    ringVelocities[i3] *= 0.95;
+                    ringVelocities[i3 + 1] *= 0.95;
+                    ringVelocities[i3 + 2] *= 0.95;
+                }
+                particleSystems[r].geometry.attributes.position.needsUpdate = true;
+            }
+
+            // Animate tetrahedron
+            tetra.rotation.x += 0.01 + mouseY * 0.02;
+            tetra.rotation.y += 0.01 + mouseX * 0.02;
+            tetra.scale.setScalar(1 + Math.sin(time) * 0.1);
+
+            // Camera orbit
+            camera.position.x = Math.sin(time * 0.05) * 100;
+            camera.position.z = Math.cos(time * 0.05) * 100;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

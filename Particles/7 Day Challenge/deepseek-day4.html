@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Galactic Particle Storm</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #info { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            color: #fff; 
+            font-family: Arial; 
+            text-shadow: 0 0 5px rgba(255,255,255,0.5);
+            opacity: 0.8;
+            z-index: 100;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">CLICK: Colors | DRAG: Shockwaves | SCROLL: Size</div>
+    <div id="loading">Initializing Particle Storm...</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Debug check
+        if (!WebGLRenderingContext) {
+            document.getElementById('loading').innerHTML = 
+                "WebGL not supported! Try latest Chrome/Firefox";
+        }
+
+        let scene, camera, renderer, particles;
+        let mouseX = 0, mouseY = 0;
+        let colorChange = false, explodeForce = 0;
+        const PARTICLE_COUNT = 25000;
+        
+        init();
+        animate();
+
+        function init() {
+            // Remove loading text when ready
+            const loading = document.getElementById('loading');
+            try {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 3000);
+                camera.position.z = 500;  // Bring camera closer
+
+                renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    alpha: true
+                });
+                if (!renderer) {
+                    loading.innerHTML = "WebGL failed to initialize!";
+                    return;
+                }
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setClearColor(0x000000);
+                document.body.appendChild(renderer.domElement);
+
+                createParticles();
+                loading.remove();
+
+                // Event listeners
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mousedown', () => explodeForce = 0.5);
+                document.addEventListener('mouseup', () => explodeForce = 0);
+                document.addEventListener('click', () => colorChange = !colorChange);
+                window.addEventListener('resize', onWindowResize);
+                window.addEventListener('wheel', e => {
+                    particles.material.size = Math.max(0.5, 
+                        Math.min(5, particles.material.size + e.deltaY * -0.01));
+                });
+
+                // Initial debug camera position
+                console.log("Camera position:", camera.position);
+                console.log("Particle count:", PARTICLE_COUNT);
+            } catch (e) {
+                loading.innerHTML = `Error: ${e.message}`;
+            }
+        }
+
+        function createParticles() {
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const sizes = [];
+
+            // Generate visible test pattern
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                positions.push(
+                    (Math.random() - 0.5) * 1000,
+                    (Math.random() - 0.5) * 1000,
+                    (Math.random() - 0.5) * 1000
+                );
+
+                colors.push(
+                    Math.random(),
+                    Math.random(),
+                    Math.random()
+                );
+
+                sizes.push(Math.random() * 2 + 1);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+            const material = new THREE.PointsMaterial({
+                size: 3.0,  // Larger initial size
+                vertexColors: true,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // Add test light
+            const light = new THREE.PointLight(0xffffff, 1, 1000);
+            light.position.set(0, 0, 500);
+            scene.add(light);
+        }
+
+        // ... rest of the previous animation code ...
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!renderer) return;
+            
+            // Simple rotation test
+            particles.rotation.x += 0.01;
+            particles.rotation.y += 0.01;
+            renderer.render(scene, camera);
+        }
+
+        // Ensure visible rotation
+        console.log("Animation started!");
+    </script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Galactic Particle Storm</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; cursor: none; }
+        #info {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            color: #fff;
+            font-family: Arial;
+            opacity: 0.6;
+            text-shadow: 0 0 10px rgba(255,255,255,0.7);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">MOVE: Create Stellar Currents | CLICK: Supernova | SCROLL: Warp Speed</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class GalacticStorm {
+            constructor() {
+                this.init();
+                this.createUniverse();
+                this.setupEvents();
+                this.animate();
+            }
+
+            init() {
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    powerPreference: "high-performance"
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(this.renderer.domElement);
+                
+                this.camera = new THREE.PerspectiveCamera(90, window.innerWidth/window.innerHeight, 1, 5000);
+                this.camera.position.z = 300;
+                
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.Fog(0x000000, 100, 800);
+                
+                this.mouse = new THREE.Vector3();
+                this.mousePower = 0;
+                this.hue = 0;
+            }
+
+            createUniverse() {
+                // Create 2000 star particles
+                this.stars = new THREE.BufferGeometry();
+                const starPositions = new Float32Array(2000 * 3);
+                for(let i = 0; i < 6000; i += 3) {
+                    starPositions[i] = Math.random() * 2000 - 1000;
+                    starPositions[i+1] = Math.random() * 2000 - 1000;
+                    starPositions[i+2] = Math.random() * 2000 - 1000;
+                }
+                this.stars.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+                
+                this.starField = new THREE.Points(
+                    this.stars,
+                    new THREE.PointsMaterial({
+                        size: 0.5,
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.8
+                    })
+                );
+                this.scene.add(this.starField);
+
+                // Main particle system
+                this.particles = new THREE.Group();
+                const geometry = new THREE.DodecahedronGeometry(2, 1);
+                this.material = new THREE.MeshPhongMaterial({
+                    emissive: 0xff4488,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending
+                });
+
+                for(let i = 0; i < 800; i++) {
+                    const particle = new THREE.Mesh(geometry, this.material);
+                    particle.position.set(
+                        Math.random() * 400 - 200,
+                        Math.random() * 400 - 200,
+                        Math.random() * 400 - 200
+                    );
+                    particle.velocity = new THREE.Vector3();
+                    particle.originalPosition = particle.position.clone();
+                    this.particles.add(particle);
+                }
+
+                this.scene.add(this.particles);
+                
+                // Lighting
+                this.light = new THREE.PointLight(0xffffff, 1, 500);
+                this.scene.add(this.light);
+                this.scene.add(new THREE.AmbientLight(0x223344));
+            }
+
+            setupEvents() {
+                const updateMouse = (e) => {
+                    const rect = this.renderer.domElement.getBoundingClientRect();
+                    this.mouse.set(
+                        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+                        0.5
+                    ).unproject(this.camera);
+                    this.mousePower = Math.min(1, this.mousePower + 0.1);
+                };
+
+                window.addEventListener('mousemove', updateMouse);
+                window.addEventListener('click', (e) => {
+                    updateMouse(e);
+                    this.createShockwave();
+                });
+                window.addEventListener('wheel', (e) => {
+                    this.camera.position.z += e.deltaY * 0.5;
+                });
+            }
+
+            createShockwave() {
+                this.particles.children.forEach(particle => {
+                    const dir = particle.position.clone()
+                        .sub(this.mouse).normalize();
+                    particle.velocity.add(dir.multiplyScalar(50));
+                    this.hue = (this.hue + 0.1) % 1;
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const time = Date.now() * 0.0005;
+                
+                // Update particles
+                this.particles.children.forEach(particle => {
+                    // Mouse force field
+                    const toMouse = particle.position.clone().sub(this.mouse);
+                    const mouseDist = toMouse.length();
+                    const force = toMouse.normalize()
+                        .multiplyScalar((1 - Math.min(1, mouseDist/200)) * this.mousePower * 0.4);
+
+                    // Memory force
+                    const memoryForce = particle.originalPosition.clone()
+                        .sub(particle.position).multiplyScalar(0.03);
+
+                    particle.velocity.add(force)
+                        .add(memoryForce)
+                        .add(new THREE.Vector3(
+                            Math.sin(time + particle.position.x) * 0.02,
+                            Math.cos(time * 0.8 + particle.position.y) * 0.02,
+                            Math.sin(time * 0.6 + particle.position.z) * 0.02
+                        ));
+
+                    particle.velocity.multiplyScalar(0.94);
+                    particle.position.add(particle.velocity);
+
+                    // Visual effects
+                    const speed = particle.velocity.length();
+                    particle.material.emissive.setHSL(
+                        (this.hue + speed * 0.2) % 1,
+                        0.9,
+                        0.6 + Math.sin(time * 3) * 0.2
+                    );
+                    particle.scale.setScalar(1 + speed * 0.7);
+                });
+
+                // Cosmic effects
+                this.starField.rotation.y += 0.0001;
+                this.light.position.copy(this.mouse);
+                this.light.color.setHSL(this.hue, 0.8, 0.7);
+                this.mousePower *= 0.96;
+
+                // Rotate camera slightly
+                this.camera.position.x = Math.sin(time * 0.3) * 50;
+                this.camera.position.y = Math.cos(time * 0.2) * 30;
+                this.camera.lookAt(this.scene.position);
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        new GalacticStorm();
+    </script>
+</body>
+</html>

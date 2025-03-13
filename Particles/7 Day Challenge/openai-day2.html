@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swirling Magnetic Particle Animation</title>
+  <style>
+    /* Fullscreen canvas with no scrollbars/margins and a dark background */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    (function() {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      let width = window.innerWidth, height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Pointer (mouse/touch) starts at the center.
+      let pointer = { x: width / 2, y: height / 2 };
+
+      // Update canvas size on window resize.
+      window.addEventListener('resize', () => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      });
+
+      // Particle "class" with swirling attraction behavior.
+      function Particle() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.size = Math.random() * 3 + 1;
+        this.hue = Math.random() * 360;
+      }
+
+      Particle.prototype.update = function() {
+        // Calculate vector from particle to pointer.
+        let dx = pointer.x - this.x;
+        let dy = pointer.y - this.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        let influenceRadius = 150;
+
+        if (distance < influenceRadius && distance > 0) {
+          // Force magnitude decreases with distance.
+          let force = (influenceRadius - distance) / influenceRadius;
+          // Attraction force toward the pointer.
+          let ax = (dx / distance) * force;
+          let ay = (dy / distance) * force;
+          // Swirling (perpendicular) force gives a magnetic twist.
+          let swirlStrength = 0.5 * force;
+          let axSwirl = -dy / distance * swirlStrength;
+          let aySwirl = dx / distance * swirlStrength;
+
+          this.vx += ax + axSwirl;
+          this.vy += ay + aySwirl;
+        }
+
+        // Apply friction to keep motion smooth.
+        this.vx *= 0.96;
+        this.vy *= 0.96;
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Wrap around the screen edges.
+        if (this.x < 0) this.x = width;
+        if (this.x > width) this.x = 0;
+        if (this.y < 0) this.y = height;
+        if (this.y > height) this.y = 0;
+
+        // Gradually shift the hue for a rainbow effect.
+        this.hue = (this.hue + 1) % 360;
+      };
+
+      Particle.prototype.draw = function() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+        ctx.fill();
+      };
+
+      // Create particles based on screen size.
+      let particles = [];
+      let numParticles = Math.floor(width * height / 10000);
+      for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+      }
+
+      // Update pointer position on mouse move.
+      window.addEventListener('mousemove', (e) => {
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+      });
+
+      // Touch interactivity for mobile devices.
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+          pointer.x = e.touches[0].clientX;
+          pointer.y = e.touches[0].clientY;
+        }
+      }, { passive: false });
+
+      // On click or tap, spawn a burst of extra particles.
+      window.addEventListener('click', (e) => {
+        for (let i = 0; i < 20; i++) {
+          let p = new Particle();
+          p.x = e.clientX;
+          p.y = e.clientY;
+          particles.push(p);
+        }
+      });
+
+      // Animation loop with a trailing glow effect.
+      function animate() {
+        requestAnimationFrame(animate);
+        // Draw a semi-transparent rectangle for smooth trails.
+        ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+        ctx.fillRect(0, 0, width, height);
+
+        // Use a lighter composite operation for glowing particle overlaps.
+        ctx.globalCompositeOperation = "lighter";
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw();
+        }
+        // Reset composite operation.
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      animate();
+    })();
+  </script>
+</body>
+</html>

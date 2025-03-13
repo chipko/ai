@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chaos Particle Storm</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body { overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #status {
+            position: fixed;
+            color: white;
+            font-family: Arial;
+            padding: 20px;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Click/Tap to Explode!</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class ChaosParticleSystem {
+            constructor() {
+                this.initSettings();
+                this.initThree();
+                this.initParticles();
+                this.initEvents();
+                this.animate();
+            }
+
+            initSettings() {
+                this.isMobile = /Mobi|Android/i.test(navigator.userAgent);
+                this.particleCount = this.isMobile ? 1000 : 2500;
+                this.mouse = new THREE.Vector2();
+                this.explosionPoint = new THREE.Vector3();
+                this.force = 1.5;
+                this.hue = 0;
+                this.explosionPower = 0;
+                this.pulseHueOffset = 0;
+            }
+
+            initThree() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({
+                    antialias: false,
+                    powerPreference: 'high-performance'
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(this.renderer.domElement);
+                this.camera.position.z = 50;
+            }
+
+            initParticles() {
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(this.particleCount * 3);
+                this.velocities = new Float32Array(this.particleCount * 3);
+                this.basePositions = new Float32Array(this.particleCount * 3);
+
+                // Create initial line formation
+                for(let i = 0; i < this.particleCount; i++) {
+                    const angle = (i / this.particleCount) * Math.PI * 2;
+                    const radius = 40;
+                    this.basePositions[i*3] = Math.cos(angle) * radius;
+                    this.basePositions[i*3+1] = Math.sin(angle) * radius;
+                    this.basePositions[i*3+2] = (Math.random() - 0.5) * 20;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(this.basePositions.slice(), 3));
+                
+                this.particleMaterial = new THREE.PointsMaterial({
+                    size: 0.4,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true,
+                    depthWrite: false,
+                    vertexColors: true
+                });
+
+                // Add color attribute for pulse effects
+                const colors = new Float32Array(this.particleCount * 3);
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                
+                this.particles = new THREE.Points(geometry, this.particleMaterial);
+                this.scene.add(this.particles);
+            }
+
+            initEvents() {
+                const updateMouse = (x, y) => {
+                    this.mouse.x = (x / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(y / window.innerHeight) * 2 + 1;
+                };
+
+                document.addEventListener('mousemove', (e) => updateMouse(e.clientX, e.clientY));
+                document.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+                }, { passive: false });
+
+                // Enhanced explosion
+                const triggerChaos = (e) => {
+                    const x = e.touches ? e.touches[0].clientX : e.clientX;
+                    const y = e.touches ? e.touches[0].clientY : e.clientY;
+                    updateMouse(x, y);
+                    
+                    // Get explosion point in 3D space
+                    const vector = new THREE.Vector3(
+                        (x / window.innerWidth) * 2 - 1,
+                        -(y / innerHeight) * 2 + 1,
+                        0.5
+                    );
+                    vector.unproject(this.camera);
+                    this.explosionPoint.copy(vector);
+                    
+                    this.explosionPower = 1.5;
+                    this.pulseHueOffset = 1.0;
+                };
+
+                document.addEventListener('click', triggerChaos);
+                document.addEventListener('touchstart', triggerChaos);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                // Update colors and explosion effect
+                this.hue = (this.hue + 0.3) % 360;
+                this.pulseHueOffset *= 0.93;
+                
+                const colors = this.particles.geometry.attributes.color.array;
+                const positions = this.particles.geometry.attributes.position.array;
+                
+                // Physics update
+                for(let i = 0; i < positions.length; i += 3) {
+                    // Return to base formation force
+                    const dx = this.basePositions[i] - positions[i];
+                    const dy = this.basePositions[i+1] - positions[i+1];
+                    const dz = this.basePositions[i+2] - positions[i+2];
+                    
+                    this.velocities[i] += dx * 0.002;
+                    this.velocities[i+1] += dy * 0.002;
+                    this.velocities[i+2] += dz * 0.002;
+
+                    // Explosion force
+                    if(this.explosionPower > 0.1) {
+                        const ex = positions[i] - this.explosionPoint.x;
+                        const ey = positions[i+1] - this.explosionPoint.y;
+                        const ez = positions[i+2] - this.explosionPoint.z;
+                        const distance = Math.sqrt(ex*ex + ey*ey + ez*ez);
+                        
+                        const force = (1 - Math.min(distance/150, 1)) * this.explosionPower * 2;
+                        const angle = Math.atan2(ey, ex);
+                        
+                        this.velocities[i] += Math.cos(angle) * force;
+                        this.velocities[i+1] += Math.sin(angle) * force;
+                        this.velocities[i+2] += (Math.random() - 0.5) * force;
+                    }
+
+                    // Apply velocity
+                    positions[i] += this.velocities[i] *= 0.95;
+                    positions[i+1] += this.velocities[i+1] *= 0.95;
+                    positions[i+2] += this.velocities[i+2] *= 0.95;
+
+                    // Color effect
+                    const pulse = Math.min(this.pulseHueOffset, 1);
+                    const hue = (this.hue + pulse * 120) % 360;
+                    const rgb = this.HSLToRGB(hue/360, 0.8, 0.5);
+                    
+                    colors[i] = rgb.r;
+                    colors[i+1] = rgb.g;
+                    colors[i+2] = rgb.b;
+                }
+
+                this.explosionPower *= 0.85;
+                this.particles.geometry.attributes.position.needsUpdate = true;
+                this.particles.geometry.attributes.color.needsUpdate = true;
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            HSLToRGB(h, s, l) {
+                let r, g, b;
+                if(s === 0) {
+                    r = g = b = l;
+                } else {
+                    const hue2rgb = (p, q, t) => {
+                        if(t < 0) t += 1;
+                        if(t > 1) t -= 1;
+                        if(t < 1/6) return p + (q - p) * 6 * t;
+                        if(t < 1/2) return q;
+                        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+                    r = hue2rgb(p, q, h + 1/3);
+                    g = hue2rgb(p, q, h);
+                    b = hue2rgb(p, q, h - 1/3);
+                }
+                return {r, g, b};
+            }
+        }
+
+        // Start the chaos
+        new ChaosParticleSystem();
+    </script>
+</body>
+</html>

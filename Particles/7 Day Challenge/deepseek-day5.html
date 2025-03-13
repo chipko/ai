@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Magnetic Lattice</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; cursor: crosshair; }
+        #info {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            color: #fff;
+            font-family: Arial;
+            opacity: 0.8;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Click: Shockwave | Move: Magnetic Field | Scroll: Zoom</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        class MagneticLattice {
+            constructor() {
+                this.init();
+                this.createParticles();
+                this.setupEvents();
+                this.animate();
+            }
+
+            init() {
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(this.renderer.domElement);
+                
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 1000);
+                this.camera.position.z = 150;
+                
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x000000);
+                
+                this.mouse = new THREE.Vector3(0, 0, 0);
+                this.mouseStrength = 0;
+                this.originalPositions = [];
+            }
+
+            createParticles() {
+                this.particles = new THREE.Group();
+                const geometry = new THREE.OctahedronGeometry(1.5, 1);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0xffffff,
+                    emissive: 0x44aacc,
+                    shininess: 100,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                // 3D grid formation
+                const gridSize = 8;
+                for(let x = -gridSize; x <= gridSize; x++) {
+                    for(let y = -gridSize; y <= gridSize; y++) {
+                        for(let z = -gridSize; z <= gridSize; z++) {
+                            if(x+y+z === 0) { // Create diamond lattice pattern
+                                const particle = new THREE.Mesh(geometry, material);
+                                particle.position.set(x*10, y*10, z*10);
+                                this.originalPositions.push(particle.position.clone());
+                                particle.velocity = new THREE.Vector3();
+                                this.particles.add(particle);
+                            }
+                        }
+                    }
+                }
+
+                this.scene.add(this.particles);
+                const light = new THREE.PointLight(0x88aaff, 1, 500);
+                this.scene.add(light);
+                this.scene.add(new THREE.AmbientLight(0x223344));
+            }
+
+            setupEvents() {
+                window.addEventListener('mousemove', (e) => {
+                    // Smooth mouse tracking with momentum
+                    const targetMouse = new THREE.Vector3(
+                        (e.clientX/window.innerWidth) * 2 - 1,
+                        -(e.clientY/window.innerHeight) * 2 + 1,
+                        0.5
+                    ).unproject(this.camera);
+                    
+                    this.mouse.lerp(targetMouse, 0.1);
+                    this.mouseStrength = Math.min(1, this.mouseStrength + 0.05);
+                });
+
+                window.addEventListener('click', (e) => {
+                    this.particles.children.forEach(particle => {
+                        const toMouse = particle.position.clone().sub(this.mouse);
+                        particle.velocity.add(toMouse.normalize().multiplyScalar(30));
+                    });
+                });
+
+                window.addEventListener('wheel', (e) => {
+                    this.camera.position.z += e.deltaY * 0.5;
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const time = Date.now() * 0.001;
+                
+                this.particles.children.forEach((particle, i) => {
+                    // Magnetic field forces
+                    const toMouse = particle.position.clone().sub(this.mouse);
+                    const mouseDist = toMouse.length();
+                    const mouseForce = toMouse.normalize().multiplyScalar(
+                        (1 - Math.min(1, mouseDist/100)) * this.mouseStrength * 0.3
+                    );
+
+                    // Lattice memory force
+                    const toOriginal = this.originalPositions[i].clone().sub(particle.position);
+                    const memoryForce = toOriginal.multiplyScalar(0.02);
+
+                    // Combine forces
+                    particle.velocity.add(mouseForce)
+                                    .add(memoryForce)
+                                    .add(new THREE.Vector3(
+                                        Math.sin(time + i) * 0.01,
+                                        Math.cos(time * 0.8 + i) * 0.01,
+                                        Math.sin(time * 0.5 + i) * 0.01
+                                    ));
+
+                    // Velocity dynamics
+                    particle.velocity.multiplyScalar(0.95);
+                    particle.position.add(particle.velocity);
+
+                    // Visual feedback
+                    const speed = particle.velocity.length();
+                    particle.material.emissive.setHSL(
+                        0.6 + speed * 0.2,
+                        0.8,
+                        0.5 + Math.sin(time * 2) * 0.2
+                    );
+                    particle.scale.setScalar(1 + speed * 0.5);
+                });
+
+                // Gradual strength decay
+                this.mouseStrength *= 0.97;
+
+                // Gentle rotation
+                this.particles.rotation.y += 0.001;
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        new MagneticLattice();
+    </script>
+</body>
+</html>

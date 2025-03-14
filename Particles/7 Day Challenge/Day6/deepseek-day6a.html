@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; cursor: none; }
+        canvas { display: block; }
+        .info {
+            position: fixed;
+            color: rgba(255,255,255,0.3);
+            font-family: sans-serif;
+            padding: 10px;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">Drag to warp reality • Release for supernova • Shift+Click for black holes</div>
+    <canvas id="c"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.2/chroma.min.js"></script>
+    <script>
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const particles = [];
+        const waves = [];
+        const blackHoles = [];
+        const mouse = { 
+            x: -1000, y: -1000, down: false, released: false,
+            power: 0, trail: []
+        };
+        
+        const hueBase = chroma.scale(['#ff61d2', '#7d6fff', '#74f9ff', '#fffb80']);
+        let bigBangTime = 0;
+
+        class Particle {
+            constructor() {
+                this.reset(true);
+                this.phase = Math.random() * Math.PI*2;
+                this.age = 0;
+            }
+            
+            reset(init) {
+                this.x = init ? Math.random() * width : mouse.x;
+                this.y = init ? Math.random() * height : mouse.y;
+                this.vx = (Math.random()-0.5)*2;
+                this.vy = (Math.random()-0.5)*2;
+                this.radius = Math.random()*3 + 2;
+                this.hue = Math.random() * 360;
+                this.age = 0;
+                return this;
+            }
+            
+            update() {
+                this.age++;
+                this.hue = (this.hue + 0.1) % 360;
+                this.phase += 0.02;
+                const noise = Math.cos(this.phase) * 0.25;
+                
+                // Black hole interaction
+                blackHoles.forEach(bh => {
+                    if (Date.now() - bh.time < 2000) {
+                        const dx = bh.x - this.x;
+                        const dy = bh.y - this.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 300) {
+                            const force = (300 - dist) * 0.0005;
+                            this.vx += dx * force;
+                            this.vy += dy * force;
+                        }
+                    }
+                });
+
+                if (mouse.down) {
+                    const dx = mouse.x - this.x;
+                    const dy = mouse.y - this.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const angle = Math.atan2(dy, dx) + noise;
+                    const force = (600 - Math.min(dist, 600)) * 0.0003 * mouse.power;
+                    
+                    this.vx += Math.cos(angle) * force;
+                    this.vy += Math.sin(angle) * force;
+                    mouse.power = Math.min(1.2, mouse.power + 0.02);
+                }
+
+                // Quantum tunneling
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.96;
+                this.vy *= 0.96;
+                
+                // Cosmic boundary conditions
+                if (this.x < -100) this.x = width + 100;
+                if (this.x > width + 100) this.x = -100;
+                if (this.y < -100) this.y = height + 100;
+                if (this.y > height + 100) this.y = -100;
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * (0.8 + Math.sin(this.age*0.1)*0.2), 0, Math.PI*2);
+                ctx.fillStyle = hueBase(this.hue/360).brighten(0.8).hex();
+                ctx.fill();
+            }
+        }
+
+        function createQuantumWave(x, y, hue) {
+            waves.push({
+                x, y,
+                radius: 0,
+                life: 1,
+                hue: hue || Math.random() * 360,
+                type: Math.random() > 0.5 ? 'ring' : 'spiral'
+            });
+        }
+
+        function createBlackHole(x, y) {
+            blackHoles.push({ x, y, time: Date.now() });
+            for (let i = 0; i < 50; i++) {
+                setTimeout(() => createQuantumWave(x, y, 0), i * 20);
+            }
+        }
+
+        function applySupernova() {
+            particles.forEach((p, i) => {
+                particles.slice(i+1).forEach(p2 => {
+                    const dx = p2.x - p.x;
+                    const dy = p2.y - p.y;
+                    const distSq = dx*dx + dy*dy;
+                    
+                    if (distSq < 40000) {
+                        const dist = Math.sqrt(distSq);
+                        const force = (1 - dist/200) * (2 + Math.random());
+                        const dirX = dx / dist;
+                        const dirY = dy / dist;
+                        
+                        p.vx -= dirX * force;
+                        p.vy -= dirY * force;
+                        p2.vx += dirX * force;
+                        p2.vy += dirY * force;
+                    }
+                });
+            });
+            bigBangTime = Date.now();
+        }
+
+        function drawCursor() {
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, 15 * (0.8 + Math.sin(Date.now()*0.005)*0.2), 0, Math.PI*2);
+            ctx.strokeStyle = `hsla(${(Date.now()*0.1)%360}, 100%, 70%, 0.4)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function animate() {
+            ctx.fillStyle = `rgba(0,0,0,${mouse.down ? 0.04 : 0.08})`;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Big bang aftermath
+            const bangAge = Date.now() - bigBangTime;
+            if (bangAge < 1000) {
+                ctx.save();
+                ctx.translate(
+                    (Math.random() - 0.5) * 4 * (1 - bangAge/1000),
+                    (Math.random() - 0.5) * 4 * (1 - bangAge/1000)
+                );
+            }
+
+            if (mouse.released) {
+                applySupernova();
+                mouse.released = false;
+            }
+            
+            particles.forEach((p, i) => {
+                p.update();
+                
+                particles.slice(i+1).forEach(p2 => {
+                    const dx = p2.x - p.x;
+                    const dy = p2.y - p.y;
+                    const distSq = dx*dx + dy*dy;
+                    
+                    if (distSq < 80000) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `hsla(${(p.hue+p2.hue)/2}, 70%, 60%, ${0.4 - distSq/80000})`;
+                        ctx.lineWidth = 0.8 + Math.sin(Date.now()*0.001)*0.4;
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+                
+                p.draw();
+            });
+            
+            waves.forEach((w, i) => {
+                w.radius += (1 - w.life) * (w.type === 'spiral' ? 30 : 20);
+                w.life -= 0.015;
+                
+                if (w.life > 0) {
+                    ctx.beginPath();
+                    if (w.type === 'spiral') {
+                        ctx.arc(w.x, w.y, w.radius, Date.now()*0.002, Math.PI*2 + Date.now()*0.002);
+                    } else {
+                        ctx.arc(w.x, w.y, w.radius, 0, Math.PI*2);
+                    }
+                    ctx.strokeStyle = `hsla(${w.hue}, 100%, 70%, ${w.life*0.3})`;
+                    ctx.lineWidth = 2 + (1 - w.life)*4;
+                    ctx.stroke();
+                }
+                
+                if (w.life <= 0) waves.splice(i, 1);
+            });
+
+            // Draw black holes
+            blackHoles.forEach((bh, i) => {
+                const age = Date.now() - bh.time;
+                if (age < 4000) {
+                    ctx.beginPath();
+                    ctx.arc(bh.x, bh.y, age*0.1, 0, Math.PI*2);
+                    ctx.strokeStyle = `hsla(0, 0%, 100%, ${0.5 - age/8000})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+            });
+
+            drawCursor();
+            if (bangAge < 1000) ctx.restore();
+            
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        
+        // Init quantum foam
+        for (let i = 0; i < 150; i++) particles.push(new Particle());
+        
+        canvas.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.trail.push({x: e.clientX, y: e.clientY});
+            if (mouse.trail.length > 10) mouse.trail.shift();
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            mouse.down = true;
+            mouse.power = 0.5;
+            if (e.shiftKey) createBlackHole(mouse.x, mouse.y);
+            else createQuantumWave(mouse.x, mouse.y);
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            mouse.down = false;
+            mouse.released = true;
+            createQuantumWave(mouse.x, mouse.y, 60);
+        });
+        
+        canvas.addEventListener('click', (e) => {
+            if (!e.shiftKey) {
+                particles.push(new Particle().reset(false));
+                createQuantumWave(mouse.x, mouse.y);
+            }
+        });
+        
+        window.addEventListener('resize', resize);
+        animate();
+
+        // Cosmic background radiation
+        ctx.shadowColor = 'rgba(255,255,255,0.2)';
+        ctx.shadowBlur = 15;
+    </script>
+</body>
+</html>

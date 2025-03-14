@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Day 6 Challenge: Paint & Clear Dance</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    // Set up canvas and context
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+    
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+    
+    // Use additive blending for vibrant glow
+    ctx.globalCompositeOperation = 'lighter';
+    
+    // Particle class using vivid colours
+    class Particle {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 2 + 1;
+        this.speedX = Math.random() * 2 - 1;
+        this.speedY = Math.random() * 2 - 1;
+        this.hue = Math.floor(Math.random() * 360);
+        this.life = 60; // lifespan in frames
+        this.maxLife = this.life;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.speedX *= 0.99;
+        this.speedY *= 0.99;
+        this.life--;
+        if (this.x < 0 || this.x > width) this.speedX *= -1;
+        if (this.y < 0 || this.y > height) this.speedY *= -1;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 100%, 50%, ${this.life / this.maxLife})`;
+        ctx.fill();
+      }
+    }
+    
+    // Particle system container and helper function
+    const particles = [];
+    const maxParticles = 400;
+    function createParticles(x, y, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y));
+      }
+    }
+    
+    // Initial scatter of particles
+    for (let i = 0; i < 100; i++) {
+      createParticles(Math.random() * width, Math.random() * height, 1);
+    }
+    
+    // Mouse variables for interactivity
+    let mouseX = width / 2, mouseY = height / 2;
+    let isErasing = false;
+    
+    // When mouse is pressed, enter "erasing" mode.
+    canvas.addEventListener('mousedown', (e) => {
+      isErasing = true;
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+    });
+    canvas.addEventListener('mouseup', () => {
+      isErasing = false;
+    });
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      // If not erasing, paint normally
+      if (!isErasing) {
+        createParticles(mouseX, mouseY, 2);
+      }
+    });
+    
+    let frameCount = 0;
+    function animate() {
+      frameCount++;
+      // Create a trailing effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.fillRect(0, 0, width, height);
+      
+      // Auto-spawn particles from a moving attractor when not erasing
+      const t = Date.now() / 1500;
+      const attractX = width / 2 + Math.sin(t) * (width / 3);
+      const attractY = height / 2 + Math.cos(t) * (height / 3);
+      if (frameCount % 8 === 0 && !isErasing) {
+        createParticles(attractX, attractY, 3);
+      }
+      
+      // Update particles; if erasing, repel or remove those near the mouse
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        if (isErasing) {
+          const dx = p.x - mouseX;
+          const dy = p.y - mouseY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 50) {
+            // Apply a strong repulsion force
+            const factor = ((50 - dist) / 50) * 0.7;
+            if (dist > 0) {
+              p.speedX += (dx / dist) * factor;
+              p.speedY += (dy / dist) * factor;
+            }
+            // Remove particle if very close to simulate clearing
+            if (dist < 15) {
+              particles.splice(i, 1);
+              continue;
+            }
+          }
+        }
+        p.update();
+        p.draw();
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+      
+      // Limit the total particle count for performance
+      if (particles.length > maxParticles) {
+        particles.splice(0, particles.length - maxParticles);
+      }
+      requestAnimationFrame(animate);
+    }
+    
+    animate();
+  </script>
+</body>
+</html>

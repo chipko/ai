@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        .info {
+            position: fixed;
+            color: rgba(255,255,255,0.3);
+            font-family: sans-serif;
+            padding: 10px;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">Click/drag to summon energy • Hold mouse to create vortex</div>
+    <canvas id="c"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.2/chroma.min.js"></script>
+    <script>
+        const canvas = document.getElementById('c');
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const particles = [];
+        const sparkles = [];
+        const mouse = { x: -1000, y: -1000, down: false };
+        const hueBase = chroma.scale(['#ff61d2', '#7d6fff', '#74f9ff']);
+        
+        class Particle {
+            constructor() {
+                this.reset(true);
+                this.connections = new Set();
+            }
+            
+            reset(init) {
+                this.x = init ? Math.random() * width : mouse.x + (Math.random()-0.5)*80;
+                this.y = init ? Math.random() * height : mouse.y + (Math.random()-0.5)*80;
+                this.vx = (Math.random()-0.5)*2;
+                this.vy = (Math.random()-0.5)*2;
+                this.radius = Math.random()*3 + 2;
+                this.hue = Math.random() * 360;
+                return this; // Fixed: Return instance for chaining
+            }
+            
+            update() {
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (mouse.down) {
+                    // Create curl force
+                    const angle = Math.atan2(dy, dx) + Math.PI/2;
+                    const force = (600 - Math.min(dist, 600)) * 0.0002;
+                    this.vx += Math.cos(angle) * force;
+                    this.vy += Math.sin(angle) * force;
+                } else if (dist < 150) {
+                    // Default repulsion
+                    const force = (150 - dist) * 0.0008;
+                    this.vx -= dx * force;
+                    this.vy -= dy * force;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                
+                if (this.x < 0 || this.x > width) this.vx *= -0.8;
+                if (this.y < 0 || this.y > height) this.vy *= -0.8;
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+                ctx.fillStyle = hueBase(this.hue/360).hex();
+                ctx.fill();
+            }
+        }
+
+        function createSparkles(x, y) {
+            for (let i = 0; i < 15; i++) {
+                sparkles.push({
+                    x, y,
+                    angle: Math.random() * Math.PI*2,
+                    life: 1,
+                    speed: Math.random()*4 + 2,
+                    size: Math.random()*3 + 1
+                });
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = 'rgba(0,0,0,0.05)';
+            ctx.fillRect(0, 0, width, height);
+            
+            particles.forEach((p, i) => {
+                p.update();
+                p.connections.clear();
+                
+                particles.slice(i+1).forEach(p2 => {
+                    const dx = p2.x - p.x;
+                    const dy = p2.y - p.y;
+                    const dist = dx*dx + dy*dy;
+                    if (dist < 10000) {
+                        p.connections.add(p2);
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(255,255,255,${0.2 - dist/10000})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                });
+                
+                p.draw();
+            });
+            
+            sparkles.forEach((s, i) => {
+                s.x += Math.cos(s.angle) * s.speed;
+                s.y += Math.sin(s.angle) * s.speed;
+                s.life -= 0.03;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size * s.life, 0, Math.PI*2);
+                ctx.fillStyle = `hsla(${Math.random()*360}, 100%, 70%, ${s.life})`;
+                ctx.fill();
+                if (s.life <= 0) sparkles.splice(i, 1);
+            });
+            
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        
+        // Init
+        for (let i = 0; i < 150; i++) particles.push(new Particle());
+        
+        canvas.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        
+        canvas.addEventListener('mousedown', () => mouse.down = true);
+        canvas.addEventListener('mouseup', () => mouse.down = false);
+        canvas.addEventListener('click', () => {
+            createSparkles(mouse.x, mouse.y);
+            particles.push(new Particle().reset(false)); // Fixed: Proper chaining
+        });
+        
+        window.addEventListener('resize', resize);
+        animate();
+    </script>
+</body>
+</html>

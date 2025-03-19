@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pulsing Pixel Spheres</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #111;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const spheres = [];
+        let time = 0;
+        let explode = false;
+
+        // Initial sphere creation
+        function addSphere() {
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff, wireframe: true });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20
+            );
+            scene.add(sphere);
+            spheres.push(sphere);
+        }
+
+        for (let i = 0; i < 10; i++) addSphere();
+
+        camera.position.z = 30;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.05;
+
+            spheres.forEach((sphere, index) => {
+                const scale = 1 + Math.sin(time + index) * 0.5;
+                sphere.scale.set(scale, scale, scale);
+
+                if (explode) {
+                    sphere.position.x += (Math.random() - 0.5) * 0.5;
+                    sphere.position.y += (Math.random() - 0.5) * 0.5;
+                    sphere.position.z += (Math.random() - 0.5) * 0.5;
+                    sphere.material.color.setRGB(Math.random(), Math.random(), Math.random());
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Mouse movement: Orbit camera
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            camera.position.x = Math.sin(mouseX * Math.PI) * 30;
+            camera.position.z = Math.cos(mouseX * Math.PI) * 30;
+            camera.position.y = mouseY * 20;
+            camera.lookAt(0, 0, 0);
+        });
+
+        // Left click: Add a new sphere
+        document.addEventListener('click', () => {
+            if (spheres.length < 50) addSphere();
+        });
+
+        // Right click: Trigger explosion effect
+        document.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            explode = !explode;
+        });
+
+        // Window resize handling
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>

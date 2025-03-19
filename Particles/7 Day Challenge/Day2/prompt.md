@@ -1,0 +1,1 @@
+OK, it;s been a while for this!  Let's make a really cool and exciting eye candy animation.  It could be anything, particles, colours, effects, transformations, anything.  Extra points go for any mouse interactivity on  a computer and extra bonus points if you achieve some interactivity on mobile devices (android if anything).

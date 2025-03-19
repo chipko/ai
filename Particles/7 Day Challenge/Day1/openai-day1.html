@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Particle Animation</title>
+  <style>
+    /* Remove scrollbars/margins and set a black background */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      height: 100%;
+      width: 100%;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script>
+    (function() {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      let width = canvas.width = window.innerWidth;
+      let height = canvas.height = window.innerHeight;
+
+      // Array to hold all particles.
+      let particles = [];
+      // Set a base particle count scaled by screen size.
+      const baseParticleCount = Math.floor(width * height / 8000);
+      // Mouse/touch position starts at the center.
+      let mouse = { x: width / 2, y: height / 2 };
+
+      // Particle "class"
+      function Particle() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.size = Math.random() * 3 + 1;
+        this.hue = Math.random() * 360;
+      }
+
+      Particle.prototype.update = function() {
+        // Calculate vector from particle to mouse
+        const dx = mouse.x - this.x;
+        const dy = mouse.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < 100) {
+          // The closer to the mouse, the stronger the pull
+          const force = (100 - distance) / 1000;
+          this.vx += dx * force;
+          this.vy += dy * force;
+        }
+        // Apply slight friction to keep speeds in check
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Wrap around screen edges for continuous flow
+        if (this.x > width) this.x = 0;
+        else if (this.x < 0) this.x = width;
+        if (this.y > height) this.y = 0;
+        else if (this.y < 0) this.y = height;
+
+        // Gradually change hue for a shifting rainbow effect
+        this.hue += 0.5;
+        if (this.hue > 360) this.hue -= 360;
+      };
+
+      Particle.prototype.draw = function() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = 'hsl(' + this.hue + ', 100%, 50%)';
+        ctx.fill();
+      };
+
+      // Initialize particles based on the base count
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < baseParticleCount; i++) {
+          particles.push(new Particle());
+        }
+      }
+
+      // Animation loop: clear with a slight opacity for trails and update/draw particles
+      function animate() {
+        requestAnimationFrame(animate);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(0, 0, width, height);
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw();
+        }
+      }
+
+      // Adjust canvas size and reinitialize particles when the window is resized.
+      window.addEventListener('resize', function() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        initParticles();
+      });
+
+      // Update mouse coordinates on movement
+      window.addEventListener('mousemove', function(e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      // Support touch interactivity for mobile devices
+      window.addEventListener('touchmove', function(e) {
+        if (e.touches.length > 0) {
+          mouse.x = e.touches[0].clientX;
+          mouse.y = e.touches[0].clientY;
+        }
+      }, { passive: false });
+
+      // On click or tap, create an extra burst of particles at the interaction point
+      window.addEventListener('click', function(e) {
+        for (let i = 0; i < 20; i++) {
+          let p = new Particle();
+          p.x = e.clientX;
+          p.y = e.clientY;
+          particles.push(p);
+        }
+      });
+
+      initParticles();
+      animate();
+    })();
+  </script>
+</body>
+</html>

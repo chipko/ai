@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Revamped Entry 2: Dynamic 3D Harmonic Grid with Auto Spin</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #111; }
+    #info {
+      position: absolute; top: 10px; width: 100%; text-align: center; color: #eee;
+      font-family: Arial, sans-serif; z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    Revamped Entry 2: Dynamic 3D Harmonic Grid – Left click toggles ripple effect; Right click toggles auto spin.
+  </div>
+  <!-- Include Three.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script>
+    let scene, camera, renderer;
+    let gridGroup;
+    let cubes = [];
+    const gridSize = 20;    // Number of cubes along one side
+    const cubeSize = 2;     // Size of each cube
+    const gap = 2;          // Additional gap between cubes
+    let rippleActive = false;
+    let autoSpin = false;
+    let time = 0;
+    
+    // Variables for controlling rotation via mouse movement
+    let targetRotation = { x: 0, y: 0, z: 0 };
+    let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+    
+    init();
+    animate();
+    
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 30, 40);
+      camera.lookAt(0, 0, 0);
+      
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      
+      gridGroup = new THREE.Group();
+      const offset = (gridSize * (cubeSize + gap)) / 2;
+      
+      // Create a grid of cubes with extra spacing
+      for (let i = 0; i < gridSize; i++) {
+        for (let j = 0; j < gridSize; j++) {
+          const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+          const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+          const cube = new THREE.Mesh(geometry, material);
+          cube.position.x = i * (cubeSize + gap) - offset;
+          cube.position.z = j * (cubeSize + gap) - offset;
+          cube.userData = { baseY: cube.position.y };
+          gridGroup.add(cube);
+          cubes.push(cube);
+        }
+      }
+      
+      scene.add(gridGroup);
+      
+      window.addEventListener('resize', onWindowResize, false);
+      window.addEventListener('mousedown', onMouseDown, false);
+      window.addEventListener('mousemove', onMouseMove, false);
+      // Disable default context menu on right click
+      window.addEventListener('contextmenu', function(e) { e.preventDefault(); }, false);
+    }
+    
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    function onMouseDown(event) {
+      if (event.button === 0) {
+        // Left click: toggle the ripple (wave) effect
+        rippleActive = !rippleActive;
+      } else if (event.button === 2) {
+        // Right click: toggle auto spin mode
+        autoSpin = !autoSpin;
+      }
+    }
+    
+    function onMouseMove(event) {
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      
+      // Only update targetRotation if auto spin is off
+      if (!autoSpin) {
+        // Normalize mouse positions (-1 to 1)
+        let normalizedX = (mouseX / window.innerWidth) * 2 - 1;
+        let normalizedY = (mouseY / window.innerHeight) * 2 - 1;
+        
+        // Map normalized mouse positions to rotation angles
+        targetRotation.x = normalizedY * Math.PI / 4;  // tilt up/down
+        targetRotation.y = normalizedX * Math.PI / 4;  // tilt left/right
+        
+        // For Z rotation, use a subtle function of both axes for a nice twist
+        targetRotation.z = normalizedX * normalizedY * Math.PI / 2;
+      }
+    }
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.02;
+      
+      // Update each cube's color and scale based on a harmonic wave function.
+      cubes.forEach(cube => {
+        let dx = cube.position.x;
+        let dz = cube.position.z;
+        let distance = Math.sqrt(dx * dx + dz * dz);
+        
+        let scale = rippleActive ? (1 + 0.3 * Math.sin(distance * 0.3 - time * 2)) : 1;
+        cube.scale.set(scale, scale, scale);
+        
+        let hue = ((distance * 5 + time * 20) % 360) / 360;
+        cube.material.color.setHSL(hue, 0.7, 0.5);
+      });
+      
+      if (autoSpin) {
+        // Apply continuous auto spin when enabled
+        gridGroup.rotation.x += 0.005;
+        gridGroup.rotation.y += 0.01;
+        gridGroup.rotation.z += 0.003;
+      } else {
+        // Smoothly interpolate the grid's rotation towards the target rotation from mouse movement
+        gridGroup.rotation.x += (targetRotation.x - gridGroup.rotation.x) * 0.05;
+        gridGroup.rotation.y += (targetRotation.y - gridGroup.rotation.y) * 0.05;
+        gridGroup.rotation.z += (targetRotation.z - gridGroup.rotation.z) * 0.05;
+      }
+      
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>

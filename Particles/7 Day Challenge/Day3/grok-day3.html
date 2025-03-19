@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kaleidoscopic Waves</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let time = 0;
+        let mouseX = canvas.width / 2;
+        let mouseY = canvas.height / 2;
+        let rotate = false;
+
+        function drawWave() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'; // Fading background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const gridSize = 50;
+            const amplitude = 20 + (mouseY / canvas.height) * 50; // Mouse Y affects height
+            const frequency = (mouseX / canvas.width) * 0.1; // Mouse X affects speed
+
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                for (let y = 0; y < canvas.height; y += gridSize) {
+                    const wave = Math.sin(time + x * frequency) * amplitude;
+                    const hue = (time + x + y) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+
+                    // Kaleidoscope effect: mirror across center
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+                    const dx = x - cx;
+                    const dy = y - cy;
+
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    if (rotate) ctx.rotate(time * 0.02); // Rotation on click/tap
+
+                    // Draw four symmetrical quadrants
+                    [1, -1].forEach(mx => {
+                        [1, -1].forEach(my => {
+                            ctx.beginPath();
+                            ctx.arc(dx * mx, dy * my + wave, gridSize / 2, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                    });
+
+                    ctx.restore();
+                }
+            }
+            time += 0.05;
+        }
+
+        function animate() {
+            drawWave();
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        // Mouse events
+        canvas.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+        canvas.addEventListener('mousedown', () => rotate = true);
+        canvas.addEventListener('mouseup', () => rotate = false);
+
+        // Touch events
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                mouseX = e.touches[0].clientX;
+                mouseY = e.touches[0].clientY;
+                rotate = true;
+            }
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                mouseX = e.touches[0].clientX;
+                mouseY = e.touches[0].clientY;
+            }
+        });
+        canvas.addEventListener('touchend', () => rotate = false);
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stable Terrain Explorer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, terrain;
+        let mouse = new THREE.Vector2();
+        let raycaster = new THREE.Raycaster();
+        const clock = new THREE.Clock();
+        let originalHeights = [];
+        const TERRAIN_SIZE = 128;
+
+        init();
+        animate();
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Generate terrain
+            terrain = createTerrain();
+            scene.add(terrain);
+
+            // Store original heights
+            const vertices = terrain.geometry.attributes.position.array;
+            originalHeights = new Float32Array(vertices.length/3);
+            for(let i = 0; i < vertices.length; i += 3) {
+                originalHeights[i/3] = vertices[i+2];
+            }
+
+            // Lighting
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(0.5, 1, 0.75);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            camera.position.set(50, 50, 50);
+            camera.lookAt(0, 0, 0);
+
+            // Event listeners
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createTerrain() {
+            const geometry = new THREE.PlaneGeometry(100, 100, TERRAIN_SIZE-1, TERRAIN_SIZE-1);
+            const vertices = geometry.attributes.position.array;
+            
+            // Generate initial heights
+            for(let i = 0; i < vertices.length; i += 3) {
+                const x = vertices[i];
+                const y = vertices[i+1];
+                vertices[i+2] = fractalNoise(x, y, 6) * 15;
+            }
+
+            // Create color attribute
+            const colors = new Float32Array(vertices.length);
+            for(let i = 0; i < vertices.length; i += 3) {
+                const height = vertices[i+2];
+                const color = new THREE.Color().setHSL(
+                    0.6 - height/40, 
+                    0.7 - height/30, 
+                    0.3 + height/20
+                );
+                colors[i] = color.r;
+                colors[i+1] = color.g;
+                colors[i+2] = color.b;
+            }
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            return new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+                vertexColors: true,
+                flatShading: true
+            }));
+        }
+
+        function fractalNoise(x, y, octaves) {
+            let value = 0;
+            let freq = 1;
+            let amp = 0.5;
+            
+            for(let i = 0; i < octaves; i++) {
+                value += amp * (Math.sin(x*freq) * Math.cos(y*freq));
+                freq *= 2;
+                amp *= 0.5;
+            }
+            return value;
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function onMouseDown(event) {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(terrain);
+            
+            if(intersects.length > 0) {
+                const point = intersects[0].point;
+                modifyTerrain(point.x, point.z, event.button === 0 ? 10 : -15);
+                updateOriginalHeights();
+            }
+        }
+
+        function modifyTerrain(x, y, strength) {
+            const vertices = terrain.geometry.attributes.position.array;
+            const radius = 8;
+            
+            for(let i = 0; i < vertices.length; i += 3) {
+                const dx = vertices[i] - x;
+                const dy = vertices[i+1] - y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if(dist < radius) {
+                    const falloff = (1 - dist/radius) ** 2;
+                    vertices[i+2] += strength * falloff;
+                }
+            }
+            
+            terrain.geometry.attributes.position.needsUpdate = true;
+            terrain.geometry.computeVertexNormals();
+        }
+
+        function updateOriginalHeights() {
+            const vertices = terrain.geometry.attributes.position.array;
+            for(let i = 0; i < vertices.length; i += 3) {
+                originalHeights[i/3] = vertices[i+2];
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Animate with wave pattern
+            const time = clock.getElapsedTime();
+            const vertices = terrain.geometry.attributes.position.array;
+            
+            for(let i = 0; i < vertices.length; i += 3) {
+                vertices[i+2] = originalHeights[i/3] + Math.sin(time + i/50) * 0.8;
+            }
+            
+            terrain.geometry.attributes.position.needsUpdate = true;
+            terrain.rotation.y += 0.0015;
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>

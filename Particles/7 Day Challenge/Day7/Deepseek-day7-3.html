@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Liquid Light Vortex</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script id="vertexShader" type="x-shader/x-vertex">
+        void main() {
+            gl_Position = vec4(position, 1.0);
+        }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform vec2 u_resolution;
+        uniform vec2 u_mouse;
+        uniform float u_time;
+        uniform int u_click;
+        
+        #define PI 3.14159265359
+
+        vec3 palette(float t) {
+            vec3 a = vec3(0.5, 0.5, 0.5);
+            vec3 b = vec3(0.5, 0.5, 0.5);
+            vec3 c = vec3(2.0, 1.0, 0.0);
+            vec3 d = vec3(0.50, 0.20, 0.25);
+            return a + b*cos(6.28318*(c*t + d));
+        }
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
+            vec2 mouse = u_mouse * 2.0 - 1.0;
+            
+            float dist = length(uv - mouse*0.5);
+            float force = smoothstep(0.8, 0.0, dist) * (u_click > 0 ? 2.0 : 0.5);
+            
+            vec3 finalColor = vec3(0.0);
+            for(float i = 0.0; i < 4.0; i++) {
+                uv = abs(uv * 1.5) - 1.0;
+                uv = uv * mat2(cos(u_time*0.3 + i), sin(u_time*0.3 + i), 
+                             -sin(u_time*0.3 + i), cos(u_time*0.3 + i));
+                
+                float pattern = sin(uv.x * PI) * cos(uv.y * PI + u_time);
+                pattern += 0.5 * sin(uv.y * PI * 2.0 + u_time * 0.5);
+                pattern = abs(pattern);
+                
+                vec3 col = palette(length(uv) + u_time*0.2 + i*0.4);
+                finalColor += col * pattern * force / (1.0 + dist*5.0);
+            }
+            
+            finalColor = smoothstep(-0.2, 1.5, finalColor);
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+    <script>
+        let renderer, scene, camera, material, mouse = new THREE.Vector2();
+        let clickState = 0, lastClick = 0;
+
+        init();
+        animate();
+
+        function init() {
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            const geometry = new THREE.PlaneGeometry(2, 2);
+            material = new THREE.ShaderMaterial({
+                uniforms: {
+                    u_time: { value: 0 },
+                    u_resolution: { value: new THREE.Vector2() },
+                    u_mouse: { value: new THREE.Vector2() },
+                    u_click: { value: 0 }
+                },
+                vertexShader: document.getElementById('vertexShader').text,
+                fragmentShader: document.getElementById('fragmentShader').text
+            });
+
+            scene.add(new THREE.Mesh(geometry, material));
+            
+            document.addEventListener('mousemove', e => {
+                mouse.set(e.clientX / innerWidth, 1 - e.clientY / innerHeight);
+            });
+            
+            document.addEventListener('mousedown', e => {
+                clickState = e.button === 0 ? 1 : -1;
+                lastClick = performance.now();
+            });
+            
+            document.addEventListener('mouseup', () => clickState = 0);
+            window.addEventListener('resize', onResize);
+            onResize();
+        }
+
+        function animate(t) {
+            requestAnimationFrame(animate);
+            
+            material.uniforms.u_time.value = t * 0.001;
+            material.uniforms.u_mouse.value = mouse;
+            material.uniforms.u_resolution.value.set(innerWidth, innerHeight);
+            material.uniforms.u_click.value = clickState;
+            
+            if(clickState !== 0 && performance.now() - lastClick > 100) {
+                clickState = 0;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function onResize() {
+            renderer.setSize(innerWidth, innerHeight);
+            material.uniforms.u_resolution.value.set(innerWidth, innerHeight);
+        }
+    </script>
+</body>
+</html>

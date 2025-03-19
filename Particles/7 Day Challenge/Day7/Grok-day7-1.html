@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Spinning Color Cubes</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas') });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const cubes = [];
+        const gridSize = 10;
+        const spacing = 2;
+        let spinSpeed = 0.01;
+        let rainbowMode = false;
+
+        // Create a grid of cubes
+        for (let x = -gridSize; x <= gridSize; x++) {
+            for (let y = -gridSize; y <= gridSize; y++) {
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+                const cube = new THREE.Mesh(geometry, material);
+                cube.position.set(x * spacing, y * spacing, 0);
+                scene.add(cube);
+                cubes.push(cube);
+            }
+        }
+
+        camera.position.z = 20;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            cubes.forEach(cube => {
+                cube.rotation.x += spinSpeed;
+                cube.rotation.y += spinSpeed;
+                if (rainbowMode) {
+                    cube.material.color.setHSL(Math.random(), 1, 0.5);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Mouse movement
+        document.addEventListener('mousemove', (event) => {
+            const mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            const mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            camera.position.x = mouseX * 10;
+            camera.position.y = mouseY * 10;
+            camera.lookAt(0, 0, 0);
+        });
+
+        // Left click: Increase spin speed
+        document.addEventListener('click', () => {
+            spinSpeed += 0.01;
+        });
+
+        // Right click: Toggle rainbow mode
+        document.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            rainbowMode = !rainbowMode;
+        });
+
+        // Window resize handling
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+OK, it;s been a while for this!  Let's make a really cool and exciting eye candy animation.  It could be anything, particles, colours, effects, transformations, anything.  Extra points go for any mouse interactivity on  a computer and extra bonus points if you achieve some interactivity on mobile devices (android if anything).
+
+It should be performant and have the wow factor - it must all consist in a single html file with whatever JS libraries, CDN etc needed.  Points will be deducted for any errors that need attention.  Do you accept the challenge?!
+
+congratulations on yesterday's entry. it was so close but you can't 2nd. it was excellent though, you should be proud. here was your entry from yesterday:

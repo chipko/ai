@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fractured Color Planes</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #222;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x222222);
+
+        const group = new THREE.Group();
+        scene.add(group);
+        const planes = []; // Persistent array
+        let baseColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+        let mouseX = 0, mouseY = 0;
+
+        // Create planes
+        function createPlanes() {
+            // Clear existing planes
+            while (group.children.length > 0) {
+                group.remove(group.children[0]);
+            }
+            planes.length = 0; // Reset array without breaking reference
+
+            // Add new planes
+            for (let i = -2; i <= 2; i++) {
+                const geometry = new THREE.PlaneGeometry(10, 10, 4, 4);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: baseColor.clone().offsetHSL(i * 0.1, 0, 0), 
+                    side: THREE.DoubleSide 
+                });
+                const plane = new THREE.Mesh(geometry, material);
+                plane.position.z = i * 5;
+                plane.userData.velocity = new THREE.Vector3(0, 0, 0);
+                plane.userData.rippleOffset = i * 0.2; // For animation
+                group.add(plane);
+                planes.push(plane);
+            }
+        }
+        createPlanes();
+
+        camera.position.z = 25;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = Date.now() * 0.001;
+            planes.forEach((plane, index) => {
+                // Ripple effect using scale
+                const ripple = Math.sin(time + plane.userData.rippleOffset + 
+                    plane.position.distanceTo(new THREE.Vector3(mouseX * 10, mouseY * 10, plane.position.z))) * 0.2 + 1;
+                plane.scale.set(ripple, ripple, 1);
+
+                // Apply velocity
+                plane.position.add(plane.userData.velocity);
+                plane.userData.velocity.multiplyScalar(0.95);
+            });
+
+            group.rotation.x += 0.005;
+            group.rotation.y += 0.005;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Mouse movement
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            group.rotation.y = mouseX * Math.PI;
+            group.rotation.x = mouseY * Math.PI;
+        });
+
+        // Left click: Shatter
+        document.addEventListener('click', () => {
+            planes.forEach(plane => {
+                plane.userData.velocity.set(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                );
+                plane.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4, 1); // Random shatter scale
+            });
+        });
+
+        // Right click: Recolor and reset
+        document.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            baseColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+            createPlanes();
+        });
+
+        // Resize handling
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Debug WebGL
+        if (!renderer.context) {
+            console.error("WebGL not supported or failed to initialize.");
+        }
+    </script>
+</body>
+</html>

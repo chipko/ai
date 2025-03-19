@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow Field Particle Animation</title>
+  <style>
+    /* Fullscreen canvas with no scrollbars/margins and a black background */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <!-- Include Simplex Noise library from a CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+  <script>
+    (function() {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      let width = window.innerWidth, height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Pointer position (mouse/touch) starts at the center.
+      let pointer = { x: width / 2, y: height / 2 };
+
+      // Update canvas size on window resize.
+      window.addEventListener('resize', () => {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      });
+      
+      // Create a simplex noise instance.
+      const noise = new SimplexNoise();
+
+      // Particle class: each particle follows the flow field.
+      class Particle {
+        constructor() {
+          this.x = Math.random() * width;
+          this.y = Math.random() * height;
+          this.speed = 1;
+          this.angle = Math.random() * Math.PI * 2;
+          this.hue = Math.random() * 360;
+        }
+        update(time) {
+          // Use a scale factor for the noise input.
+          const scale = 0.002;
+          // The pointer subtly offsets the noise field for interactivity.
+          const noiseValue = noise.noise3D(
+            this.x * scale + pointer.x * 0.0005, 
+            this.y * scale + pointer.y * 0.0005, 
+            time * 0.0005
+          );
+          // Map the noise output (from -1 to 1) to an angle (0 to 2π).
+          this.angle = noiseValue * Math.PI * 2;
+          // Update position based on the calculated angle.
+          this.x += Math.cos(this.angle) * this.speed;
+          this.y += Math.sin(this.angle) * this.speed;
+          // Wrap around the screen edges.
+          if (this.x < 0) this.x = width;
+          if (this.x > width) this.x = 0;
+          if (this.y < 0) this.y = height;
+          if (this.y > height) this.y = 0;
+          // Slowly cycle through hues.
+          this.hue = (this.hue + 0.5) % 360;
+        }
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = `hsl(${this.hue}, 100%, 50%)`;
+          ctx.fill();
+        }
+      }
+
+      // Create particles based on screen size (density adjustable).
+      let particles = [];
+      const numParticles = Math.floor(width * height / 8000);
+      for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle());
+      }
+      
+      // Update pointer coordinates on mouse move.
+      window.addEventListener('mousemove', (e) => {
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+      });
+      
+      // Touch interactivity for mobile devices.
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+          pointer.x = e.touches[0].clientX;
+          pointer.y = e.touches[0].clientY;
+        }
+      }, { passive: false });
+      
+      // On click or tap, spawn an extra burst of particles.
+      window.addEventListener('click', (e) => {
+        for (let i = 0; i < 30; i++) {
+          const p = new Particle();
+          p.x = e.clientX;
+          p.y = e.clientY;
+          particles.push(p);
+        }
+      });
+      
+      // Animation loop with a trailing effect.
+      function animate(time) {
+        requestAnimationFrame(animate);
+        // Draw a semi-transparent black rectangle to create trails.
+        ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+        ctx.fillRect(0, 0, width, height);
+        // Update and draw each particle.
+        for (let p of particles) {
+          p.update(time);
+          p.draw();
+        }
+      }
+      animate(0);
+    })();
+  </script>
+</body>
+</html>

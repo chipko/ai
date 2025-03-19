@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Entry 3: 3D Interactive Color Wave with Gradients</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #222; }
+    #info {
+      position: absolute; top: 10px; width: 100%; text-align: center; color: #fff;
+      font-family: Arial, sans-serif; z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    Entry 3: 3D Interactive Color Wave - Left click to cycle gradient modes, Right click to toggle rotation.
+  </div>
+  <!-- Include p5.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+  <script>
+    // Disable default context menu for right clicks
+    document.oncontextmenu = () => false;
+    
+    let cols, rows;
+    let scl = 20;
+    let w = 1200;
+    let h = 800;
+    let flying = 0;
+    let wave = [];
+    let rotationActive = false;
+    let gradientMode = 0; // 0: horizontal, 1: vertical, 2: radial
+    
+    function setup() {
+      createCanvas(windowWidth, windowHeight, WEBGL);
+      colorMode(HSB, 360, 100, 100, 100);
+      cols = floor(w / scl);
+      rows = floor(h / scl);
+      
+      // Initialize the wave grid
+      for (let x = 0; x < cols; x++) {
+        wave[x] = [];
+        for (let y = 0; y < rows; y++) {
+          wave[x][y] = 0;
+        }
+      }
+    }
+    
+    function draw() {
+      background(50);
+      
+      // Adjust wave speed based on mouseY
+      flying -= map(mouseY, 0, height, 0.05, 0.001);
+      let yoff = flying;
+      for (let y = 0; y < rows; y++) {
+        let xoff = 0;
+        for (let x = 0; x < cols; x++) {
+          wave[x][y] = map(sin(xoff + yoff), -1, 1, -50, 50);
+          xoff += 0.3;
+        }
+        yoff += 0.3;
+      }
+      
+      // Apply rotation if toggled
+      if (rotationActive) {
+        rotateX(frameCount * 0.01);
+        rotateZ(frameCount * 0.01);
+      }
+      
+      // Center the wave grid
+      translate(-w/2, -h/2);
+      for (let y = 0; y < rows-1; y++) {
+        beginShape(TRIANGLE_STRIP);
+        for (let x = 0; x < cols; x++) {
+          // Compute gradient-based color
+          let hueValue;
+          if (gradientMode === 0) { // horizontal gradient based on x
+             hueValue = map(x, 0, cols, 0, 360) + frameCount * 0.5;
+          } else if (gradientMode === 1) { // vertical gradient based on y
+             hueValue = map(y, 0, rows, 0, 360) + frameCount * 0.5;
+          } else if (gradientMode === 2) { // radial gradient from grid center
+             let d = dist(x, y, cols/2, rows/2);
+             hueValue = map(d, 0, dist(0, 0, cols/2, rows/2), 0, 360) + frameCount * 0.5;
+          }
+          hueValue = hueValue % 360;
+          fill(color(hueValue, 80, 100));
+          noStroke();
+          vertex(x * scl, y * scl, wave[x][y]);
+          vertex(x * scl, (y+1) * scl, wave[x][y+1]);
+        }
+        endShape();
+      }
+    }
+    
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+    
+    function mousePressed() {
+      if (mouseButton === LEFT) {
+        // Left click: cycle through gradient modes
+        gradientMode = (gradientMode + 1) % 3;
+      } else if (mouseButton === RIGHT) {
+        // Right click: toggle rotation effect
+        rotationActive = !rotationActive;
+      }
+      return false;
+    }
+  </script>
+</body>
+</html>

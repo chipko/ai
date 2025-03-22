@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quantum Flux Arena: Enhanced Particle Network with Play Button</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #audioPlayer { display: none; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Controls: File Input and Play Button -->
+  <div id="controls">
+    <input type="file" id="fileInput" accept="audio/*">
+    <button id="playButton">Play Music</button>
+  </div>
+  
+  <!-- Audio Element -->
+  <audio id="audioPlayer" controls crossorigin="anonymous"></audio>
+
+  <!-- ThreeJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <script>
+    let scene, camera, renderer;
+    let audioCtx, analyser, dataArray, audioElement;
+    let nodes = []; // Array to hold our particle nodes
+    const NUM_NODES = 30;
+
+    // Initialize ThreeJS scene
+    function initScene() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create a network of nodes
+      for (let i = 0; i < NUM_NODES; i++) {
+        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const node = new THREE.Mesh(geometry, material);
+        node.position.x = (Math.random() - 0.5) * 20;
+        node.position.y = (Math.random() - 0.5) * 20;
+        node.position.z = (Math.random() - 0.5) * 20;
+        node.frequencyIndex = Math.floor(Math.random() * 128);
+        node.baseScale = 0.3;
+        nodes.push(node);
+        scene.add(node);
+      }
+      
+      camera.position.z = 30;
+    }
+
+    // Animation loop: update visuals based on audio frequency data
+    function animate() {
+      requestAnimationFrame(animate);
+      if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        nodes.forEach(node => {
+          const freqValue = dataArray[node.frequencyIndex] || 0;
+          const scale = node.baseScale + freqValue / 150;
+          node.scale.set(scale, scale, scale);
+          const colorIntensity = Math.min(255, freqValue * 2);
+          node.material.color.setRGB(colorIntensity/255, 0.5, (255-colorIntensity)/255);
+        });
+      }
+      renderer.render(scene, camera);
+    }
+
+    // Initialize Audio and Web Audio API
+    function initAudio() {
+      audioElement = document.getElementById('audioPlayer');
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const source = audioCtx.createMediaElementSource(audioElement);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    }
+
+    // Handle file selection
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const fileURL = URL.createObjectURL(file);
+        audioElement.src = fileURL;
+        audioElement.load();
+      }
+    }
+
+    // Play button handler to resume AudioContext and play the track
+    function handlePlayButton() {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      audioElement.play().catch(err => console.log("Play prevented:", err));
+    }
+
+    window.onload = () => {
+      initScene();
+      initAudio();
+      animate();
+      document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+      document.getElementById('playButton').addEventListener('click', handlePlayButton);
+    };
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

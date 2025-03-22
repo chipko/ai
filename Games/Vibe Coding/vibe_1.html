@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quantum Flux Arena Audio Test with File Input</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #audioPlayer { display: none; }
+    #fileInputContainer {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Container for file input -->
+  <div id="fileInputContainer">
+    <input type="file" id="fileInput" accept="audio/*">
+  </div>
+  
+  <!-- HTML5 Audio Element that will be updated with the file -->
+  <audio id="audioPlayer" controls crossorigin="anonymous"></audio>
+
+  <!-- ThreeJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <script>
+    let scene, camera, renderer, sphere;
+    let audioCtx, analyser, dataArray;
+    let audioElement;
+
+    // ThreeJS scene setup
+    function initScene() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create a sphere as our test particle
+      const geometry = new THREE.SphereGeometry(1, 32, 32);
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      sphere = new THREE.Mesh(geometry, material);
+      scene.add(sphere);
+      
+      camera.position.z = 5;
+    }
+
+    // Animation loop for ThreeJS and audio analysis
+    function animate() {
+      requestAnimationFrame(animate);
+      if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        // Compute an average volume level
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        // Scale the sphere based on average volume (normalized arbitrarily)
+        const scale = 1 + avg / 100;
+        sphere.scale.set(scale, scale, scale);
+      }
+      renderer.render(scene, camera);
+    }
+
+    // Set up the audio context and analyser using the HTML5 audio element
+    function initAudio() {
+      audioElement = document.getElementById('audioPlayer');
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      // Create a source node from the audio element
+      const source = audioCtx.createMediaElementSource(audioElement);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    }
+
+    // Handle file selection from the input element
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        // Create a URL for the selected file
+        const fileURL = URL.createObjectURL(file);
+        // Update the audio element's source
+        audioElement.src = fileURL;
+        audioElement.load();
+        audioElement.play().catch(err => console.log("Autoplay prevented:", err));
+      }
+    }
+
+    window.onload = () => {
+      initScene();
+      initAudio();
+      animate();
+      // Add event listener to the file input element
+      document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quantum Flux Arena: Fly-Through Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 5px;
+      font-family: sans-serif;
+    }
+    #scoreDisplay {
+      font-size: 20px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Controls: File Input, Play Button, and Score Display -->
+  <div id="controls">
+    <input type="file" id="fileInput" accept="audio/*">
+    <button id="playButton">Play Music</button>
+    <div id="scoreDisplay">Score: 0</div>
+    <div>Use arrow keys or WASD to move laterally</div>
+  </div>
+  
+  <!-- Hidden Audio Element -->
+  <audio id="audioPlayer" controls crossorigin="anonymous"></audio>
+
+  <!-- ThreeJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <script>
+    let scene, camera, renderer;
+    let audioCtx, analyser, dataArray, audioElement;
+    let player;
+    let nodes = [];
+    let score = 0;
+    const NUM_NODES = 30;
+    const lateralSpeed = 0.5;
+    const forwardSpeed = 0.3;
+    const keys = {}; // to track keyboard input
+
+    // Initialize the ThreeJS scene, player, and energy nodes
+    function initScene() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create the player's quantum particle (blue sphere)
+      const playerGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+      const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+      player = new THREE.Mesh(playerGeometry, playerMaterial);
+      player.position.set(0, 0, 0);
+      scene.add(player);
+
+      // Create energy nodes (green spheres that react to the audio)
+      for (let i = 0; i < NUM_NODES; i++) {
+        const geometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const node = new THREE.Mesh(geometry, material);
+        // Random lateral position within a range and placed ahead of the player along z
+        node.position.x = (Math.random() - 0.5) * 30;
+        node.position.y = (Math.random() - 0.5) * 30;
+        node.position.z = player.position.z - (Math.random() * 50 + 20);
+        node.frequencyIndex = Math.floor(Math.random() * 128); // For audio reactivity
+        node.baseScale = 0.3;
+        nodes.push(node);
+        scene.add(node);
+      }
+      
+      // Set the camera behind the player
+      camera.position.set(player.position.x, player.position.y, player.position.z + 10);
+      camera.lookAt(player.position);
+    }
+
+    // Initialize the audio context and analyser
+    function initAudio() {
+      audioElement = document.getElementById('audioPlayer');
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const source = audioCtx.createMediaElementSource(audioElement);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+    }
+
+    // Handle file selection
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const fileURL = URL.createObjectURL(file);
+        audioElement.src = fileURL;
+        audioElement.load();
+      }
+    }
+
+    // Play button handler: resumes the AudioContext and plays the track
+    function handlePlayButton() {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      audioElement.play().catch(err => console.log("Play prevented:", err));
+    }
+
+    // Update lateral movement based on keyboard input
+    function updatePlayerLateral() {
+      if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+        player.position.y += lateralSpeed;
+      }
+      if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+        player.position.y -= lateralSpeed;
+      }
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+        player.position.x -= lateralSpeed;
+      }
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+        player.position.x += lateralSpeed;
+      }
+    }
+
+    // Update forward movement and reposition the camera
+    function updatePlayerForward() {
+      player.position.z -= forwardSpeed;
+      camera.position.set(player.position.x, player.position.y, player.position.z + 10);
+      camera.lookAt(player.position);
+    }
+
+    // Collision detection: if player collides with a node, increase score and reposition the node
+    function checkCollisions() {
+      nodes.forEach(node => {
+        const distance = player.position.distanceTo(node.position);
+        if (distance < (0.5 + 0.3)) { // Sum of radii (player: 0.5, node: 0.3)
+          score += 10;
+          document.getElementById('scoreDisplay').innerText = 'Score: ' + score;
+          repositionNode(node);
+        }
+      });
+    }
+
+    // Reposition a node ahead of the player with random lateral coordinates
+    function repositionNode(node) {
+      node.position.x = (Math.random() - 0.5) * 30;
+      node.position.y = (Math.random() - 0.5) * 30;
+      node.position.z = player.position.z - (Math.random() * 50 + 20);
+    }
+
+    // Update nodes that have passed behind the player
+    function updateNodesPosition() {
+      nodes.forEach(node => {
+        if (node.position.z > player.position.z + 5) {
+          repositionNode(node);
+        }
+      });
+    }
+
+    // Main animation loop: update audio reactivity, movement, collisions, and render the scene
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // Audio-reactive effects for energy nodes
+      if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        nodes.forEach(node => {
+          const freqValue = dataArray[node.frequencyIndex] || 0;
+          const scale = node.baseScale + freqValue / 150;
+          node.scale.set(scale, scale, scale);
+          const colorIntensity = Math.min(255, freqValue * 2);
+          node.material.color.setRGB(colorIntensity / 255, 0.5, (255 - colorIntensity) / 255);
+        });
+      }
+      
+      updatePlayerLateral();
+      updatePlayerForward();
+      checkCollisions();
+      updateNodesPosition();
+      
+      renderer.render(scene, camera);
+    }
+
+    // Keyboard event listeners
+    window.addEventListener('keydown', function(e) {
+      keys[e.key] = true;
+    });
+    window.addEventListener('keyup', function(e) {
+      keys[e.key] = false;
+    });
+
+    window.onload = () => {
+      initScene();
+      initAudio();
+      animate();
+      document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+      document.getElementById('playButton').addEventListener('click', handlePlayButton);
+    };
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>

@@ -1,116 +1,182 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Stable Particle System</title>
+    <title>Quantum Plasma Field</title>
     <style>
         body { margin: 0; overflow: hidden; }
-        canvas { background: #1a1a1a; }
+        canvas { background: #000; }
     </style>
 </head>
 <body>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, particles;
+        let scene, camera, renderer, points;
+        const PARTICLE_COUNT = 5000;
         let mouse = new THREE.Vector2();
-        const particleCount = 5000;
-        let originalPositions = new Float32Array(particleCount * 3);
+        let raycaster = new THREE.Raycaster();
+        let interactionForce = 0;
+        let spatialGrid = new Map();
+
+        class QuantumParticle {
+            constructor() {
+                this.position = new THREE.Vector3(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20
+                );
+                this.velocity = new THREE.Vector3().randomDirection().multiplyScalar(0.1);
+                this.acceleration = new THREE.Vector3();
+                this.color = new THREE.Color().setHSL(Math.random(), 0.9, 0.5);
+            }
+
+            update(deltaTime) {
+                // Fluid dynamics simulation
+                const cohesion = new THREE.Vector3();
+                const alignment = new THREE.Vector3();
+                const separation = new THREE.Vector3();
+                let neighbors = 0;
+
+                const gridKey = `${Math.floor(this.position.x/3)},${Math.floor(this.position.y/3)},${Math.floor(this.position.z/3)}`;
+                spatialGrid.get(gridKey)?.forEach(p => {
+                    const dist = this.position.distanceTo(p.position);
+                    if(dist < 2 && dist > 0) {
+                        cohesion.add(p.position);
+                        alignment.add(p.velocity);
+                        separation.add(this.position.clone().sub(p.position).normalize().divideScalar(dist));
+                        neighbors++;
+                    }
+                });
+
+                if(neighbors > 0) {
+                    cohesion.divideScalar(neighbors).sub(this.position).multiplyScalar(0.005);
+                    alignment.divideScalar(neighbors).sub(this.velocity).multiplyScalar(0.05);
+                    separation.multiplyScalar(0.15);
+                }
+
+                // Mouse interaction
+                const toMouse = new THREE.Vector3(mouse.x * 10, -mouse.y * 10, 0).sub(this.position);
+                const mouseDist = toMouse.length();
+                const mouseForce = interactionForce * (1 - Math.min(mouseDist/15, 1));
+                
+                this.acceleration
+                    .add(cohesion)
+                    .add(alignment)
+                    .add(separation)
+                    .add(toMouse.normalize().multiplyScalar(mouseForce))
+                    .add(this.velocity.clone().multiplyScalar(-0.1));
+
+                // Quantum tunneling effect
+                if(this.position.length() > 25) {
+                    this.velocity.multiplyScalar(-0.5);
+                    this.color.setHSL(Math.random(), 0.9, 0.5);
+                }
+
+                this.velocity.add(this.acceleration.multiplyScalar(deltaTime));
+                this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+                this.acceleration.set(0, 0, 0);
+            }
+        }
 
         init();
         animate();
 
         function init() {
-            // Basic Three.js setup
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer();
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Create particles
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(particleCount * 3);
-            const colors = new Float32Array(particleCount * 3);
+            const particles = [];
+            const positions = new Float32Array(PARTICLE_COUNT * 3);
+            const colors = new Float32Array(PARTICLE_COUNT * 3);
 
-            for(let i = 0; i < particleCount * 3; i += 3) {
-                positions[i] = (Math.random() - 0.5) * 10;
-                positions[i+1] = (Math.random() - 0.5) * 10;
-                positions[i+2] = (Math.random() - 0.5) * 10;
-                originalPositions[i] = positions[i];
-                originalPositions[i+1] = positions[i+1];
-                originalPositions[i+2] = positions[i+2];
-                
-                // Initial color
-                colors[i] = 0.5 + Math.random() * 0.5;   // Red
-                colors[i+1] = 0.3 + Math.random() * 0.3; // Green
-                colors[i+2] = 0.8 + Math.random() * 0.2; // Blue
+            for(let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(new QuantumParticle());
             }
 
+            const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
             const material = new THREE.PointsMaterial({
-                size: 0.2,
+                size: 0.25,
                 vertexColors: true,
-                sizeAttenuation: true
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true,
+                blending: THREE.AdditiveBlending
             });
 
-            particles = new THREE.Points(geometry, material);
-            scene.add(particles);
+            points = new THREE.Points(geometry, material);
+            scene.add(points);
 
-            camera.position.z = 15;
+            camera.position.z = 35;
+            camera.lookAt(scene.position);
 
             // Event listeners
             document.addEventListener('mousemove', e => {
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
             });
 
-            document.addEventListener('click', () => {
-                resetParticles();
+            document.addEventListener('mousedown', e => {
+                interactionForce = e.button === 0 ? 0.3 : -0.3;
+                if(e.button === 1) particles.forEach(p => p.velocity.set(0, 0, 0));
             });
 
-            document.addEventListener('contextmenu', e => {
-                e.preventDefault();
-                changeColors();
-            });
+            document.addEventListener('mouseup', () => interactionForce = 0);
+            window.addEventListener('resize', onWindowResize);
         }
 
-        function resetParticles() {
-            const positions = particles.geometry.attributes.position.array;
-            for(let i = 0; i < positions.length; i++) {
-                positions[i] = originalPositions[i];
-            }
-            particles.geometry.attributes.position.needsUpdate = true;
-        }
-
-        function changeColors() {
-            const colors = particles.geometry.attributes.color.array;
-            const hue = Math.random();
-            for(let i = 0; i < colors.length; i += 3) {
-                const color = new THREE.Color().setHSL(hue, 0.8, 0.5);
-                colors[i] = color.r;
-                colors[i+1] = color.g;
-                colors[i+2] = color.b;
-            }
-            particles.geometry.attributes.color.needsUpdate = true;
+        function updateSpatialGrid(particles) {
+            spatialGrid.clear();
+            particles.forEach(p => {
+                const gridKey = `${Math.floor(p.position.x/3)},${Math.floor(p.position.y/3)},${Math.floor(p.position.z/3)}`;
+                if(!spatialGrid.has(gridKey)) spatialGrid.set(gridKey, []);
+                spatialGrid.get(gridKey).push(p);
+            });
         }
 
         function animate() {
             requestAnimationFrame(animate);
+            const deltaTime = Math.min(0.03, clock.getDelta());
+
+            // Update spatial partitioning
+            updateSpatialGrid(points.geometry.attributes.position.array);
+
+            // Update particles
+            const positions = points.geometry.attributes.position.array;
+            const colors = points.geometry.attributes.color.array;
             
-            // Gentle rotation
-            particles.rotation.x += 0.001;
-            particles.rotation.y += 0.002;
+            for(let i = 0; i < PARTICLE_COUNT; i++) {
+                const particle = particles[i];
+                particle.update(deltaTime);
+                
+                positions[i*3] = particle.position.x;
+                positions[i*3+1] = particle.position.y;
+                positions[i*3+2] = particle.position.z;
+                
+                colors[i*3] = particle.color.r;
+                colors[i*3+1] = particle.color.g;
+                colors[i*3+2] = particle.color.b;
+            }
+
+            points.geometry.attributes.position.needsUpdate = true;
+            points.geometry.attributes.color.needsUpdate = true;
             
+            // Dynamic camera
+            camera.position.x = Math.sin(Date.now() * 0.0005) * 40;
+            camera.position.y = Math.cos(Date.now() * 0.0005) * 40;
+            camera.lookAt(scene.position);
+
             renderer.render(scene, camera);
         }
 
-        // Handle window resize
-        window.addEventListener('resize', () => {
+        function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        }
     </script>
 </body>
 </html>

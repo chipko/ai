@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dual-Spin Cosmic Interface</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script id="vertexShader" type="x-shader/x-vertex">
+        void main() {
+            gl_Position = vec4(position, 1.0);
+        }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform vec2 u_resolution;
+        uniform vec2 u_mouse;
+        uniform float u_time;
+        uniform int u_click;
+        
+        #define PI 3.14159265359
+        #define TAU 6.28318530718
+
+        vec3 palette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+            return a + b*cos(TAU*(c*t + d));
+        }
+
+        mat2 rotate2D(float angle) {
+            return mat2(cos(angle), sin(angle), -sin(angle), cos(angle));
+        }
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution) / min(u_resolution.x, u_resolution.y);
+            vec2 mouse = u_mouse * 2.0 - 1.0;
+            float aspect = u_resolution.x / u_resolution.y;
+            
+            // Dual interaction system
+            float leftForce = smoothstep(0.8, 0.0, length(uv - mouse*0.5)) * (u_click == 1 ? 2.0 : 0.5);
+            float rightForce = smoothstep(0.6, 0.0, length(uv + mouse*0.3)) * (u_click == 2 ? 3.0 : 0.3);
+            
+            vec3 finalColor = vec3(0.0);
+            for(float i = 0.0; i < 4.0; i++) {
+                // Left-click transformation
+                uv = abs(uv * 1.8) - 1.0;
+                uv *= rotate2D(u_time * 0.2 + i * 0.5 + leftForce);
+                
+                // Right-click transformation
+                if(u_click == 2) {
+                    uv = fract(uv * (2.0 + rightForce)) - 0.5;
+                    uv *= rotate2D(-u_time * 0.3 + i * 0.7);
+                }
+                
+                // Pattern generation
+                float pattern = sin(uv.x * PI * (1.0 + rightForce)) * 
+                              cos(uv.y * PI * (1.0 + leftForce) + u_time);
+                pattern += 0.5 * sin(uv.y * TAU * 2.0 + u_time * 0.5);
+                pattern = abs(pattern);
+                
+                // Dynamic color palettes
+                vec3 col1 = palette(
+                    length(uv) + u_time*0.2 + i*0.4,
+                    vec3(0.5, 0.5, 0.5),
+                    vec3(0.5, 0.5, 0.5),
+                    vec3(2.0, 1.0, 0.0),
+                    vec3(0.50, 0.20, 0.25)
+                );
+                
+                vec3 col2 = palette(
+                    length(uv)*2.0 - u_time*0.3 + i*0.6,
+                    vec3(0.5, 0.5, 0.5),
+                    vec3(0.5, 0.5, 0.5),
+                    vec3(0.5, 2.0, 0.5),
+                    vec3(0.25, 0.40, 0.25)
+                );
+                
+                finalColor += mix(col1, col2, rightForce) * pattern * 
+                            (leftForce + rightForce) / (1.0 + length(uv)*5.0);
+            }
+            
+            finalColor = smoothstep(-0.2, 1.5, finalColor * (1.0 + 0.5*rightForce));
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+    <script>
+        let renderer, scene, camera, material;
+        let mouse = new THREE.Vector2();
+        let clickState = 0, lastClick = 0;
+
+        init();
+        animate();
+
+        function init() {
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            const geometry = new THREE.PlaneGeometry(2, 2);
+            material = new THREE.ShaderMaterial({
+                uniforms: {
+                    u_time: { value: 0 },
+                    u_resolution: { value: new THREE.Vector2() },
+                    u_mouse: { value: new THREE.Vector2() },
+                    u_click: { value: 0 }
+                },
+                vertexShader: document.getElementById('vertexShader').text,
+                fragmentShader: document.getElementById('fragmentShader').text
+            });
+
+            scene.add(new THREE.Mesh(geometry, material));
+            
+            document.addEventListener('mousemove', e => {
+                mouse.set(e.clientX / innerWidth, 1 - e.clientY / innerHeight);
+            });
+            
+            document.addEventListener('mousedown', e => {
+                if(e.button === 0) clickState = 1;       // Left click
+                else if(e.button === 2) clickState = 2;  // Right click
+                lastClick = performance.now();
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mouseup', () => clickState = 0);
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            window.addEventListener('resize', onResize);
+            onResize();
+        }
+
+        function animate(t) {
+            requestAnimationFrame(animate);
+            
+            material.uniforms.u_time.value = t * 0.001;
+            material.uniforms.u_mouse.value = mouse;
+            material.uniforms.u_resolution.value.set(innerWidth, innerHeight);
+            material.uniforms.u_click.value = clickState;
+            
+            // Auto-release click state after 1 second
+            if(clickState !== 0 && performance.now() - lastClick > 1000) {
+                clickState = 0;
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function onResize() {
+            renderer.setSize(innerWidth, innerHeight);
+            material.uniforms.u_resolution.value.set(innerWidth, innerHeight);
+        }
+    </script>
+</body>
+</html>

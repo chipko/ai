@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Stable Terrain Explorer</title>
+    <title>Advanced Terrain Explorer</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { cursor: crosshair; }
@@ -16,6 +16,7 @@
         const clock = new THREE.Clock();
         let originalHeights = [];
         const TERRAIN_SIZE = 128;
+        let lastActionTime = 0;
 
         init();
         animate();
@@ -51,6 +52,7 @@
             // Event listeners
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('contextmenu', e => e.preventDefault());
             window.addEventListener('resize', onWindowResize);
         }
 
@@ -58,28 +60,12 @@
             const geometry = new THREE.PlaneGeometry(100, 100, TERRAIN_SIZE-1, TERRAIN_SIZE-1);
             const vertices = geometry.attributes.position.array;
             
-            // Generate initial heights
+            // Generate fractal terrain
             for(let i = 0; i < vertices.length; i += 3) {
-                const x = vertices[i];
-                const y = vertices[i+1];
-                vertices[i+2] = fractalNoise(x, y, 6) * 15;
+                vertices[i+2] = fractalNoise(vertices[i], vertices[i+1], 6) * 15;
             }
 
-            // Create color attribute
-            const colors = new Float32Array(vertices.length);
-            for(let i = 0; i < vertices.length; i += 3) {
-                const height = vertices[i+2];
-                const color = new THREE.Color().setHSL(
-                    0.6 - height/40, 
-                    0.7 - height/30, 
-                    0.3 + height/20
-                );
-                colors[i] = color.r;
-                colors[i+1] = color.g;
-                colors[i+2] = color.b;
-            }
-            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
+            updateColors(geometry);
             return new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
                 vertexColors: true,
                 flatShading: true
@@ -105,19 +91,26 @@
         }
 
         function onMouseDown(event) {
+            event.preventDefault(); // Prevent context menu on right click
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(terrain);
             
             if(intersects.length > 0) {
                 const point = intersects[0].point;
-                modifyTerrain(point.x, point.z, event.button === 0 ? 10 : -15);
+                lastActionTime = Date.now();
+                
+                if(event.button === 0) { // Left click
+                    modifyTerrain(point.x, point.z, 12, 8, 0.8);
+                } else if(event.button === 2) { // Right click
+                    modifyTerrain(point.x, point.z, -15, 12, 1.2);
+                }
+                
                 updateOriginalHeights();
             }
         }
 
-        function modifyTerrain(x, y, strength) {
+        function modifyTerrain(x, y, strength, radius, sharpness) {
             const vertices = terrain.geometry.attributes.position.array;
-            const radius = 8;
             
             for(let i = 0; i < vertices.length; i += 3) {
                 const dx = vertices[i] - x;
@@ -125,13 +118,39 @@
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
                 if(dist < radius) {
-                    const falloff = (1 - dist/radius) ** 2;
+                    const falloff = Math.pow(1 - dist/radius, sharpness);
                     vertices[i+2] += strength * falloff;
+                    
+                    // Add erosion effect for craters
+                    if(strength < 0) {
+                        vertices[i+2] -= Math.random() * 2 * falloff;
+                    }
                 }
             }
             
             terrain.geometry.attributes.position.needsUpdate = true;
             terrain.geometry.computeVertexNormals();
+            updateColors(terrain.geometry);
+        }
+
+        function updateColors(geometry) {
+            const colors = new Float32Array(geometry.attributes.position.count * 3);
+            const vertices = geometry.attributes.position.array;
+            
+            for(let i = 0; i < vertices.length; i += 3) {
+                const height = vertices[i+2];
+                const color = new THREE.Color().setHSL(
+                    0.6 - height/40, 
+                    0.7 - height/30, 
+                    0.3 + height/20
+                );
+                colors[i] = color.r;
+                colors[i+1] = color.g;
+                colors[i+2] = color.b;
+            }
+            
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.attributes.color.needsUpdate = true;
         }
 
         function updateOriginalHeights() {
@@ -147,9 +166,11 @@
             // Animate with wave pattern
             const time = clock.getElapsedTime();
             const vertices = terrain.geometry.attributes.position.array;
+            const waveIntensity = Math.max(0, 1 - (Date.now() - lastActionTime)/2000);
             
             for(let i = 0; i < vertices.length; i += 3) {
-                vertices[i+2] = originalHeights[i/3] + Math.sin(time + i/50) * 0.8;
+                vertices[i+2] = originalHeights[i/3] + 
+                               Math.sin(time * 2 + i/50) * 0.8 * waveIntensity;
             }
             
             terrain.geometry.attributes.position.needsUpdate = true;

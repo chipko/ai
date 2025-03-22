@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Complete Neural Interaction</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { background: #000; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, nodes = [];
+        const NODE_COUNT = 100;
+        let clock = new THREE.Clock();
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+
+        class NeuroNode {
+            constructor() {
+                this.mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(1.2, 16, 16),
+                    new THREE.MeshBasicMaterial({ color: 0x00FF00 })
+                );
+                this.position = new THREE.Vector3(
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 40
+                );
+                this.mesh.position.copy(this.position);
+                this.connections = [];
+                this.charge = 0;
+                this.mesh.userData.node = this; // Store reference
+            }
+
+            activate() {
+                this.charge = 1.0;
+                this.mesh.material.color.setHSL(0.0, 1, 0.5);
+            }
+
+            update(delta) {
+                if(this.charge > 0) {
+                    this.charge = Math.max(0, this.charge - delta * 0.5);
+                    this.mesh.material.color.setHSL(0.3 * this.charge, 1, 0.5);
+                }
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Create nodes with connections
+            nodes = Array.from({ length: NODE_COUNT }, () => new NeuroNode());
+            nodes.forEach(node => {
+                scene.add(node.mesh);
+                // Create 2-4 connections per node
+                Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => {
+                    const target = nodes[Math.floor(Math.random() * nodes.length)];
+                    if(target !== node) {
+                        const line = new THREE.Line(
+                            new THREE.BufferGeometry().setFromPoints([node.position, target.position]),
+                            new THREE.LineBasicMaterial({ color: 0xFFFFFF, linewidth: 2 })
+                        );
+                        scene.add(line);
+                        node.connections.push(line);
+                    }
+                });
+            });
+
+            camera.position.z = 60;
+
+            // Input handling
+            const handleClick = (e, isRightClick) => {
+                e.preventDefault();
+                const intersects = raycaster.intersectObjects(nodes.map(n => n.mesh));
+                
+                if(intersects.length > 0) {
+                    const node = intersects[0].object.userData.node;
+                    
+                    if(isRightClick) {
+                        // Remove connections with visual feedback
+                        node.connections.forEach(connection => {
+                            connection.material.color.set(0xFF0000); // Flash red
+                            setTimeout(() => scene.remove(connection), 100);
+                        });
+                        node.connections = [];
+                    } else {
+                        // Activate node and connections
+                        node.activate();
+                        node.connections.forEach((connection, i) => {
+                            connection.material.color.set(0xFFFF00); // Yellow
+                            setTimeout(() => {
+                                connection.material.color.set(0xFFFFFF);
+                                // Activate connected nodes
+                                const targetNode = nodes.find(n => 
+                                    n.position.equals(connection.geometry.attributes.position.array.slice(3))
+                                );
+                                if(targetNode) targetNode.activate();
+                            }, i * 100);
+                        });
+                    }
+                }
+            };
+
+            document.addEventListener('click', e => handleClick(e, false));
+            document.addEventListener('contextmenu', e => handleClick(e, true));
+            document.addEventListener('mousemove', e => {
+                mouse.set(
+                    (e.clientX / window.innerWidth) * 2 - 1,
+                    -(e.clientY / window.innerHeight) * 2 + 1
+                );
+                raycaster.setFromCamera(mouse, camera);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            nodes.forEach(node => node.update(delta));
+
+            camera.position.x = Math.sin(Date.now() * 0.0005) * 60;
+            camera.position.y = Math.cos(Date.now() * 0.0005) * 60;
+            camera.lookAt(scene.position);
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>

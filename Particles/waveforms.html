@@ -37,8 +37,10 @@
       // Set up the renderer
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
+      // Cap pixel ratio for mobile devices for a good balance of quality and performance
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       document.body.appendChild(renderer.domElement);
+      renderer.domElement.style.touchAction = 'none';
 
       // Create a grid of particles (each row will become a sine wave)
       const countX = 200; // particles per row (x-axis)
@@ -139,10 +141,10 @@
       particleSystem = new THREE.Points(geometry, material);
       scene.add(particleSystem);
 
-      // Event listeners for resize, mouse move, and click
+      // Event listeners for resize and input (pointer covers mouse and touch)
       window.addEventListener('resize', onWindowResize, false);
-      window.addEventListener('mousemove', onMouseMove, false);
-      window.addEventListener('click', onClick, false);
+      window.addEventListener('pointermove', onPointerMove, false);
+      window.addEventListener('pointerdown', onPointerDown, false);
     }
 
     // Adjust camera and renderer on window resize
@@ -152,27 +154,27 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    // Mouse movement adjusts the frequency and amplitude uniforms.
-    function onMouseMove(event) {
-      // Map mouse X (0 → width) to frequency between 0.5 and 5.0
+    // Pointer movement adjusts the frequency and amplitude uniforms.
+    function onPointerMove(event) {
+      // Map pointer X (0 → width) to frequency between 0.5 and 5.0
       let frequency = THREE.MathUtils.mapLinear(event.clientX, 0, window.innerWidth, 0.5, 5.0);
       uniforms.uFrequency.value = frequency;
       
-      // Map mouse Y (height → 0) to amplitude between 0.5 and 3.0
+      // Map pointer Y (height → 0) to amplitude between 0.5 and 3.0
       let amplitude = THREE.MathUtils.mapLinear(event.clientY, window.innerHeight, 0, 0.5, 3.0);
       uniforms.uAmplitude.value = amplitude;
     }
 
-    // On click, cast a ray into the scene to determine the ripple center,
+    // On pointer down, cast a ray into the scene to determine the ripple center,
     // and then reset the ripple time so the effect plays.
-    function onClick(event) {
-      // Normalize mouse coordinates (-1 to +1)
-      const mouseNDC = new THREE.Vector2(
+    function onPointerDown(event) {
+      // Normalize pointer coordinates (-1 to +1)
+      const pointerNDC = new THREE.Vector2(
         (event.clientX / window.innerWidth) * 2 - 1,
         -(event.clientY / window.innerHeight) * 2 + 1
       );
-      
-      raycaster.setFromCamera(mouseNDC, camera);
+
+      raycaster.setFromCamera(pointerNDC, camera);
       const intersectPoint = new THREE.Vector3();
       raycaster.ray.intersectPlane(plane, intersectPoint);
       

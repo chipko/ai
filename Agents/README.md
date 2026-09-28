@@ -6,7 +6,14 @@ Open the file in any browser. Press **Space** to play, **→** to step, **S** fo
 
 ## Making a scenario
 - **Quick build**: enter a goal, a team (`Name | Role | emoji`, one per line) and the items the team should mention. A seeded generator fills in the rest: planning, tool calls, agents asking each other questions, deliverables, a review and revision loop, and a human approval step.
-- **Presets**: product launch, incident response, board report, invoice automation, support triage and policy rollout.
+- **Presets**:
+  - **SDLC:** feature delivery, legacy modernisation, bug to release, greenfield MVP.
+  - **Business:** product launch, incident response, board report, invoice automation, support triage, policy rollout.
+- **Roles** are recognised from the role text:
+  - **Delivery:** product manager or owner / tech lead / engineering manager (these coordinate), architect, full-stack, frontend and backend developers, DevOps / platform / SRE, QA or test engineer, code reviewer.
+  - **Business:** research, data, writer, design, security / compliance / legal, support, finance.
+
+  Each role brings its own tools, questions and deliverables, for example an ADR with an options table and a container diagram, a full-stack feature slice, an accessible UI component, an OpenAPI spec with a SQL migration, a CI/CD pipeline with a canary rollout plan, and a test plan with test code. When the team is mostly engineers, the run uses SDLC phases (Requirements → Planning & design → Build → Integration → Deliverables → Code review → Release). Work goes design first and release last, items go to the roles they suit, and the approval step becomes "deploy to production?".
 - **Generate with any LLM**: copy the ready-made prompt (it can ask for JSON or JSONL) into any model or chat tool, then paste back what it returns. There's also an optional direct call to any OpenAI-compatible endpoint.
 - **Data (JSON / JSONL)**: edit, import, export or drag-and-drop the exact data that plays.
 

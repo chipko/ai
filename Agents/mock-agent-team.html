@@ -276,6 +276,7 @@ textarea.code{font-family:var(--mono);font-size:.82em;min-height:360px;white-spa
 .preset b{display:block;margin-bottom:4px}
 .preset span{font-size:.8em;color:var(--dim)}
 .preset .ics{margin-top:8px;font-size:1.1em;letter-spacing:2px}
+.ptag{font-style:normal;font-size:.68em;font-weight:600;letter-spacing:.06em;padding:1px 6px;border-radius:99px;background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent);vertical-align:2px}
 details.api{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:16px;background:var(--panel)}
 details.api summary{cursor:pointer;color:var(--dim)}
 h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:18px 0 8px}
@@ -425,7 +426,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
         <div class="field">
           <label for="fTeam">Team — one per line: <span class="mono">Name | Role | emoji</span></label>
           <textarea class="inp" id="fTeam" rows="7"></textarea>
-          <div class="hint">Roles are matched to behaviours: orchestrator/lead, research, data/analyst, engineer/automation, writer/comms, reviewer/QA, design, security/compliance/legal, support, finance. Anything else becomes a generalist. The first lead-like role coordinates.</div>
+          <div class="hint">Roles are matched to behaviours: orchestrator/lead/manager, architect, full-stack, frontend, backend, DevOps/platform/SRE, QA/test engineer, code reviewer, engineer/automation, research, data/analyst, writer/comms, design, security/compliance/legal, support, finance. Anything else becomes a generalist. The first lead-like role coordinates.</div>
         </div>
         <div class="field">
           <label for="fItems">Items to mention — one per line (systems, docs, topics, KPIs)</label>
@@ -763,6 +764,60 @@ const ARCH = {
     answers: ['Financially {item} pays back in about {n} months.', 'Budget is fine; the risk on {item} is timing, not cost.', 'Recurring. I’ve modelled {item} over 3 years to be safe.'],
     work: ['Modelling costs', 'Building forecast', 'Reconciling figures']
   },
+  architect: {
+    match: /architect|system design|solution design|principal engineer/i,
+    icon: '🏛️', task: 'Architecture & ADR for {item}',
+    tools: [['diagram.render', '"{Item} container diagram"', '7 containers · 11 relationships · 2 external systems'], ['adr.search', '"{item}"', '2 related ADRs · 1 superseded'], ['dependency.scan', '"{itemslug} service"', '{n} upstream · {n} downstream dependencies'], ['cost.estimate', '"{Item} at 10× load"', '≈ ${num}/month · scales linearly']],
+    think: ['Sync or async for {item}? Async decouples the teams but brings eventual consistency.', 'Keeping {item} behind an interface so the implementation can change later.', 'What breaks first at 10× traffic? Probably {item}. Designing for that now.'],
+    asks: ['@{to} — can {item} tolerate eventual consistency, or does it need read-after-write?', '@{to}, what latency target do we have for {item}? It decides cache vs direct query.', '@{to} — any constraint on {item} I should know before I lock the design?'],
+    answers: ['Design-wise, give {item} its own service boundary; {item2} stays in the core.', 'Go async for {item}: publish an event, idempotent consumers, retries with a dead-letter queue.', 'It’s written up as an ADR. Short version: reuse the existing platform for {item}.'],
+    work: ['Drawing diagrams', 'Writing the ADR', 'Reviewing dependencies']
+  },
+  fullstack: {
+    match: /full.?stack/i,
+    icon: '🧩', task: 'Build {item} end-to-end',
+    tools: [['scaffold', '"feature/{itemslug}"', 'Route, component, API handler and test stubs created'], ['dev_server.start', '":3000"', 'Ready in 1.8 s · hot reload on'], ['run_tests', '"{itemslug}"', '{num} passed · 0 failed'], ['api.contract.check', '"{itemslug}.openapi.yaml"', 'Client and server types in sync ✓']],
+    think: ['Wiring {item} through: schema → API → UI, with shared types so nothing drifts.', 'Optimistic UI for {item}; roll back if the API says no.', 'The {item} form and the API should validate with one shared schema.'],
+    asks: ['@{to} — is the {item} API contract final? I’ll generate the client types from it.', '@{to}, should {item} paginate server-side? The list could get big.', '@{to} — can I reuse the existing auth middleware for {item}?'],
+    answers: ['I can take {item} end to end: API, UI and tests in one PR.', 'Shared types mean a breaking change to {item} fails the build, not production.', 'Yes, about a day of work, behind a feature flag.'],
+    work: ['Coding the API', 'Building the UI', 'Writing tests']
+  },
+  frontend: {
+    match: /front.?end|ui engineer|ui developer|web developer|react|mobile (dev|eng)/i,
+    icon: '🖥️', task: 'Build the {item} UI',
+    tools: [['component.render', '"{Item}Panel"', 'Rendered in 3 states: loading · empty · error'], ['lighthouse.audit', '"/{itemslug}"', 'Performance 96 · Accessibility 100 · Best practices 100'], ['visual_diff', '"{Item} vs design"', '2 px spacing drift on mobile · fixed']],
+    think: ['Designing the loading, empty and error states for {item} before the happy path.', 'Keeping {item} keyboard-navigable; focus goes back where it came from.', 'Lazy-loading the {item} panel; it’s below the fold on mobile.'],
+    asks: ['@{to} — what does the {item} API return when there’s no data: empty list or 404?', '@{to}, is there a design for the {item} error state?', '@{to} — can {item} come back with the page, or is it a separate call?'],
+    answers: ['On the UI side {item} is ready; it just needs the final copy.', 'I’ll show {item} inline with a skeleton while it loads.', 'Frontend-wise it’s one component, reused on both pages.'],
+    work: ['Building components', 'Accessibility pass', 'Responsive tweaks']
+  },
+  backend: {
+    match: /back.?end|api (dev|eng)|server|database|dba\b/i,
+    icon: '🗄️', task: 'Build the {item} API',
+    tools: [['openapi.validate', '"{itemslug}.yaml"', 'Valid · 4 endpoints · 0 breaking changes'], ['db.migrate', '"--dry-run add_{itemslug}"', '1 table · 2 indexes · est. lock 40 ms'], ['load_test', '"POST /v1/{itemslug} @ 500 rps"', 'p95 {n}8 ms · 0 errors'], ['query.explain', '"{itemslug} by account"', 'Index scan · 0.3 ms']],
+    think: ['Making the {item} POST idempotent; retries from the client are guaranteed.', 'Index on (account_id, created_at) — that’s how {item} will be queried.', 'Returning 409 on duplicate {item}, 422 on validation. Clear for the frontend.'],
+    asks: ['@{to} — how many {item} records per account do we expect? It changes the index.', '@{to}, does {item} need soft delete for audit?', '@{to} — who else reads {item}? I don’t want to break a consumer.'],
+    answers: ['API for {item} is up on staging: 4 endpoints, contract published.', 'Empty list with 200, not 404 — it’s a collection.', 'The {item} migration is backward compatible; no downtime needed.'],
+    work: ['Designing the API', 'Writing migrations', 'Load testing']
+  },
+  devops: {
+    match: /devops|platform|\bsre\b|reliab|infra|ci.?cd|release eng|cloud eng|operations/i,
+    icon: '🚀', task: 'CI/CD & rollout for {item}',
+    tools: [['pipeline.run', '"main → staging"', 'build ✓ test ✓ scan ✓ deploy ✓ · {n}m 12s'], ['terraform.plan', '"{itemslug}"', '+3 to add · 0 to change · 0 to destroy'], ['deploy.canary', '"{itemslug} @ 5%"', 'Error rate 0.02% · latency flat · promoting'], ['monitor.create', '"{Item} SLO 99.9%"', 'Alert and dashboard created']],
+    think: ['Canary {item} at 5% first; auto-rollback if the error rate moves.', 'Adding a kill-switch flag for {item} so rollback doesn’t need a deploy.', 'The {item} pipeline should fail fast: lint and unit tests before the slow stages.'],
+    asks: ['@{to} — any new secrets or env vars for {item}? I need them before staging.', '@{to}, what’s the health check for {item}?', '@{to} — does {item} need a DB migration before or after deploy?'],
+    answers: ['Pipeline for {item} is green; canary config ready.', 'Rollback is one command, under two minutes, and there’s a flag as a kill switch.', 'Infra for {item} is codified; staging matches production.'],
+    work: ['Running pipelines', 'Writing infra code', 'Setting up monitoring']
+  },
+  tester: {
+    match: /qa engineer|test engineer|sdet|tester|test automation|quality engineer|test lead/i,
+    icon: '🧪', task: 'Test plan & automation for {item}',
+    tools: [['test.generate', '"{item} acceptance criteria"', '{n} scenarios · 3 edge cases'], ['e2e.run', '"{itemslug}.spec"', '{num} passed · 1 flaky → fixed'], ['coverage.report', '"{itemslug}"', '8{n}% lines · all critical paths covered']],
+    think: ['Turning each {item} acceptance criterion into an automated test.', 'Edge case: what if {item} is submitted twice in a second?', 'That flaky {item} test is a race condition, not bad luck. Fixing the wait.'],
+    asks: ['@{to} — what should happen to {item} if {item2} is unavailable?', '@{to}, is there test data for {item}, or shall I generate fixtures?', '@{to} — is the {item} limit inclusive or exclusive? The story doesn’t say.'],
+    answers: ['From a test view, {item} passes; I’ve added a regression test for the bug.', 'All {item} acceptance criteria are automated and green.', 'I found one edge case in {item}; ticket raised with steps to reproduce.'],
+    work: ['Writing tests', 'Running suites', 'Exploratory testing']
+  },
   specialist: {
     match: /.*/,
     icon: '🤖', task: 'Investigate {item}',
@@ -773,7 +828,27 @@ const ARCH = {
     work: ['Investigating', 'Analysing', 'Writing notes']
   }
 };
-const ARCH_ORDER = ['lead', 'compliance', 'reviewer', 'designer', 'finance', 'support', 'writer', 'data', 'engineer', 'researcher', 'specialist'];
+const ARCH_ORDER = ['lead', 'compliance', 'architect', 'tester', 'reviewer', 'frontend', 'designer', 'finance', 'support', 'writer', 'devops', 'fullstack', 'backend', 'data', 'engineer', 'researcher', 'specialist'];
+// Which items each role is drawn to (used to hand out items sensibly)
+const AFFINITY = {
+  tester: /test|qa\b|regression|acceptance|quality|bug|edge case/i,
+  devops: /pipeline|ci\/?cd|deploy|canary|rollback|flag|infra|cloud|release|monitor|uptime|latency/i,
+  finance: /cost|budget|revenue|pric|forecast|invoice|spend|payment/i,
+  compliance: /risk|secur|polic|complian|legal|privacy|consent|retention|fraud|duplicate|access/i,
+  support: /support|ticket|customer|faq|reset|password|status page|help|response time|billing/i,
+  writer: /email|copy|notes|faq|announce|messag|comms|training|launch|report/i,
+  architect: /contract|architect|pattern|monolith|stack|scope|service|design|scal|strangler/i,
+  backend: /schema|database|api|data|retry|logic|\blogs?\b|migration|endpoint|payment|query/i,
+  data: /data|metric|churn|revenue|kpi|feedback|analytic|root cause|forecast|trend/i,
+  researcher: /research|market|competitor|feedback|trend|benchmark|knowledge/i,
+  designer: /design|ux|flow|page|help|consent|onboarding|calendar|centre|center/i,
+  fullstack: /feature|stor(y|ies)|auth|calendar|booking|form|portal|mvp|slice|page|\bui\b/i,
+  frontend: /\bui\b|page|component|screen|calendar|form|front|portal|stor(y|ies)|notes/i,
+  engineer: /automat|integrat|api|workflow|ocr|pipeline|invoice|script|bot/i
+};
+const PICK_ORDER = ['tester', 'devops', 'finance', 'compliance', 'support', 'writer', 'architect', 'backend', 'data', 'researcher', 'designer', 'fullstack', 'frontend', 'engineer', 'specialist', 'reviewer', 'lead'];
+const ENG_ARCHS = ['architect', 'fullstack', 'frontend', 'backend', 'devops', 'tester', 'engineer'];
+const SDLC_ORDER = { architect: 0, researcher: 1, data: 1, designer: 2, backend: 3, fullstack: 3, frontend: 3, engineer: 3, tester: 4, devops: 5 };
 const archFor = role => ARCH_ORDER.find(k => ARCH[k].match.test(role || '')) || 'specialist';
 const PALETTE = ['#7c9cff', '#f7a35c', '#5ed1a5', '#e879c6', '#f2d45c', '#62c6f0', '#b18cff', '#ff7a7a', '#9ad14b', '#ffa6c9'];
 
@@ -802,6 +877,9 @@ function generate(cfg) {
   const workers = agents.filter(a => a !== lead);
   const reviewer = cfg.review ? workers.find(a => a.arch === 'reviewer') : null;
   const doers = workers.filter(a => a !== reviewer);
+  // Engineering-heavy teams get SDLC phase names and design → build → test → release ordering
+  const sdlc = doers.filter(a => ENG_ARCHS.includes(a.arch)).length >= 2;
+  if (sdlc) doers.sort((a, b) => (SDLC_ORDER[a.arch] ?? 3) - (SDLC_ORDER[b.arch] ?? 3));
   const goal = (cfg.goal || 'Deliver the project').trim();
   const short = goal.replace(/[.!?]+$/, '').replace(/^./, c => c.toLowerCase());
   let items = parseItems(cfg.items || '');
@@ -818,7 +896,8 @@ function generate(cfg) {
   const A = a => ARCH[a.arch] || ARCH.specialist;
   const steps = [];
   const S = s => steps.push(s);
-  const phase = t => { if (cfg.phases) S({ type: 'note', text: t }); };
+  const SDLC_PHASES = { Brief: 'Requirements', Planning: 'Planning & design', 'Parallel execution': 'Build', Collaboration: 'Integration', Deliverables: 'Deliverables', Review: 'Code review', 'Sign-off': 'Release' };
+  const phase = t => { if (cfg.phases) S({ type: 'note', text: sdlc ? SDLC_PHASES[t] || t : t }); };
   const think = (a, tpl, x) => { if (cfg.thinking) S({ type: 'thinking', agent: a.id, text: fill(tpl, x), duration: int(1100, 2200) }); };
   const tool = (a, x) => { const [name, input, output] = pick(A(a).tools); S({ type: 'tool', agent: a.id, tool: name, input: fill(input, x), output: fill(output, x), duration: int(900, 1800) }); };
 
@@ -826,7 +905,17 @@ function generate(cfg) {
   const tasks = [];
   const taskOf = {};
   const workerItem = {};
-  doers.forEach(a => { const it = nextItem(); workerItem[a.id] = it; const t = { id: 't' + (tasks.length + 1), title: fill(A(a).task, { item: it }), owner: a.id }; tasks.push(t); taskOf[a.id] = t; });
+  // Give each agent the item that best suits its role; most specific roles choose first
+  const used = new Set();
+  const byPick = doers.slice().sort((a, b) => PICK_ORDER.indexOf(a.arch) - PICK_ORDER.indexOf(b.arch));
+  byPick.forEach(a => { const re = AFFINITY[a.arch]; const it = re && items.find(i => !used.has(i) && re.test(i)); if (it) { used.add(it); workerItem[a.id] = it; } });
+  byPick.forEach(a => {
+    if (workerItem[a.id]) return;
+    const re = AFFINITY[a.arch];
+    let it = items.find(i => !used.has(i)) || (re && items.find(i => re.test(i))) || nextItem();
+    used.add(it); workerItem[a.id] = it;
+  });
+  doers.forEach(a => { const t = { id: 't' + (tasks.length + 1), title: fill(A(a).task, { item: workerItem[a.id] }), owner: a.id }; tasks.push(t); taskOf[a.id] = t; });
   if (reviewer) { const t = { id: 't' + (tasks.length + 1), title: fill(A(reviewer).task), owner: reviewer.id }; tasks.push(t); taskOf[reviewer.id] = t; }
   const leadTask = { id: 't' + (tasks.length + 1), title: 'Compile summary & recommendations', owner: lead.id }; tasks.push(leadTask);
 
@@ -925,9 +1014,9 @@ function generate(cfg) {
   phase('Sign-off');
   S({ type: 'status', agent: lead.id, status: 'writing', note: 'Compiling summary' });
   think(lead, 'Pulling the deliverables together — what does a busy stakeholder need to decide?');
-  S({ type: 'output', agent: lead.id, id: 'summary', title: 'Summary & recommendations', format: 'markdown', content: buildSummary(outputs) });
+  S({ type: 'output', agent: lead.id, id: 'summary', title: sdlc ? 'Release summary' : 'Summary & recommendations', format: 'markdown', content: buildSummary(outputs) });
   if (cfg.approval) {
-    S({ type: 'approval', from: lead.id, text: `Summary is ready. ${outputs.length} deliverables, all reviewed. Approve to publish, or request changes.` });
+    S({ type: 'approval', from: lead.id, text: sdlc ? `Release candidate is ready: ${outputs.length} deliverables reviewed, pipeline green. Approve to deploy to production, or request changes.` : `Summary is ready. ${outputs.length} deliverables, all reviewed. Approve to publish, or request changes.` });
   }
   S({ type: 'task', id: leadTask.id, status: 'done' });
   S({ type: 'message', from: lead.id, to: 'human', kind: 'say', text: 'Done. Everything is in the Outputs panel — the summary is the place to start.' });
@@ -946,7 +1035,7 @@ function generate(cfg) {
     let s = `# Plan: ${cap(short)}\n**Objective:** ${goal}\n\n## Workstreams\n`;
     tasks.forEach(t => { const a = agents.find(x => x.id === t.owner); s += `- [ ] ${t.title} — *${a.name}, ${a.role}*\n`; });
     s += `\n## Items to cover\n` + items.map(i => `- ${cap(i)}`).join('\n');
-    s += `\n\n## Definition of done\n- Every workstream has a written output\n${reviewer ? '- Outputs pass review\n' : ''}- Summary ready for ${cfg.approval ? 'human sign-off' : 'hand-over'}`;
+    s += `\n\n## Definition of done\n- Every workstream has a written output\n${reviewer ? '- Outputs pass review\n' : ''}${sdlc ? '- CI green, acceptance tests automated\n- Rollout and rollback plan agreed\n' : ''}- Summary ready for ${cfg.approval ? 'human sign-off' : 'hand-over'}`;
     return s;
   }
   function buildOutput(a, it) {
@@ -1075,6 +1164,152 @@ Nothing yet. We’ll share a short guide before go-live.` };
 | Error reduction (${it2}) | ${int(5, 25)}k | ${int(15, 40)}k | ${int(15, 40)}k |
 
 **Payback:** ~${int(4, 11)} months. **Worst case** (half the adoption): ~${int(12, 20)} months, still positive by year 3.` }; }
+      case 'architect': return { id, title: 'ADR: ' + I, format: 'markdown', content:
+`# ADR-0${int(12, 48)}: ${I}
+**Status:** Proposed · **Deciders:** ${lead.name}, ${a.name}
+
+## Context
+${cap(short)} needs ${it} to be reliable at scale and easy to change. Today it is tightly coupled to ${it2}.
+
+## Options
+| Option | Pros | Cons | Verdict |
+|---|---|---|---|
+| Extend the monolith | Fastest start | Couples ${it} to ${it2} releases | ❌ |
+| New service + events | Independent deploys, scales on its own | Eventual consistency, more to operate | ✅ |
+| Buy a managed product | Nothing to build | Lock-in, data residency questions | ⚠️ revisit |
+
+## Decision
+Build ${it} as its own service behind the API gateway. Publish \`${slug(it)}.changed\` events; consumers are idempotent.
+
+## Container view
+\`\`\`
+[ Web app ] ──> [ API gateway ] ──> [ ${camel(it)} service ] ──> ( ${slug(it)} DB )
+                                          │
+                                          └──> ( event bus ) ──> [ ${camel(it2)} worker ]
+\`\`\`
+
+## Consequences
+- Teams can ship ${it} independently
+- Contract tests needed between services
+- Tracing across the event bus from day one` };
+      case 'fullstack': return { id, title: 'Feature slice: ' + slug(it) + '.tsx', format: 'code', content:
+`// ${slug(it)}.tsx — one vertical slice: shared schema, API handler, UI
+import { schema, db, route } from '../platform';
+import { useMutation, Form, Field, Toast } from '../ui';
+
+export const ${camel(it)}Input = schema.object({
+  accountId: schema.string().uuid(),
+  amount: schema.number().positive(),
+  reason: schema.string().max(280),
+});
+
+// API — validates with the same schema as the form
+route.post('/api/${slug(it)}', async (req, res) => {
+  const input = ${camel(it)}Input.parse(req.body);
+  const record = await db.${slug(it)}.create({ data: input });
+  res.status(201).json(record);
+});
+
+// UI — optimistic update, rolls back on error
+export function ${camel(it)}Form() {
+  const save = useMutation('/api/${slug(it)}', { optimistic: true });
+  return (
+    <Form schema={${camel(it)}Input} onSubmit={save}>
+      <Field name="amount" label="Amount" />
+      <Field name="reason" label="Reason" multiline />
+      {save.error && <Toast tone="error">{save.error.message}</Toast>}
+    </Form>
+  );
+}` };
+      case 'frontend': return { id, title: 'Component: ' + camel(it) + 'Panel.tsx', format: 'code', content:
+`// ${camel(it)}Panel.tsx — accessible, responsive, every state handled
+import { useQuery } from '../data';
+import { Card, Skeleton, EmptyState, ErrorBanner } from '../ui';
+
+export function ${camel(it)}Panel({ accountId }) {
+  const { data, error, isLoading, retry } = useQuery(\`/api/${slug(it)}?account=\${accountId}\`);
+
+  if (isLoading) return <Skeleton lines={3} aria-busy="true" />;
+  if (error) return <ErrorBanner onRetry={retry}>Couldn’t load ${it}.</ErrorBanner>;
+  if (!data.length) return <EmptyState title="No ${it} yet" action="Create one" />;
+
+  return (
+    <Card as="section" aria-labelledby="${slug(it)}-title">
+      <h2 id="${slug(it)}-title">${I}</h2>
+      <ul role="list">
+        {data.map(row => <li key={row.id}>{row.label}</li>)}
+      </ul>
+    </Card>
+  );
+}` };
+      case 'backend': return { id, title: 'API & schema: ' + I, format: 'markdown', content:
+`# API & schema: ${I}
+\`\`\`yaml
+openapi: 3.1.0
+paths:
+  /v1/${slug(it)}:
+    post:
+      summary: Create ${it} (idempotent)
+      parameters: [{ name: Idempotency-Key, in: header, required: true }]
+      responses:
+        '201': { description: Created }
+        '409': { description: Duplicate key with a different body }
+        '422': { description: Validation failed }
+\`\`\`
+
+\`\`\`sql
+-- migration: add_${slug(it)} (backward compatible)
+CREATE TABLE ${slug(it)} (
+  id          UUID PRIMARY KEY,
+  account_id  UUID NOT NULL REFERENCES accounts(id),
+  status      TEXT NOT NULL DEFAULT 'pending',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_${slug(it)}_account ON ${slug(it)} (account_id, created_at DESC);
+\`\`\`
+
+**Load test:** 500 rps for 10 min, p95 ${int(18, 60)} ms, 0 errors.` };
+      case 'devops': return { id, title: 'Pipeline & rollout: ' + I, format: 'markdown', content:
+`# Pipeline & rollout: ${I}
+\`\`\`yaml
+# .pipeline/${slug(it)}.yml
+stages: [build, test, security, staging, canary, production]
+build:    { run: "make build", cache: deps }
+test:     { run: "make test", needs: [build], coverage_min: 80 }
+security: { run: "scan --sbom --secrets", needs: [build] }
+canary:   { deploy: production, traffic: 5%, watch: 15m, rollback_on: "error_rate > 1%" }
+\`\`\`
+
+## Rollout
+| Stage | Traffic | Gate |
+|---|---|---|
+| Staging | internal | Smoke + end-to-end tests green |
+| Canary | 5% | Error rate < 1%, p95 flat for 15 min |
+| Ramp | 25% → 100% | SLO burn rate normal |
+
+**Rollback:** one command, under 2 minutes. Flag \`${slug(it)}_enabled\` is the kill switch.` };
+      case 'tester': return { id, title: 'Test plan: ' + I, format: 'markdown', content:
+`# Test plan: ${I}
+| # | Scenario | Type | Result |
+|---|---|---|---|
+| 1 | Happy path: create ${it} | End-to-end | ✅ |
+| 2 | Invalid input rejected with a clear message | API | ✅ |
+| 3 | Duplicate submit is idempotent | API | ✅ |
+| 4 | ${I2} unavailable → graceful error | Integration | ✅ |
+| 5 | Keyboard-only and screen reader | Accessibility | ✅ |
+| 6 | 500 rps for 10 minutes | Load | ✅ |
+
+\`\`\`ts
+test('${it}: duplicate submit is idempotent', async ({ api }) => {
+  const key = crypto.randomUUID();
+  const first = await api.post('/v1/${slug(it)}', body, { idempotencyKey: key });
+  const again = await api.post('/v1/${slug(it)}', body, { idempotencyKey: key });
+  expect(again.status).toBe(200);
+  expect(again.body.id).toBe(first.body.id);
+});
+\`\`\`
+
+**Coverage:** 8${int(2, 9)}% of lines, every acceptance criterion automated.` };
       case 'lead':
       case 'reviewer':
       default: return { id, title: 'Notes: ' + I, format: 'markdown', content:
@@ -1116,6 +1351,14 @@ Proceed, with a check-in after two weeks.` };
    Presets
    ===================================================================== */
 const PRESETS = [
+  { tag: 'SDLC', name: 'Feature delivery', desc: 'Product, architecture, full-stack, frontend, backend, QA and DevOps ship a feature.', goal: 'Design, build and ship self-service refunds in the customer portal',
+    team: 'Nova | Product Manager | 🧭\nArc | Solutions Architect | 🏛️\nStack | Full-stack Developer | 🧩\nPixel | Frontend Engineer | 🖥️\nCore | Backend Engineer | 🗄️\nProbe | QA Engineer | 🧪\nPipe | DevOps Engineer | 🚀\nSentinel | Code Reviewer | ✅', items: 'user stories\nAPI contract\ndatabase schema\nCI/CD pipeline\nacceptance tests' },
+  { tag: 'SDLC', name: 'Legacy modernisation', desc: 'Architects and engineers carve a service out of a monolith safely.', goal: 'Move order history out of the monolith into its own service without downtime',
+    team: 'Atlas | Engineering Manager | 🧭\nArc | Enterprise Architect | 🏛️\nCore | Backend Engineer | 🗄️\nStack | Full-stack Developer | 🧩\nShield | Security Engineer | 🛡️\nPipe | Platform Engineer | 🚀\nProbe | Test Automation Engineer | 🧪', items: 'monolith\nstrangler pattern\ndata migration\norder history page\ncontract tests\nfeature flags\naccess control' },
+  { tag: 'SDLC', name: 'Bug to release', desc: 'From a production bug report to a tested hotfix in production.', goal: 'Fix the double-charge bug in checkout and ship a hotfix today',
+    team: 'Beacon | Tech Lead | 🚨\nCore | Backend Engineer | 🗄️\nPixel | Frontend Engineer | 🖥️\nProbe | QA Engineer | 🧪\nPipe | Site Reliability Engineer | 🚀\nSentinel | Code Reviewer | ✅', items: 'retry logic\nerror logs\ncheckout page\nregression test\ncanary deploy\nrelease notes' },
+  { tag: 'SDLC', name: 'Greenfield MVP', desc: 'Architect, full-stack devs, design, QA and DevOps take an idea to MVP.', goal: 'Build the MVP of a team booking app in two sprints',
+    team: 'Nova | Product Owner | 🧭\nArc | Software Architect | 🏛️\nStack | Full-stack Developer | 🧩\nFlux | Full-stack Developer | ⚡\nPixel | UX Designer | 🎨\nProbe | QA Engineer | 🧪\nPipe | DevOps Engineer | 🚀', items: 'tech stack\nMVP scope\nauthentication\nbooking calendar\nend-to-end tests\ncloud costs' },
   { name: 'Product launch', desc: 'Research, data, copy and review ahead of a feature launch.', goal: 'Prepare the launch of our new self-service onboarding flow',
     team: 'Atlas | Orchestrator | 🧭\nScout | Market Researcher | 🔎\nLedger | Data Analyst | 📊\nQuill | Copywriter | ✍️\nSentinel | QA Reviewer | ✅', items: 'pricing page\ncompetitor features\nlaunch email\ncustomer feedback' },
   { name: 'Incident response', desc: 'Engineers, security and comms work a live incident together.', goal: 'Investigate and resolve elevated checkout errors, then brief customers',
@@ -1283,7 +1526,7 @@ const settings = mergeSettings(clone(DEFAULTS), store.get('settings', {}));
 function frame(id) {
   return new Promise((res, rej) => requestAnimationFrame(now => {
     if (id !== P.runId) return rej(CANCEL);
-    const dt = Math.min(100, now - (frame.last || now)); frame.last = now;
+    const dt = Math.max(0, Math.min(100, now - (frame.last || now))); frame.last = now;
     const running = P.playing || P.stepReq;
     const scaled = running ? dt * P.speed : 0;
     if (running) { P.elapsed += scaled; }
@@ -1694,7 +1937,7 @@ $('#bDice').onclick = () => { $('#fSeed').value = Math.floor(Math.random() * 999
 PRESETS.forEach(p => {
   const b = el('button', 'preset');
   const icons = p.team.split('\n').map(l => (l.split('|')[2] || '').trim()).join('');
-  b.innerHTML = `<b>${esc(p.name)}</b><span>${esc(p.desc)}</span><div class="ics">${esc(icons)}</div>`;
+  b.innerHTML = `<b>${esc(p.name)}${p.tag ? ` <em class="ptag">${esc(p.tag)}</em>` : ''}</b><span>${esc(p.desc)}</span><div class="ics">${esc(icons)}</div>`;
   b.onclick = () => { setBuilder({ title: p.name, goal: p.goal, team: p.team, items: p.items }); genAndLoad(); toast('Loaded preset: ' + p.name); };
   $('#presetList').appendChild(b);
 });

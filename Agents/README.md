@@ -41,6 +41,7 @@ Ways to load data:
 
 ## Recording
 - **Frame**: fit the window, or use a fixed 16:9 (1920×1080 or 1280×720), 4:3, 1:1, 4:5, 9:16 vertical or custom size. A fixed frame lays out at exactly that size and scales to fit the window. The layout follows the frame, not the window.
+- **Layout**: choose *Columns* or *Free canvas*. Press **L** (or ✥) to edit on the stage: drag a panel to move it, and drag its edges or corners to resize. Panels snap to a 1% grid and to each other's edges. Arrow keys nudge the selected panel; hold Shift to resize, or Alt for finer steps. Panels can be hidden from the editor. Presets: Classic columns, Conversation focus, Studio (agents strip), Network hero, Deliverables hero, Vertical (9:16). Positions are stored as percentages of the frame, so a layout works at any resolution and is saved with exported scenarios.
 - **Look**: 7 themes (dark, midnight, slate, light, paper, high contrast, terminal), an accent colour, 5 font styles, 3 background styles, text size, column widths, spacing, corner radius and typing speed.
 - **Panels**: you can show or hide the header, progress bar, team network, agent cards, counters, tasks, outputs, footer and the "Simulated" badge.
 - **Recording mode** (**H**): hides the controls, key hints and scrollbars. The cursor also hides when idle.
@@ -49,4 +50,4 @@ Ways to load data:
 - **URL parameters** for a browser source in recording software: `?src=demo.jsonl&frame=1920x1080&theme=midnight&fs=18&speed=1.5&rec=1&autoplay=1`.
 
 ## Keys
-Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · V appearance · H recording mode · F fullscreen · T next theme · +/− text size · Esc close
+Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · +/− text size · Esc close

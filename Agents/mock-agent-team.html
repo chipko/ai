@@ -17,7 +17,7 @@
     3. Data         — JSON or JSONL: paste, import, drag-drop, ?src=file.jsonl, or embedded below
 
   Keys: Space play/pause · → step / skip typing · R restart · E jump to end · A approve
-        S scenario · V appearance · H recording mode · F fullscreen · T theme · +/- text size
+        S scenario · V appearance · L layout editor · H recording mode · F fullscreen · T theme · +/- text size
 -->
 <style>
 /* ---------- theme tokens (recording surface) ---------- */
@@ -104,6 +104,37 @@ main{display:grid;grid-template-columns:var(--lw) minmax(0,1fr) var(--rw);gap:va
 footer{display:flex;gap:18px;align-items:center;padding:6px 16px;flex:none;font-size:.8em;color:var(--dim);border-top:1px solid var(--line);background:var(--bg2);overflow:hidden;white-space:nowrap}
 footer b{color:var(--text);font-variant-numeric:tabular-nums}
 
+/* ---------- free canvas layout (panels positioned in % of the stage) ---------- */
+@container app (min-width:721px){
+  #app.canvas main{display:block;position:relative;padding:0;margin:calc(var(--gap) / 2)}
+  #app.canvas .col{display:contents}
+  #app.canvas .panel.cv{position:absolute;left:calc(var(--x) * 1% + var(--gap) / 2);top:calc(var(--y) * 1% + var(--gap) / 2);width:calc(var(--w) * 1% - var(--gap));height:calc(var(--h) * 1% - var(--gap));z-index:var(--z)}
+  #app.canvas #graph{flex:1;height:auto;min-height:0}
+  #app.canvas #tasks{max-height:none;flex:1}
+  #app.editing main{background-image:linear-gradient(to right,color-mix(in srgb,var(--accent) 22%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--accent) 22%,transparent) 1px,transparent 1px);background-size:5% 5%;outline:1px dashed color-mix(in srgb,var(--accent) 50%,transparent)}
+  #app.editing .edit-ov{display:block}
+}
+.edit-ov{display:none;position:absolute;inset:0;z-index:20;border:2px dashed var(--accent);border-radius:inherit;background:color-mix(in srgb,var(--accent) 10%,transparent);cursor:move;touch-action:none;font-family:system-ui,sans-serif}
+.edit-ov.sel{border-style:solid;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.edit-ov .lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--accent);color:#fff;padding:6px 12px;border-radius:9px;font-weight:600;font-size:14px;white-space:nowrap;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow)}
+.edit-ov .lbl .size{font-weight:400;opacity:.85;font-variant-numeric:tabular-nums}
+.edit-ov .lbl button{background:rgba(0,0,0,.2);border:0;color:#fff;border-radius:6px;padding:1px 7px;cursor:pointer}
+.edit-ov .h{position:absolute;z-index:2}
+.edit-ov .h-n,.edit-ov .h-s{left:14px;right:14px;height:12px;cursor:ns-resize}.edit-ov .h-n{top:-6px}.edit-ov .h-s{bottom:-6px}
+.edit-ov .h-e,.edit-ov .h-w{top:14px;bottom:14px;width:12px;cursor:ew-resize}.edit-ov .h-e{right:-6px}.edit-ov .h-w{left:-6px}
+.edit-ov .h-ne,.edit-ov .h-nw,.edit-ov .h-se,.edit-ov .h-sw{width:16px;height:16px;background:var(--accent);border:2px solid var(--panel);border-radius:5px}
+.edit-ov .h-nw{left:-8px;top:-8px;cursor:nwse-resize}.edit-ov .h-se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.edit-ov .h-ne{right:-8px;top:-8px;cursor:nesw-resize}.edit-ov .h-sw{left:-8px;bottom:-8px;cursor:nesw-resize}
+#editBar{display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:85;gap:10px;align-items:center;padding:8px 10px 8px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--accent);box-shadow:var(--shadow);font:14px/1.3 system-ui,sans-serif;white-space:nowrap}
+#app.editing #editBar{display:flex}
+#editBar select{padding:5px 8px}
+#editBar label{display:flex;gap:5px;align-items:center;color:var(--dim)}
+.lthumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.lthumb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:left;font-size:.85em}
+.lthumb:hover,.lthumb.sel{border-color:var(--accent)}
+.lthumb .mini{position:relative;aspect-ratio:16/9;background:var(--bg);border-radius:6px;margin-bottom:6px;overflow:hidden}
+.lthumb .mini i{position:absolute;border-radius:3px;border:1px solid var(--bg);opacity:.85}
+
 /* ---------- recording mode ---------- */
 #app.rec .controls,#app.rec .hint-keys{display:none}
 #app.rec,#app.rec *{scrollbar-width:none}
@@ -126,7 +157,7 @@ body.nocursor,body.nocursor *{cursor:none!important}
 #graph .pulse{filter:drop-shadow(0 0 4px currentColor)}
 
 /* ---------- agents ---------- */
-#agents{padding:8px;display:flex;flex-direction:column;gap:8px}
+#agents{padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;align-content:start;position:relative}
 .agent{border:1px solid var(--line);border-radius:calc(var(--r) * .8);padding:9px 10px;background:var(--panel2);display:grid;grid-template-columns:var(--av) 1fr;gap:4px 10px;transition:box-shadow .3s,border-color .3s}
 .agent.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px -4px var(--c)}
 .av{width:var(--av);height:var(--av);border-radius:calc(var(--r) * .7);display:grid;place-items:center;font-size:calc(var(--fs) * 1.2);background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);flex:none}
@@ -313,6 +344,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
     </select>
     <button class="btn" id="bScenario" title="Scenario (S)">⚙ Scenario</button>
     <button class="btn" id="bLook" title="Appearance &amp; recording (V)">🎨 Look</button>
+    <button class="btn icon hide-sm" id="bLayout" title="Edit layout: drag &amp; resize panels (L)">✥</button>
     <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
     <button class="btn icon hide-sm" id="bFull" title="Fullscreen (F)">⛶</button>
   </div>
@@ -361,6 +393,11 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
 
 <div id="reader"><div class="card"><div class="sh"><b id="readerTitle"></b><button class="btn icon" id="bReaderClose">✕</button></div><div class="doc" id="readerBody"></div></div></div>
 <div id="count"></div>
+<div id="editBar"><b>Layout editor</b><span style="color:var(--dim)">drag to move · edges &amp; corners resize</span>
+  <select class="btn" id="layoutPreset"><option value="">Apply preset…</option></select>
+  <label><input type="checkbox" data-k="snap"> Snap</label>
+  <button class="btn" id="bShowAll" title="Show every panel">Show all</button>
+  <button class="btn primary" id="bEditDone">Done</button></div>
 </div><!-- /#app -->
 
 <!-- ============ Scenario drawer (operator UI, never part of the recording frame) ============ -->
@@ -519,6 +556,12 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
           <div class="actions"><input type="color" data-k="accent" style="width:52px;height:34px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px"><button class="btn" id="bAccentReset">Theme default</button></div></div>
       </div>
 
+      <h3 class="sec">Layout</h3>
+      <div class="actions" style="margin-bottom:10px"><span class="fmt" id="layoutMode"><button data-m="columns">Columns</button><button data-m="canvas">Free canvas</button></span>
+        <button class="btn" id="bEditLayout">✥ Edit layout on the stage</button></div>
+      <p class="msg" style="margin-top:0">Free canvas lets you drag and resize every panel on the stage. Positions are stored as percentages of the frame, so a layout works at any resolution and travels with exported scenarios. Pick a starting point:</p>
+      <div class="lthumbs" id="layoutThumbs"></div>
+
       <h3 class="sec">Panels</h3>
       <div class="panelchecks">
         <label><input type="checkbox" data-k="show.header"> Header</label>
@@ -547,7 +590,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       </div>
       <div class="actions"><button class="btn" id="bResetLook">↺ Reset appearance</button><span class="msg" id="frameInfo"></span></div>
       <h3 class="sec">Keyboard</h3>
-      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · H recording mode · F fullscreen · T next theme · + / − text size · Esc close</div>
+      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · + / − text size · Esc close</div>
     </div>
   </div>
 </div>
@@ -1179,15 +1222,28 @@ function toJsonl(sc, look) {
 const CANCEL = { cancelled: true };
 const P = { script: null, idx: 0, playing: false, stepReq: false, skip: false, instant: false, speed: 1, runId: 0, elapsed: 0,
   agents: {}, tasks: {}, outputs: {}, outOrder: [], selOut: null, stats: { msg: 0, tool: 0, out: 0, tok: 0 }, approvalResolve: null };
+const clone = o => JSON.parse(JSON.stringify(o));
+// Free-canvas layouts: [x, y, w, h] in % of the stage
+const PANELS = [['graphPanel', 'graph', 'Team network'], ['agentsPanel', 'agents', 'Agents'], ['feedPanel', null, 'Activity'], ['tasksPanel', 'tasks', 'Tasks'], ['outPanel', 'outputs', 'Outputs']];
+const PANEL_IDS = PANELS.map(x => x[0]);
+const LAYOUTS = {
+  classic:  { name: 'Classic columns', r: { graphPanel: [0, 0, 21, 32], agentsPanel: [0, 32, 21, 68], feedPanel: [21, 0, 50, 100], tasksPanel: [71, 0, 29, 30], outPanel: [71, 30, 29, 70] } },
+  convo:    { name: 'Conversation focus', r: { graphPanel: [0, 0, 18, 36], agentsPanel: [0, 36, 18, 64], feedPanel: [18, 0, 60, 100], tasksPanel: [78, 0, 22, 36], outPanel: [78, 36, 22, 64] } },
+  studio:   { name: 'Studio (agents strip)', r: { graphPanel: [0, 0, 22, 72], feedPanel: [22, 0, 43, 72], outPanel: [65, 0, 35, 72], agentsPanel: [0, 72, 70, 28], tasksPanel: [70, 72, 30, 28] } },
+  network:  { name: 'Network hero', r: { graphPanel: [0, 0, 46, 62], agentsPanel: [0, 62, 46, 38], feedPanel: [46, 0, 54, 62], tasksPanel: [46, 62, 22, 38], outPanel: [68, 62, 32, 38] } },
+  output:   { name: 'Deliverables hero', r: { feedPanel: [0, 0, 36, 100], outPanel: [36, 0, 64, 68], graphPanel: [36, 68, 18, 32], tasksPanel: [54, 68, 22, 32], agentsPanel: [76, 68, 24, 32] } },
+  vertical: { name: 'Vertical (9:16)', r: { graphPanel: [0, 0, 42, 20], tasksPanel: [42, 0, 58, 20], feedPanel: [0, 20, 100, 47], agentsPanel: [0, 67, 42, 33], outPanel: [42, 67, 58, 33] } }
+};
 const DEFAULTS = {
   theme: 'dark', accent: '', bg: 'solid', font: 'system', fs: 15, gap: 12, radius: 14, lw: 300, rw: 400,
   frame: 'fit', fw: 1920, fh: 1080, typeSpeed: 1, badge: true,
   show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
   rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
-  includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json'
+  includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true
 };
 // Keys that travel with a scenario file as its "appearance"
-const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge'];
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ'];
 const THEMES = ['dark', 'midnight', 'slate', 'light', 'paper', 'contrast', 'terminal'];
 const FRAMES = ['fit', '1920x1080', '1280x720', '1440x1080', '1080x1080', '1080x1350', '1080x1920', 'custom'];
 const FONTS = {
@@ -1197,7 +1253,6 @@ const FONTS = {
   serif: 'Charter,"Bitstream Charter","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif',
   mono: 'ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace'
 };
-const clone = o => JSON.parse(JSON.stringify(o));
 function mergeSettings(base, o) {
   if (!o || typeof o !== 'object') return base;
   Object.keys(DEFAULTS).forEach(k => {
@@ -1205,8 +1260,16 @@ function mergeSettings(base, o) {
     if (k === 'show') { if (o.show && typeof o.show === 'object') Object.keys(base.show).forEach(p => { if (p in o.show) base.show[p] = !!o.show[p]; }); }
     else if (typeof DEFAULTS[k] === 'number') { const n = Number(o[k]); if (isFinite(n)) base[k] = n; }
     else if (typeof DEFAULTS[k] === 'boolean') base[k] = !!o[k];
+    else if (k === 'canvas') {
+      if (o.canvas && typeof o.canvas === 'object') PANEL_IDS.forEach(id => {
+        const r = o.canvas[id];
+        if (Array.isArray(r) && r.length === 4 && r.every(v => isFinite(+v))) base.canvas[id] = r.map(Number);
+      });
+    }
+    else if (k === 'canvasZ') { if (Array.isArray(o.canvasZ)) base.canvasZ = o.canvasZ.filter(id => PANEL_IDS.includes(id)).concat(PANEL_IDS.filter(id => !o.canvasZ.includes(id))); }
     else base[k] = String(o[k]);
   });
+  if (base.layout !== 'canvas') base.layout = 'columns';
   // "1920x1080"-style frames that aren't presets become custom sizes
   const m = String(base.frame).match(/^(\d{3,4})x(\d{3,4})$/);
   if (m && !FRAMES.includes(base.frame)) { base.fw = +m[1]; base.fh = +m[2]; base.frame = 'custom'; }
@@ -1811,7 +1874,7 @@ function applySettings() {
   if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
   $('#simBadge').style.display = st.badge ? '' : 'none';
   $('#bRec').classList.toggle('primary', st.rec);
-  layoutFrame(); syncControls(); store.set('settings', st);
+  applyCanvas(); layoutFrame(); syncControls(); store.set('settings', st);
 }
 const getK = k => k.split('.').reduce((o, p) => o && o[p], settings);
 const setK = (k, v) => { const ps = k.split('.'), last = ps.pop(); ps.reduce((o, p) => o[p], settings)[last] = v; };
@@ -1826,6 +1889,8 @@ function syncControls() {
   });
   document.querySelectorAll('[data-o]').forEach(o => { const k = o.dataset.o, v = settings[k]; o.textContent = k === 'typeSpeed' ? Number(v).toFixed(1) + '×' : v + 'px'; });
   $('#customWrap').style.visibility = settings.frame === 'custom' ? '' : 'hidden';
+  document.querySelectorAll('#layoutMode button').forEach(b => b.classList.toggle('sel', b.dataset.m === settings.layout));
+  document.querySelectorAll('.lthumb').forEach(b => b.classList.toggle('sel', settings.layout === 'canvas' && JSON.stringify(LAYOUTS[b.dataset.l].r) === JSON.stringify(pickRects(settings.canvas, LAYOUTS[b.dataset.l].r))));
 }
 document.querySelectorAll('[data-k]').forEach(inp => {
   const k = inp.dataset.k;
@@ -1841,10 +1906,139 @@ document.querySelectorAll('[data-k]').forEach(inp => {
 $('#bAccentReset').onclick = () => { settings.accent = ''; applySettings(); };
 $('#bResetLook').onclick = () => { LOOK_KEYS.forEach(k => { settings[k] = clone(DEFAULTS[k]); }); applySettings(); toast('Appearance reset'); };
 function toggleRec() {
+  if (editing) setEditing(false);
   settings.rec = !settings.rec; applySettings();
   toast(settings.rec ? 'Recording mode on. Press H to show the controls again' : 'Controls shown');
 }
 $('#bRec').onclick = toggleRec;
+
+/* ---------- free canvas layout editor ---------- */
+let editing = false, selPanel = null;
+const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+const MIN_W = 10, MIN_H = 10;
+const pickRects = (c, ref) => { const o = {}; Object.keys(ref).forEach(id => { o[id] = c[id]; }); return o; };
+function applyCanvas() {
+  const on = settings.layout === 'canvas';
+  $('#app').classList.toggle('canvas', on);
+  PANELS.forEach(([id]) => {
+    const p = document.getElementById(id), r = settings.canvas[id] || LAYOUTS.classic.r[id];
+    p.classList.toggle('cv', on);
+    ['x', 'y', 'w', 'h'].forEach((k, i) => p.style.setProperty('--' + k, r[i]));
+    p.style.setProperty('--z', 1 + settings.canvasZ.indexOf(id));
+    const sz = p.querySelector('.edit-ov .size'); if (sz) sz.textContent = `${Math.round(r[2])} × ${Math.round(r[3])}%`;
+  });
+}
+// Convert whatever is on screen now (e.g. the column layout) into canvas rectangles
+function measureRects() {
+  const main = $('main'), m = main.getBoundingClientRect(), sc = m.width / main.offsetWidth || 1;
+  const gap = settings.gap, W = main.offsetWidth - gap, H = main.offsetHeight - gap;
+  const out = clone(settings.canvas);
+  PANELS.forEach(([id]) => {
+    const p = document.getElementById(id); if (!p.offsetParent) return;
+    const r = p.getBoundingClientRect();
+    const x = ((r.left - m.left) / sc - gap) / W * 100, y = ((r.top - m.top) / sc - gap) / H * 100;
+    const w = (r.width / sc + gap) / W * 100, h = (r.height / sc + gap) / H * 100;
+    const q = v => Math.round(v * 2) / 2;
+    out[id] = [clampN(q(x), 0, 90), clampN(q(y), 0, 90), clampN(q(w), MIN_W, 100), clampN(q(h), MIN_H, 100)];
+  });
+  return out;
+}
+function setEditing(on) {
+  if (on && $('#app').clientWidth <= 720) { toast('Widen the window or choose a fixed frame to edit the layout'); return; }
+  if (on && settings.rec) { settings.rec = false; }
+  if (on && settings.layout !== 'canvas') { settings.canvas = measureRects(); settings.layout = 'canvas'; }
+  editing = on; selPanel = null;
+  $('#app').classList.toggle('editing', on);
+  document.querySelectorAll('.edit-ov.sel').forEach(o => o.classList.remove('sel'));
+  $('#bLayout').classList.toggle('primary', on);
+  applySettings();
+  if (on) { closeDrawer(); $('#reader').classList.remove('open'); }
+}
+function bringFront(id) { settings.canvasZ = settings.canvasZ.filter(z => z !== id).concat(id); }
+function edgeCands(id) {
+  const xs = [0, 100], ys = [0, 100];
+  PANELS.forEach(([o]) => { if (o === id || !document.getElementById(o).offsetParent) return; const r = settings.canvas[o]; xs.push(r[0], r[0] + r[2]); ys.push(r[1], r[1] + r[3]); });
+  return { xs, ys };
+}
+function magnet(v, cands, t = 1.2) { let best = null, bd = t; cands.forEach(c => { const d = Math.abs(v - c); if (d < bd) { bd = d; best = c; } }); return best; }
+PANELS.forEach(([id, showKey, label]) => {
+  const p = document.getElementById(id);
+  const ov = el('div', 'edit-ov');
+  ov.innerHTML = `<div class="lbl">⠿ ${esc(label)} <span class="size"></span>${showKey ? '<button title="Hide this panel (re-enable under Appearance → Panels)">Hide</button>' : ''}</div>` +
+    ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(d => `<div class="h h-${d}" data-d="${d}"></div>`).join('');
+  p.appendChild(ov);
+  if (showKey) ov.querySelector('button').onclick = e => { e.stopPropagation(); settings.show[showKey] = false; applySettings(); toast(label + ' hidden'); };
+  ov.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    document.querySelectorAll('.edit-ov.sel').forEach(o => o.classList.remove('sel')); ov.classList.add('sel'); selPanel = id;
+    bringFront(id); applyCanvas();
+    const d = e.target.dataset.d || 'move';
+    const m = $('main').getBoundingClientRect(), px = m.width / 100, py = m.height / 100;
+    const start = settings.canvas[id].slice(), x0 = e.clientX, y0 = e.clientY, { xs, ys } = edgeCands(id);
+    ov.setPointerCapture(e.pointerId);
+    const snapV = v => settings.snap ? Math.round(v) : Math.round(v * 10) / 10;
+    const mv = ev => {
+      const dx = (ev.clientX - x0) / px, dy = (ev.clientY - y0) / py;
+      let [x, y, w, h] = start;
+      if (d === 'move') {
+        x = clampN(snapV(x + dx), 0, 100 - w); y = clampN(snapV(y + dy), 0, 100 - h);
+        if (settings.snap) {
+          let s1 = magnet(x, xs); if (s1 != null) x = s1; else if ((s1 = magnet(x + w, xs)) != null) x = s1 - w;
+          let s2 = magnet(y, ys); if (s2 != null) y = s2; else if ((s2 = magnet(y + h, ys)) != null) y = s2 - h;
+        }
+      } else {
+        let L = x, T = y, R = x + w, B = y + h;
+        if (d.includes('w')) L = clampN(snapV(x + dx), 0, R - MIN_W);
+        if (d.includes('e')) R = clampN(snapV(R + dx), L + MIN_W, 100);
+        if (d.includes('n')) T = clampN(snapV(y + dy), 0, B - MIN_H);
+        if (d.includes('s')) B = clampN(snapV(B + dy), T + MIN_H, 100);
+        if (settings.snap) {
+          const mg = (v, c) => { const s = magnet(v, c); return s == null ? v : s; };
+          if (d.includes('w')) L = Math.min(mg(L, xs), R - MIN_W); if (d.includes('e')) R = Math.max(mg(R, xs), L + MIN_W);
+          if (d.includes('n')) T = Math.min(mg(T, ys), B - MIN_H); if (d.includes('s')) B = Math.max(mg(B, ys), T + MIN_H);
+        }
+        x = L; y = T; w = R - L; h = B - T;
+      }
+      settings.canvas[id] = [x, y, w, h].map(v => Math.round(v * 10) / 10);
+      applyCanvas();
+    };
+    const up = () => { ov.removeEventListener('pointermove', mv); ov.removeEventListener('pointerup', up); ov.removeEventListener('pointercancel', up); applySettings(); };
+    ov.addEventListener('pointermove', mv); ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up);
+  });
+});
+// arrow keys nudge the selected panel while editing (Shift = resize)
+document.addEventListener('keydown', e => {
+  if (!editing || !selPanel || !e.key.startsWith('Arrow') || e.target.matches('input,textarea,select')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const r = settings.canvas[selPanel], st = e.altKey ? 0.1 : 1, dx = e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0, dy = e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0;
+  if (e.shiftKey) { r[2] = clampN(r[2] + dx, MIN_W, 100 - r[0]); r[3] = clampN(r[3] + dy, MIN_H, 100 - r[1]); }
+  else { r[0] = clampN(r[0] + dx, 0, 100 - r[2]); r[1] = clampN(r[1] + dy, 0, 100 - r[3]); }
+  settings.canvas[selPanel] = r.map(v => Math.round(v * 10) / 10); applySettings();
+}, true);
+function applyLayoutPreset(key) {
+  const L = LAYOUTS[key]; if (!L) return;
+  settings.canvas = Object.assign(clone(settings.canvas), clone(L.r)); settings.layout = 'canvas';
+  applySettings(); toast('Layout: ' + L.name);
+}
+Object.entries(LAYOUTS).forEach(([key, L]) => {
+  const b = el('button', 'lthumb'); b.dataset.l = key;
+  const cols = { graphPanel: 'var(--accent2)', agentsPanel: 'var(--ok)', feedPanel: 'var(--accent)', tasksPanel: 'var(--warn)', outPanel: '#e879c6' };
+  b.innerHTML = `<div class="mini">${Object.entries(L.r).map(([id, r]) => `<i style="left:${r[0]}%;top:${r[1]}%;width:${r[2]}%;height:${r[3]}%;background:${cols[id]}"></i>`).join('')}</div>${esc(L.name)}`;
+  b.onclick = () => applyLayoutPreset(key);
+  $('#layoutThumbs').appendChild(b);
+  $('#layoutPreset').appendChild(Object.assign(el('option'), { value: key, textContent: L.name }));
+});
+$('#layoutPreset').onchange = e => { applyLayoutPreset(e.target.value); e.target.value = ''; e.target.blur(); };
+document.querySelectorAll('#layoutMode button').forEach(b => b.onclick = () => {
+  if (b.dataset.m === 'canvas' && settings.layout !== 'canvas') settings.canvas = measureRects();
+  settings.layout = b.dataset.m; if (settings.layout === 'columns' && editing) setEditing(false); applySettings();
+});
+$('#bEditLayout').onclick = () => setEditing(true);
+$('#bLayout').onclick = () => setEditing(!editing);
+$('#bEditDone').onclick = () => setEditing(false);
+$('#bShowAll').onclick = () => { Object.keys(settings.show).forEach(k => { if (['graph', 'agents', 'tasks', 'outputs'].includes(k)) settings.show[k] = true; }); applySettings(); };
+
 let cursorTimer;
 addEventListener('mousemove', () => {
   document.body.classList.remove('nocursor'); clearTimeout(cursorTimer);
@@ -1869,6 +2063,7 @@ document.addEventListener('keydown', e => {
   if (k === 'Escape') {
     if (e.target.matches('input,textarea,select')) e.target.blur();
     if ($('#drawer').classList.contains('open')) closeDrawer();
+    else if (editing) setEditing(false);
     else if ($('#reader').classList.contains('open')) $('#reader').classList.remove('open');
     else if (settings.rec) toggleRec();
     return;
@@ -1881,6 +2076,7 @@ document.addEventListener('keydown', e => {
   else if (k === 's') openDrawer();
   else if (k === 'v') openDrawer('pLook');
   else if (k === 'h') toggleRec();
+  else if (k === 'l') setEditing(!editing);
   else if (k === 'a') { if (P.approvalResolve) P.approvalResolve('approve'); }
   else if (k === 'f') $('#bFull').click();
   else if (k === 't') { settings.theme = THEMES[(THEMES.indexOf(settings.theme) + 1) % THEMES.length]; applySettings(); toast('Theme: ' + settings.theme); }

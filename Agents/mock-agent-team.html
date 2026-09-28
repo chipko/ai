@@ -4,67 +4,118 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Agent Team Simulator</title>
+<!-- Optional embedded scenario (JSON or JSONL). "Download standalone HTML" fills this in. -->
+<script type="application/json" id="embedded-scenario"></script>
 <!--
   Agent Team Simulator — a mock "agent team / cowork" demo for presentations.
   Single file, no dependencies, works offline. Nothing here calls a model unless
   you choose the optional "Generate via API" route (any OpenAI-compatible endpoint).
 
-  Three ways to make a scenario:
+  Ways to make a scenario:
     1. Quick build  — goal + team + items to mention → procedural generator fills the blanks
-    2. LLM prompt   — copy a prompt into ANY model/chat, paste the JSON it returns
-    3. Script JSON  — hand-edit / import / export the exact script that plays
+    2. LLM prompt   — copy a prompt into ANY model/chat, paste the JSON / JSONL it returns
+    3. Data         — JSON or JSONL: paste, import, drag-drop, ?src=file.jsonl, or embedded below
 
-  Keys: Space play/pause · → step / skip typing · R restart · E jump to end
-        S scenario panel · F fullscreen · T theme · +/- text size · A approve
+  Keys: Space play/pause · → step / skip typing · R restart · E jump to end · A approve
+        S scenario · V appearance · H recording mode · F fullscreen · T theme · +/- text size
 -->
 <style>
+/* ---------- theme tokens (recording surface) ---------- */
 :root{
   --bg:#0d1017; --bg2:#131824; --panel:#171d2b; --panel2:#1d2436; --line:#2a3350;
-  --text:#e6e9f2; --dim:#98a1b9; --faint:#5f6884; --accent:#7c9cff; --ok:#5ed1a5;
-  --warn:#f2c14e; --bad:#ff7a7a; --code:#0a0d14; --shadow:0 8px 30px rgba(0,0,0,.35);
-  --fs:15px;
+  --text:#e6e9f2; --dim:#98a1b9; --faint:#5f6884; --accent:#7c9cff; --accent2:#b18cff; --ok:#5ed1a5;
+  --warn:#f2c14e; --bad:#ff7a7a; --code:#0a0d14; --shadow:0 8px 30px rgba(0,0,0,.35); --scrim:rgba(5,8,15,.6);
+  --fs:15px; --av:calc(var(--fs) * 2.4); --r:14px; --gap:12px; --lw:300px; --rw:400px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
 }
 :root[data-theme="light"]{
   --bg:#f3f5fa; --bg2:#e9edf5; --panel:#ffffff; --panel2:#f5f7fc; --line:#d8deeb;
-  --text:#1b2033; --dim:#5b6480; --faint:#9aa3bb; --accent:#4062e0; --ok:#1f9d6e;
-  --warn:#b7860b; --bad:#d64545; --code:#f1f3f9; --shadow:0 8px 24px rgba(30,40,80,.10);
+  --text:#1b2033; --dim:#5b6480; --faint:#9aa3bb; --accent:#4062e0; --accent2:#8a5cf0; --ok:#1f9d6e;
+  --warn:#b7860b; --bad:#d64545; --code:#f1f3f9; --shadow:0 8px 24px rgba(30,40,80,.10); --scrim:rgba(20,25,40,.35);
+}
+:root[data-theme="midnight"]{
+  --bg:#05070f; --bg2:#080c19; --panel:#0c1122; --panel2:#111831; --line:#1c2745;
+  --text:#e9ecff; --dim:#8d97c2; --faint:#4b557d; --accent:#8b7bff; --accent2:#ff7bd5; --code:#03050b;
+}
+:root[data-theme="slate"]{
+  --bg:#1e222a; --bg2:#23282f; --panel:#282d36; --panel2:#2f3540; --line:#3c4350;
+  --text:#eceff4; --dim:#a3abb9; --faint:#6b7382; --accent:#4fb3ff; --accent2:#7ee0c3; --code:#1a1d23;
+}
+:root[data-theme="paper"]{
+  --bg:#f6f1e7; --bg2:#efe8da; --panel:#fffdf8; --panel2:#f9f5ec; --line:#e3dac8;
+  --text:#2b2620; --dim:#6f6555; --faint:#a89c86; --accent:#c2571a; --accent2:#8d5a97; --ok:#3f8f5a;
+  --warn:#a87708; --bad:#c0392b; --code:#f3ede1; --shadow:0 6px 20px rgba(80,60,30,.10); --scrim:rgba(40,30,20,.35);
+}
+:root[data-theme="contrast"]{
+  --bg:#000; --bg2:#000; --panel:#000; --panel2:#0b0b0b; --line:#ffffff;
+  --text:#fff; --dim:#e6e6e6; --faint:#b3b3b3; --accent:#ffd400; --accent2:#00e5ff; --ok:#5dff8f;
+  --warn:#ffd400; --bad:#ff6b6b; --code:#000; --shadow:none;
+}
+:root[data-theme="terminal"]{
+  --bg:#020a04; --bg2:#031006; --panel:#041208; --panel2:#06180b; --line:#0f3d1c;
+  --text:#b8ffcc; --dim:#5fbf7a; --faint:#2f6b40; --accent:#39ff88; --accent2:#00d5ff; --ok:#39ff88;
+  --warn:#ffe066; --bad:#ff5f5f; --code:#010702;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden;display:flex;flex-direction:column}
+/* body = operator surface (drawer, toasts). #app = the recording surface. */
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden}
+body.framed{background:#030407}
 button,select,input,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code,pre,.mono{font-family:var(--mono)}
+#app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;overflow:auto;container:app / size;background:var(--bg);color:var(--text);font:var(--fs)/1.5 var(--font)}
+body.framed #app{position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+#app.bg-gradient{background:radial-gradient(70% 60% at 0% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%),radial-gradient(60% 60% at 100% 100%,color-mix(in srgb,var(--accent2) 13%,transparent),transparent 70%),var(--bg)}
+#app.bg-dots{background:radial-gradient(color-mix(in srgb,var(--text) 11%,transparent) 1px,transparent 1.4px) 0 0/22px 22px,var(--bg)}
+#app.bg-gradient header,#app.bg-dots header,#app.bg-gradient footer,#app.bg-dots footer{background:color-mix(in srgb,var(--bg2) 75%,transparent);backdrop-filter:blur(6px)}
 
 /* ---------- header ---------- */
-header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:none}
 .brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
-.brand .logo{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),#b18cff);color:#fff;font-weight:700;flex:none}
+.brand .logo{width:2.1em;height:2.1em;border-radius:calc(var(--r) * .65);display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;flex:none}
 .brand .t{min-width:0}
 .brand h1{margin:0;font-size:1.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brand .goal{color:var(--dim);font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.brand .goal{color:var(--dim);font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60cqw}
 .badge-sim{font-size:.7em;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim);flex:none}
 .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .btn{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 11px;display:inline-flex;align-items:center;gap:6px;line-height:1.2}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="contrast"] .btn.primary,:root[data-theme="terminal"] .btn.primary{color:#000}
 .btn.icon{padding:6px 9px;min-width:34px;justify-content:center}
 select.btn{padding:6px 8px}
-.progress{height:3px;background:var(--line)}
-.progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#b18cff);transition:width .25s}
+.progress{height:3px;background:var(--line);flex:none}
+.progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
 
 /* ---------- layout ---------- */
-main{display:grid;grid-template-columns:300px minmax(0,1fr) 400px;gap:12px;padding:12px;flex:1;min-height:0}
-.col{display:flex;flex-direction:column;gap:12px;min-height:0}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+main{display:grid;grid-template-columns:var(--lw) minmax(0,1fr) var(--rw);gap:var(--gap);padding:var(--gap);flex:1;min-height:0}
+#app.no-left main{grid-template-columns:minmax(0,1fr) var(--rw)}
+#app.no-right main{grid-template-columns:var(--lw) minmax(0,1fr)}
+#app.no-left.no-right main{grid-template-columns:minmax(0,1fr)}
+#app.no-left .col.left,#app.no-right .col.right{display:none}
+#app.hide-header header,#app.hide-progress .progress,#app.hide-footer footer,#app.hide-graph #graphPanel,#app.hide-agents #agentsPanel,#app.hide-tasks #tasksPanel,#app.hide-outputs #outPanel,#app.hide-counters .agent .ctr{display:none}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
 .panel>h2{margin:0;padding:10px 14px;font-size:.78em;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .panel>h2 .sp{flex:1}
 .scroll{overflow:auto;min-height:0}
-footer{display:flex;gap:18px;align-items:center;padding:0 16px;height:30px;flex:none;font-size:.8em;color:var(--dim);border-top:1px solid var(--line);background:var(--bg2);overflow:hidden;white-space:nowrap}
+footer{display:flex;gap:18px;align-items:center;padding:6px 16px;flex:none;font-size:.8em;color:var(--dim);border-top:1px solid var(--line);background:var(--bg2);overflow:hidden;white-space:nowrap}
 footer b{color:var(--text);font-variant-numeric:tabular-nums}
 
+/* ---------- recording mode ---------- */
+#app.rec .controls,#app.rec .hint-keys{display:none}
+#app.rec,#app.rec *{scrollbar-width:none}
+#app.rec ::-webkit-scrollbar{display:none}
+body.nocursor,body.nocursor *{cursor:none!important}
+#count{position:absolute;inset:0;display:none;place-items:center;z-index:80;background:var(--scrim);pointer-events:none}
+#count.on{display:grid}
+#count span{font-size:calc(var(--fs) * 9);font-weight:800;color:#fff;text-shadow:0 6px 40px var(--accent);animation:pop .8s ease-out both}
+@keyframes pop{from{transform:scale(1.6);opacity:0}30%{opacity:1}to{transform:scale(.9);opacity:.9}}
+
 /* ---------- graph ---------- */
-#graph{width:100%;height:230px;display:block}
+#graph{width:100%;height:calc(var(--fs) * 15.5);display:block}
 #graph .edge{stroke:var(--line);stroke-width:1.5;fill:none;transition:stroke .4s}
 #graph .edge.hot{stroke:var(--accent);stroke-width:2.5}
 #graph .node circle.ring{fill:var(--panel2);stroke-width:2.5}
@@ -76,9 +127,9 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 
 /* ---------- agents ---------- */
 #agents{padding:8px;display:flex;flex-direction:column;gap:8px}
-.agent{border:1px solid var(--line);border-radius:11px;padding:9px 10px;background:var(--panel2);display:grid;grid-template-columns:36px 1fr;gap:4px 10px;transition:box-shadow .3s,border-color .3s}
+.agent{border:1px solid var(--line);border-radius:calc(var(--r) * .8);padding:9px 10px;background:var(--panel2);display:grid;grid-template-columns:var(--av) 1fr;gap:4px 10px;transition:box-shadow .3s,border-color .3s}
 .agent.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px -4px var(--c)}
-.av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);flex:none}
+.av{width:var(--av);height:var(--av);border-radius:calc(var(--r) * .7);display:grid;place-items:center;font-size:calc(var(--fs) * 1.2);background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);flex:none}
 .agent .nm{display:flex;align-items:center;gap:6px;min-width:0}
 .agent .nm b{white-space:nowrap}
 .agent .role{color:var(--dim);font-size:.8em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -100,15 +151,16 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .ev .meta b{color:var(--text)}
 .ev .bubble{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:4px 12px 12px 12px;padding:8px 12px;white-space:pre-wrap;word-wrap:break-word}
 .ev .bubble .mention{color:var(--mc,var(--accent));font-weight:600}
+:root[data-theme="light"] .ev .bubble .mention,:root[data-theme="paper"] .ev .bubble .mention{color:color-mix(in srgb,var(--mc,var(--accent)) 62%,#000)}
 .kind{font-size:.72em;padding:0 7px;border-radius:99px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.05em}
 .kind.ask{color:var(--warn)} .kind.answer{color:var(--ok)} .kind.handoff{color:var(--accent)} .kind.review{color:#e879c6} .kind.say{color:var(--dim)}
 .ev-human .bubble{border-left-color:var(--text);background:color-mix(in srgb,var(--accent) 10%,var(--panel2))}
-.ev-think{color:var(--dim);font-size:.88em;align-items:flex-start;padding-left:46px}
+.ev-think{color:var(--dim);font-size:.88em;align-items:flex-start;padding-left:calc(var(--av) + 10px)}
 .ev-think .body{border-left:2px dashed color-mix(in srgb,var(--c) 60%,transparent);padding-left:10px}
 .ev-think i{display:block}
 .dots::after{content:"";animation:dots 1.2s steps(4) infinite}
 @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
-.ev-tool{padding-left:46px}
+.ev-tool{padding-left:calc(var(--av) + 10px)}
 .tool{border:1px solid var(--line);border-radius:10px;background:var(--code);font-size:.84em;overflow:hidden;width:100%}
 .tool .th{padding:6px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tool .th code{color:var(--c)}
@@ -118,9 +170,9 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 @keyframes spin{to{transform:rotate(360deg)}}
 .ev-note{justify-content:center;color:var(--dim);font-size:.78em;letter-spacing:.08em;text-transform:uppercase;gap:10px;align-items:center;margin:6px 0}
 .ev-note::before,.ev-note::after{content:"";flex:1;height:1px;background:var(--line)}
-.ev-task{padding-left:46px;font-size:.84em;color:var(--dim)}
+.ev-task{padding-left:calc(var(--av) + 10px);font-size:.84em;color:var(--dim)}
 .ev-task b{color:var(--ok)}
-.ev-out{padding-left:46px}
+.ev-out{padding-left:calc(var(--av) + 10px)}
 .outcard{border:1px solid color-mix(in srgb,var(--c) 50%,var(--line));background:color-mix(in srgb,var(--c) 8%,var(--panel2));border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;width:100%;text-align:left}
 .outcard:hover{border-color:var(--c)}
 .outcard .ot{flex:1;min-width:0}
@@ -135,7 +187,7 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 @keyframes blink{50%{opacity:0}}
 
 /* ---------- tasks & outputs ---------- */
-#tasks{padding:6px 10px;display:flex;flex-direction:column;gap:2px;max-height:190px}
+#tasks{padding:6px 10px;display:flex;flex-direction:column;gap:2px;max-height:13em}
 .task{display:flex;align-items:center;gap:8px;font-size:.86em;padding:4px 4px;border-radius:7px}
 .task .st{width:18px;text-align:center;flex:none}
 .task .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -164,7 +216,7 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .tk-c{color:var(--faint);font-style:italic}.tk-s{color:var(--ok)}.tk-k{color:#b18cff}.tk-n{color:var(--warn)}
 
 /* ---------- drawer ---------- */
-#drawer{position:fixed;inset:0;background:rgba(5,8,15,.55);display:none;z-index:50}
+#drawer{position:fixed;inset:0;background:rgba(5,8,15,.55);display:none;z-index:90}
 #drawer.open{display:block}
 #drawer .sheet{position:absolute;right:0;top:0;bottom:0;width:min(760px,100%);background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:var(--shadow)}
 #drawer .sh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
@@ -180,10 +232,10 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .inp{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
 .inp:focus{border-color:var(--accent)}
 textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
-textarea.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.82em;min-height:360px;white-space:pre}
+textarea.code{font-family:var(--mono);font-size:.82em;min-height:360px;white-space:pre}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .checks{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.88em}
-.checks label{display:flex;gap:6px;align-items:center;color:var(--text)}
+.checks label,.field.checks label{display:flex;gap:6px;align-items:center;color:var(--text);font-size:1em;margin:0}
 .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .msg{font-size:.84em;color:var(--dim)}
 .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
@@ -198,36 +250,50 @@ details.api summary{cursor:pointer;color:var(--dim)}
 h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:18px 0 8px}
 
 /* ---------- reader modal ---------- */
-#reader{position:fixed;inset:0;background:rgba(5,8,15,.6);display:none;z-index:60;padding:4vh 4vw}
+#reader{position:absolute;inset:0;background:var(--scrim);display:none;z-index:60;padding:4cqh 4cqw}
 #reader.open{display:flex}
-#reader .card{margin:auto;width:min(900px,100%);max-height:100%;background:var(--panel);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+#reader .card{margin:auto;width:min(900px,100%);max-height:100%;background:var(--panel);border:1px solid var(--line);border-radius:calc(var(--r) + 2px);display:flex;flex-direction:column;box-shadow:var(--shadow)}
 #reader .card .sh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
 #reader .card .sh b{flex:1}
 #reader .card .doc{padding:16px 22px;overflow:auto;font-size:1.02em}
 
-.toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:10px;box-shadow:var(--shadow);font-size:.88em;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast{position:fixed;bottom:44px;font-family:system-ui,sans-serif;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:10px;box-shadow:var(--shadow);font-size:.88em;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.show{opacity:1}
+.fmt{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.fmt button{background:var(--panel);border:0;padding:5px 12px;color:var(--dim)}
+.fmt button.sel{background:var(--accent);color:#fff}
+.range{display:flex;align-items:center;gap:10px}
+.range input[type=range]{flex:1;accent-color:var(--accent)}
+.range output{min-width:4.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim);font-size:.85em}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:700px){.grid3{grid-template-columns:1fr 1fr}}
+.panelchecks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;font-size:.9em}
+.panelchecks label{display:flex;gap:6px;align-items:center}
+#dropzone{position:fixed;inset:0;z-index:95;display:none;place-items:center;background:rgba(10,15,30,.7);color:#fff;font:600 22px system-ui,sans-serif;border:3px dashed #7c9cff}
+#dropzone.on{display:grid}
 
-/* ---------- responsive ---------- */
-@media (max-width:1180px){
-  main{grid-template-columns:260px minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
-  .col.right{grid-column:1/-1;flex-direction:row}
-  .col.right .panel{flex:1}
+/* ---------- responsive (container queries: follow the frame, not the window) ---------- */
+@container app (max-width:1100px){
+  #app main{grid-template-columns:minmax(200px,var(--lw)) minmax(0,1fr);grid-template-rows:minmax(0,1.35fr) minmax(0,1fr)}
+  #app.no-left main{grid-template-columns:minmax(0,1fr)}
+  #app.no-right main{grid-template-rows:minmax(0,1fr)}
+  #app .col.right{grid-column:1/-1;flex-direction:row}
+  #app .col.right .panel{flex:1}
 }
-@media (max-width:760px){
-  body{overflow:auto;display:block}
-  main{display:flex;flex-direction:column;height:auto;flex:none;padding:10px 16px}
-  .col.right{flex-direction:column}
-  #feedPanel{height:70vh}
-  #outPanel{height:60vh}
-  .brand .goal{max-width:80vw}
-  .row2{grid-template-columns:1fr}
-  footer{height:auto;flex-wrap:wrap;padding:6px 16px;gap:8px 14px}
+@container app (max-width:720px){
+  #app main{display:flex;flex-direction:column;flex:none;min-height:auto;padding:10px 16px}
+  #app .col.right{flex-direction:column}
+  #app #feedPanel{height:72cqh}
+  #app #outPanel{height:62cqh}
+  .brand .goal{max-width:80cqw}
+  footer{flex-wrap:wrap;gap:6px 14px}
   .hide-sm{display:none}
 }
+@media (max-width:700px){ .row2{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
+<div id="app">
 <header>
   <div class="brand">
     <div class="logo">⌬</div>
@@ -246,20 +312,20 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option>
     </select>
     <button class="btn" id="bScenario" title="Scenario (S)">⚙ Scenario</button>
-    <button class="btn icon hide-sm" id="bFont" title="Text size (+/−)">A±</button>
-    <button class="btn icon" id="bTheme" title="Theme (T)">◐</button>
+    <button class="btn" id="bLook" title="Appearance &amp; recording (V)">🎨 Look</button>
+    <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
     <button class="btn icon hide-sm" id="bFull" title="Fullscreen (F)">⛶</button>
   </div>
 </header>
 <div class="progress"><div id="prog"></div></div>
 
 <main>
-  <div class="col">
-    <section class="panel">
+  <div class="col left">
+    <section class="panel" id="graphPanel">
       <h2>Team network</h2>
       <svg id="graph" viewBox="0 0 300 230" role="img" aria-label="Agent collaboration network"></svg>
     </section>
-    <section class="panel" style="flex:1">
+    <section class="panel" id="agentsPanel" style="flex:1">
       <h2>Agents <span class="sp"></span><span id="teamCount"></span></h2>
       <div id="agents" class="scroll"></div>
     </section>
@@ -271,14 +337,14 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
   </section>
 
   <div class="col right">
-    <section class="panel">
+    <section class="panel" id="tasksPanel">
       <h2>Tasks <span class="sp"></span><span id="taskLbl" style="text-transform:none;letter-spacing:0"></span></h2>
       <div id="tasks" class="scroll"></div>
     </section>
     <section class="panel" id="outPanel" style="flex:1">
       <h2>Outputs <span class="sp"></span><button class="btn icon" id="bExpand" title="Open in reader" style="padding:2px 8px;font-size:1em">⤢</button></h2>
       <div id="outTabs"></div>
-      <div id="outView" class="scroll doc"><div class="empty" style="padding:20px"><div class="big">📄</div>Deliverables appear here as agents produce them.</div></div>
+      <div id="outView" class="scroll doc"></div>
     </section>
   </div>
 </main>
@@ -290,10 +356,14 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
   <span>Tool calls <b id="fTool">0</b></span>
   <span>Outputs <b id="fOut">0</b></span>
   <span>Tokens <b id="fTok">0</b></span>
-  <span style="margin-left:auto" class="hide-sm">Space ▶︎/❚❚ · → step · R restart · S scenario</span>
+  <span style="margin-left:auto" class="hide-sm hint-keys">Space ▶︎/❚❚ · → step · R restart · S scenario · H hide controls</span>
 </footer>
 
-<!-- ============ Scenario drawer ============ -->
+<div id="reader"><div class="card"><div class="sh"><b id="readerTitle"></b><button class="btn icon" id="bReaderClose">✕</button></div><div class="doc" id="readerBody"></div></div></div>
+<div id="count"></div>
+</div><!-- /#app -->
+
+<!-- ============ Scenario drawer (operator UI, never part of the recording frame) ============ -->
 <div id="drawer">
   <div class="sheet">
     <div class="sh"><h2>Scenario</h2><button class="btn icon" id="bClose" title="Close (Esc)">✕</button></div>
@@ -301,8 +371,8 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       <button class="tab sel" data-pane="pBuild">Quick build</button>
       <button class="tab" data-pane="pPresets">Presets</button>
       <button class="tab" data-pane="pLLM">Generate with any LLM</button>
-      <button class="tab" data-pane="pJSON">Script (JSON)</button>
-      <button class="tab" data-pane="pSettings">Settings</button>
+      <button class="tab" data-pane="pJSON">Data (JSON / JSONL)</button>
+      <button class="tab" data-pane="pLook">Appearance &amp; recording</button>
     </div>
 
     <div class="pane sel" id="pBuild">
@@ -355,9 +425,9 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
     </div>
 
     <div class="pane" id="pLLM">
-      <p class="msg" style="margin-top:0">Model- and platform-agnostic: copy this prompt into any chat assistant or local model, then paste the JSON it returns below. The prompt uses the goal, team and items from <b>Quick build</b>.</p>
+      <p class="msg" style="margin-top:0">Model- and platform-agnostic: copy this prompt into any chat assistant or local model, then paste what it returns below (JSON or JSONL). The prompt uses the goal, team and items from <b>Quick build</b>.</p>
       <div class="field">
-        <label>1 · Prompt</label>
+        <label>1 · Prompt <span class="fmt" id="promptFmt" style="margin-left:8px;vertical-align:middle"><button data-f="json" class="sel">JSON</button><button data-f="jsonl">JSONL</button></span></label>
         <textarea class="inp code" id="llmPrompt" style="min-height:220px" readonly></textarea>
         <div class="actions" style="margin-top:8px"><button class="btn" id="bCopyPrompt">⧉ Copy prompt</button><button class="btn" id="bRefreshPrompt">↻ Refresh from Quick build</button></div>
       </div>
@@ -379,39 +449,116 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
     </div>
 
     <div class="pane" id="pJSON">
-      <p class="msg" style="margin-top:0">This is exactly what plays. Edit lines, rewrite outputs, reorder steps, then apply. Step types: <span class="mono">note, human, message, thinking, tool, status, task, output, approval, pause</span>.</p>
+      <p class="msg" style="margin-top:0">The data that plays. Paste, edit, import or drop a <span class="mono">.json</span> / <span class="mono">.jsonl</span> file anywhere on the page; the format is detected automatically. In JSONL each line is one record: <span class="mono">meta</span>, <span class="mono">agent</span>, <span class="mono">task</span>, <span class="mono">appearance</span>, then steps (<span class="mono">note, human, message, thinking, tool, status, task, output, approval, pause</span>). Lines starting with <span class="mono">//</span> or <span class="mono">#</span> are comments.</p>
+      <div class="actions" style="margin-bottom:8px"><span class="msg">Show as</span><span class="fmt" id="dataFmt"><button data-f="json" class="sel">JSON</button><button data-f="jsonl">JSONL</button></span></div>
       <textarea class="inp code" id="jsonBox" spellcheck="false"></textarea>
       <div class="actions" style="margin-top:8px">
         <button class="btn primary" id="bApply">Apply &amp; restart</button>
         <button class="btn" id="bCopyJson">⧉ Copy</button>
-        <button class="btn" id="bDownload">⬇ Download .json</button>
-        <label class="btn" style="cursor:pointer">⬆ Import .json<input type="file" id="fileIn" accept=".json,application/json" hidden></label>
+        <button class="btn" id="bDownload">⬇ Download</button>
+        <label class="btn" style="cursor:pointer">⬆ Import file<input type="file" id="fileIn" accept=".json,.jsonl,.ndjson,.txt,application/json" hidden></label>
         <span class="msg" id="jsonMsg"></span>
       </div>
+      <h3 class="sec">Single-file hand-off</h3>
+      <div class="actions"><button class="btn" id="bStandalone">⬇ Download standalone HTML with this scenario</button></div>
+      <p class="msg">Saves a copy of this page with the current scenario (and, if ticked below, the current look) embedded. It opens straight into that scenario, with no other files needed, which is ideal for the recording machine.</p>
+      <div class="field checks" style="flex-direction:column">
+        <label><input type="checkbox" data-k="includeLook"> Include the current appearance in downloads &amp; standalone HTML</label>
+        <label><input type="checkbox" data-k="applyScriptLook"> Apply the appearance stored in loaded files</label>
+      </div>
+      <h3 class="sec">Load from a URL</h3>
+      <p class="msg">When the page is served over http(s), add <span class="mono">?src=scenario.jsonl</span> to load a data file. Other parameters: <span class="mono">frame=1920x1080</span>, <span class="mono">theme=paper</span>, <span class="mono">fs=18</span>, <span class="mono">speed=1.5</span>, <span class="mono">rec=1</span>, <span class="mono">autoplay=1</span>. Handy for a browser source in recording software.</p>
     </div>
 
-    <div class="pane" id="pSettings">
+    <div class="pane" id="pLook">
+      <h3 class="sec" style="margin-top:0">Frame &amp; size</h3>
+      <div class="row2">
+        <div class="field">
+          <label for="aFrame">Frame</label>
+          <select class="inp" id="aFrame" data-k="frame">
+            <option value="fit">Fit window</option>
+            <option value="1920x1080">16:9 · 1920 × 1080</option>
+            <option value="1280x720">16:9 · 1280 × 720</option>
+            <option value="1440x1080">4:3 · 1440 × 1080</option>
+            <option value="1080x1080">1:1 · 1080 × 1080</option>
+            <option value="1080x1350">4:5 · 1080 × 1350</option>
+            <option value="1080x1920">9:16 · 1080 × 1920 (vertical)</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <div class="hint">A fixed frame lays out at exactly that size and scales to fit the window, so what you record matches the output resolution.</div>
+        </div>
+        <div class="field" id="customWrap">
+          <label>Custom size (px)</label>
+          <div class="actions"><input class="inp" type="number" data-k="fw" min="320" max="7680" style="width:110px"> × <input class="inp" type="number" data-k="fh" min="240" max="4320" style="width:110px"></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Text size</label><div class="range"><input type="range" data-k="fs" min="11" max="32" step="1"><output data-o="fs"></output></div></div>
+        <div class="field"><label>Left column</label><div class="range"><input type="range" data-k="lw" min="200" max="520" step="10"><output data-o="lw"></output></div></div>
+        <div class="field"><label>Right column</label><div class="range"><input type="range" data-k="rw" min="280" max="760" step="10"><output data-o="rw"></output></div></div>
+        <div class="field"><label>Spacing</label><div class="range"><input type="range" data-k="gap" min="4" max="28" step="1"><output data-o="gap"></output></div></div>
+        <div class="field"><label>Corner radius</label><div class="range"><input type="range" data-k="radius" min="0" max="26" step="1"><output data-o="radius"></output></div></div>
+        <div class="field"><label>Typing speed</label><div class="range"><input type="range" data-k="typeSpeed" min="0.3" max="3" step="0.1"><output data-o="typeSpeed"></output></div></div>
+      </div>
+
+      <h3 class="sec">Look</h3>
+      <div class="grid3">
+        <div class="field"><label>Theme</label>
+          <select class="inp" data-k="theme">
+            <option value="dark">Dark</option><option value="midnight">Midnight</option><option value="slate">Slate</option>
+            <option value="light">Light</option><option value="paper">Paper</option><option value="contrast">High contrast</option><option value="terminal">Terminal</option>
+          </select></div>
+        <div class="field"><label>Font</label>
+          <select class="inp" data-k="font">
+            <option value="system">System sans</option><option value="humanist">Humanist sans</option><option value="rounded">Rounded</option>
+            <option value="serif">Serif</option><option value="mono">Monospace</option>
+          </select></div>
+        <div class="field"><label>Background</label>
+          <select class="inp" data-k="bg"><option value="solid">Solid</option><option value="gradient">Soft gradient</option><option value="dots">Dot grid</option></select></div>
+        <div class="field"><label>Accent colour</label>
+          <div class="actions"><input type="color" data-k="accent" style="width:52px;height:34px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px"><button class="btn" id="bAccentReset">Theme default</button></div></div>
+      </div>
+
+      <h3 class="sec">Panels</h3>
+      <div class="panelchecks">
+        <label><input type="checkbox" data-k="show.header"> Header</label>
+        <label><input type="checkbox" data-k="show.progress"> Progress bar</label>
+        <label><input type="checkbox" data-k="show.graph"> Team network</label>
+        <label><input type="checkbox" data-k="show.agents"> Agent cards</label>
+        <label><input type="checkbox" data-k="show.counters"> Agent counters</label>
+        <label><input type="checkbox" data-k="show.tasks"> Tasks</label>
+        <label><input type="checkbox" data-k="show.outputs"> Outputs</label>
+        <label><input type="checkbox" data-k="show.footer"> Footer stats</label>
+        <label><input type="checkbox" data-k="badge"> “Simulated” badge</label>
+      </div>
+
+      <h3 class="sec">Recording</h3>
       <div class="field checks" style="flex-direction:column">
-        <label><input type="checkbox" id="sBadge" checked> Show the “Simulated” badge in the header</label>
-        <label><input type="checkbox" id="sAutoApprove"> Auto-approve human checkpoints after 3 seconds (hands-free runs)</label>
-        <label><input type="checkbox" id="sAutoOpen" checked> Switch the Outputs panel to each new deliverable</label>
-        <label><input type="checkbox" id="sAutoplay"> Start playing as soon as a scenario loads</label>
+        <label><input type="checkbox" data-k="rec"> Recording mode: hide the header controls, key hints and scrollbars (toggle with <b>H</b>)</label>
+        <label><input type="checkbox" data-k="hideCursor"> Hide the mouse cursor after 1.5 s of stillness in recording mode</label>
+        <label><input type="checkbox" data-k="countdown"> 3-2-1 countdown when playing from the start</label>
+        <label><input type="checkbox" data-k="autoApprove"> Auto-approve human checkpoints after 3 seconds (hands-free runs)</label>
+        <label><input type="checkbox" data-k="autoOpen"> Switch the Outputs panel to each new deliverable</label>
+        <label><input type="checkbox" data-k="autoplay"> Start playing as soon as a scenario loads</label>
       </div>
       <div class="field" style="max-width:260px">
-        <label for="sHuman">Name shown for the human</label>
-        <input class="inp" id="sHuman" value="You">
+        <label>Name shown for the human</label>
+        <input class="inp" data-k="human">
       </div>
+      <div class="actions"><button class="btn" id="bResetLook">↺ Reset appearance</button><span class="msg" id="frameInfo"></span></div>
       <h3 class="sec">Keyboard</h3>
-      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end<br>A approve checkpoint · S scenario · F fullscreen · T theme · + / − text size · Esc close</div>
+      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · H recording mode · F fullscreen · T next theme · + / − text size · Esc close</div>
     </div>
   </div>
 </div>
 
-<div id="reader"><div class="card"><div class="sh"><b id="readerTitle"></b><button class="btn icon" id="bReaderClose">✕</button></div><div class="doc" id="readerBody"></div></div></div>
 <div class="toast" id="toast"></div>
+<div id="dropzone">Drop a .json or .jsonl scenario</div>
 
 <script>
 "use strict";
+// Snapshot of the untouched page, used by "Download standalone HTML".
+const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 /* =====================================================================
    Utilities
    ===================================================================== */
@@ -941,37 +1088,89 @@ const PRESETS = [
 ];
 
 /* =====================================================================
-   Script normalisation (for hand-written / LLM-written JSON)
+   Data: JSON or JSONL in, normalised script out
+   JSONL = one record per line: meta / agent / task / appearance headers, then steps.
    ===================================================================== */
 const STEP_TYPES = ['note', 'human', 'message', 'thinking', 'tool', 'status', 'task', 'output', 'approval', 'pause'];
 function extractJson(text) {
-  let t = String(text).trim().replace(/^﻿/, '');
-  const f = t.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (f) t = f[1];
+  const t = String(text);
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
   if (a < 0 || b < a) throw new Error('No JSON object found');
   return JSON.parse(t.slice(a, b + 1));
 }
+function fromRecords(recs) {
+  const sc = { agents: [], tasks: [], steps: [] }; let started = false;
+  recs.forEach(r => {
+    if (!r || typeof r !== 'object') return;
+    const t = r.type, o = Object.assign({}, r); delete o.type;
+    if (t === 'meta' || t === 'scenario' || t === 'header') {
+      if (o.title != null) sc.title = o.title; if (o.goal != null) sc.goal = o.goal;
+      if (Array.isArray(o.agents)) sc.agents.push(...o.agents); if (Array.isArray(o.tasks)) sc.tasks.push(...o.tasks);
+      if (o.appearance) sc.appearance = o.appearance; return;
+    }
+    if (t === 'agent') { sc.agents.push(o); return; }
+    if (t === 'appearance' || t === 'look') { sc.appearance = o; return; }
+    if (t === 'task' && !started && o.title && !o.status) { sc.tasks.push(o); return; }
+    started = true; sc.steps.push(r);
+  });
+  return sc;
+}
+function parseSource(text) {
+  let t = String(text).replace(/^﻿/, '').trim();
+  if (!t) throw new Error('Nothing to load');
+  const fence = t.match(/```[\w-]*\s*\n([\s\S]*?)```/); if (fence) t = fence[1].trim();
+  // 1) a whole JSON document (object, or array of records)
+  try {
+    const v = JSON.parse(t);
+    return normalise(Array.isArray(v) ? fromRecords(v) : (v && (v.steps || v.agents) ? v : fromRecords([v])));
+  } catch (e) { if (!(e instanceof SyntaxError)) throw e; }
+  // 2) JSON Lines; lines that don't start with { are treated as chatter or comments
+  const recs = []; let bad = null;
+  t.split(/\r?\n/).forEach((l, i) => {
+    const x = l.trim(); if (bad || !x.startsWith('{')) return;
+    try { recs.push(JSON.parse(x.replace(/,\s*$/, ''))); } catch (e) { bad = { line: i + 1, msg: e.message }; }
+  });
+  if (!bad && recs.length) return normalise(fromRecords(recs));
+  // 3) one JSON object buried in surrounding text
+  try { return normalise(extractJson(t)); } catch (e) { if (!bad) throw new Error('Not valid JSON or JSONL: ' + e.message); }
+  throw new Error(`JSONL line ${bad.line}: ${bad.msg}`);
+}
 function normalise(sc) {
   if (!sc || typeof sc !== 'object') throw new Error('Script must be an object');
-  if (!Array.isArray(sc.agents) || !sc.agents.length) throw new Error('Script needs an "agents" array');
-  if (!Array.isArray(sc.steps) || !sc.steps.length) throw new Error('Script needs a "steps" array');
-  const agents = sc.agents.map((a, i) => {
+  if (!Array.isArray(sc.steps) || !sc.steps.length) throw new Error('No steps found');
+  const agents = (Array.isArray(sc.agents) ? sc.agents : []).map((a, i) => {
     const role = a.role || 'Agent', arch = archFor(role);
     return { id: String(a.id || slug(a.name || 'agent' + i)), name: a.name || a.id || 'Agent ' + (i + 1), role, icon: a.icon || ARCH[arch].icon, color: a.color || PALETTE[i % PALETTE.length] };
   });
   const ids = new Set(agents.map(a => a.id));
   const byName = {}; agents.forEach(a => { byName[a.name.toLowerCase()] = a.id; });
   const ref = v => { if (v == null) return v; const s = String(v); if (ids.has(s) || s === 'all' || s === 'human') return s; return byName[s.toLowerCase()] || s; };
+  const addUnknown = v => { if (v && v !== 'all' && v !== 'human' && !ids.has(v)) { ids.add(v); byName[String(v).toLowerCase()] = v; agents.push({ id: v, name: cap(String(v)), role: 'Agent', icon: '🤖', color: PALETTE[agents.length % PALETTE.length] }); } };
   const steps = sc.steps.filter(s => s && STEP_TYPES.includes(s.type)).map(s => {
     const o = Object.assign({}, s);
-    ['agent', 'from', 'to'].forEach(k => { if (k in o) o[k] = ref(o[k]); });
-    // unknown agent ids become extra agents so nothing crashes
-    ['agent', 'from', 'to'].forEach(k => { const v = o[k]; if (v && v !== 'all' && v !== 'human' && !ids.has(v)) { ids.add(v); agents.push({ id: v, name: cap(String(v)), role: 'Agent', icon: '🤖', color: PALETTE[agents.length % PALETTE.length] }); } });
+    ['agent', 'from', 'to', 'owner'].forEach(k => { if (k in o) { o[k] = ref(o[k]); addUnknown(o[k]); } });
     return o;
   });
-  const tasks = (Array.isArray(sc.tasks) ? sc.tasks : []).map((t, i) => ({ id: String(t.id || 't' + (i + 1)), title: t.title || 'Task ' + (i + 1), owner: ref(t.owner) }));
-  return { title: sc.title || 'Agent team', goal: sc.goal || '', agents, tasks, steps };
+  if (!steps.length) throw new Error('No recognised steps (types: ' + STEP_TYPES.join(', ') + ')');
+  const tasks = (Array.isArray(sc.tasks) ? sc.tasks : []).map((t, i) => { const o = ref(t.owner); addUnknown(o); return { id: String(t.id || 't' + (i + 1)), title: t.title || 'Task ' + (i + 1), owner: o }; });
+  if (!agents.length) throw new Error('No agents found');
+  const out = { title: sc.title || 'Agent team', goal: sc.goal || '', agents, tasks, steps };
+  if (sc.appearance && typeof sc.appearance === 'object') out.appearance = sc.appearance;
+  return out;
+}
+function toJsonText(sc, look) {
+  const o = { title: sc.title, goal: sc.goal }; if (look) o.appearance = look;
+  o.agents = sc.agents; o.tasks = sc.tasks; o.steps = sc.steps;
+  return JSON.stringify(o, null, 2);
+}
+function toJsonl(sc, look) {
+  const L = [], line = o => L.push(JSON.stringify(o));
+  line({ type: 'meta', title: sc.title, goal: sc.goal });
+  if (look) line(Object.assign({ type: 'appearance' }, look));
+  sc.agents.forEach(a => line(Object.assign({ type: 'agent' }, a)));
+  sc.tasks.forEach(t => line(Object.assign({ type: 'task' }, t)));
+  sc.steps.forEach(st => line(st));
+  return L.join('\n') + '\n';
 }
 
 /* =====================================================================
@@ -980,7 +1179,43 @@ function normalise(sc) {
 const CANCEL = { cancelled: true };
 const P = { script: null, idx: 0, playing: false, stepReq: false, skip: false, instant: false, speed: 1, runId: 0, elapsed: 0,
   agents: {}, tasks: {}, outputs: {}, outOrder: [], selOut: null, stats: { msg: 0, tool: 0, out: 0, tok: 0 }, approvalResolve: null };
-const settings = Object.assign({ badge: true, autoApprove: false, autoOpen: true, autoplay: false, human: 'You', theme: 'dark', fs: 15 }, store.get('settings', {}));
+const DEFAULTS = {
+  theme: 'dark', accent: '', bg: 'solid', font: 'system', fs: 15, gap: 12, radius: 14, lw: 300, rw: 400,
+  frame: 'fit', fw: 1920, fh: 1080, typeSpeed: 1, badge: true,
+  show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
+  rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
+  includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json'
+};
+// Keys that travel with a scenario file as its "appearance"
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge'];
+const THEMES = ['dark', 'midnight', 'slate', 'light', 'paper', 'contrast', 'terminal'];
+const FRAMES = ['fit', '1920x1080', '1280x720', '1440x1080', '1080x1080', '1080x1350', '1080x1920', 'custom'];
+const FONTS = {
+  system: 'system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+  humanist: '"Avenir Next",Avenir,"Segoe UI Variable","Segoe UI","Gill Sans","Trebuchet MS",Candara,Optima,sans-serif',
+  rounded: 'ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN",Quicksand,Nunito,"Varela Round","Arial Rounded MT Bold",system-ui,sans-serif',
+  serif: 'Charter,"Bitstream Charter","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif',
+  mono: 'ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace'
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+function mergeSettings(base, o) {
+  if (!o || typeof o !== 'object') return base;
+  Object.keys(DEFAULTS).forEach(k => {
+    if (!(k in o)) return;
+    if (k === 'show') { if (o.show && typeof o.show === 'object') Object.keys(base.show).forEach(p => { if (p in o.show) base.show[p] = !!o.show[p]; }); }
+    else if (typeof DEFAULTS[k] === 'number') { const n = Number(o[k]); if (isFinite(n)) base[k] = n; }
+    else if (typeof DEFAULTS[k] === 'boolean') base[k] = !!o[k];
+    else base[k] = String(o[k]);
+  });
+  // "1920x1080"-style frames that aren't presets become custom sizes
+  const m = String(base.frame).match(/^(\d{3,4})x(\d{3,4})$/);
+  if (m && !FRAMES.includes(base.frame)) { base.fw = +m[1]; base.fh = +m[2]; base.frame = 'custom'; }
+  if (!FRAMES.includes(base.frame)) base.frame = 'fit';
+  return base;
+}
+const pickLook = a => { const o = {}; LOOK_KEYS.forEach(k => { if (a && a[k] !== undefined) o[k] = a[k]; }); return o; };
+const currentLook = () => { const o = {}; LOOK_KEYS.forEach(k => { o[k] = clone(settings[k]); }); return o; };
+const settings = mergeSettings(clone(DEFAULTS), store.get('settings', {}));
 
 function frame(id) {
   return new Promise((res, rej) => requestAnimationFrame(now => {
@@ -1002,7 +1237,7 @@ async function typeText(node, text, cps = 75, onUpdate) {
   while (shown < text.length) {
     if (P.instant || P.skip) break;
     t += await frame(id);
-    const n = Math.min(text.length, Math.floor(t * cps / 1000));
+    const n = Math.min(text.length, Math.floor(t * cps * settings.typeSpeed / 1000));
     if (n > shown) { shown = n; onUpdate ? onUpdate(text.slice(0, n)) : (node.textContent = text.slice(0, n)); if (!onUpdate) autoScroll(); }
   }
   onUpdate ? onUpdate(text) : (node.textContent = text);
@@ -1076,8 +1311,10 @@ async function exec(s) {
     }
     case 'status': { if (P.agents[s.agent]) setStatus(s.agent, s.status || 'idle', s.note || ''); break; }
     case 'task': {
-      const t = P.tasks[s.id]; if (!t) break;
-      t.status = s.status || 'done'; renderTasks();
+      let t = P.tasks[s.id];
+      if (!t) { if (!s.title) break; t = P.tasks[s.id] = { id: s.id, title: s.title, owner: s.owner, status: 'todo' }; }
+      if (s.title) t.title = s.title; if (s.owner) t.owner = s.owner;
+      t.status = s.status || (s.title ? 'todo' : 'done'); renderTasks();
       if (t.status === 'done') { const a = agentOf(t.owner); const n = el('div', 'ev ev-task'); n.innerHTML = `<b>✓</b> ${esc(a.name)} completed “${esc(t.title)}”`; feedAdd(n); }
       break;
     }
@@ -1316,16 +1553,31 @@ function load(script, opts = {}) {
   $('#feed').innerHTML = `<div class="empty"><div class="big">▶</div><p><b>${esc(script.title || 'Ready')}</b></p><p>${script.agents.length} agents · ${script.steps.length} steps. Press <b>Play</b> or <b>Space</b> to start, <b>→</b> to step through.</p></div>`;
   stickBottom = true;
   updateProgress(); refreshStats(); setPlaying(false);
-  $('#jsonBox').value = JSON.stringify(script, null, 2);
+  P.counting = false; $('#count').classList.remove('on');
+  renderDataBox();
   if (!opts.noSave) store.set('script', script);
   runLoop();
-  if (settings.autoplay && !opts.noAutoplay) setPlaying(true);
+  if ((settings.autoplay && !opts.noAutoplay) || opts.forcePlay) startPlay();
 }
 function restart() { if (P.script) load(P.script, { noSave: true, noAutoplay: true }); }
 function togglePlay() {
   if (!P.script) return openDrawer();
-  if (P.idx >= P.script.steps.length) { restart(); setPlaying(true); return; }
-  setPlaying(!P.playing);
+  if (P.counting) return;
+  if (P.idx >= P.script.steps.length) { restart(); startPlay(); return; }
+  if (P.playing) setPlaying(false); else startPlay();
+}
+async function startPlay() {
+  if (settings.countdown && P.idx === 0 && !P.counting && !P.instant) { if (!(await countdown())) return; }
+  setPlaying(true);
+}
+async function countdown() {
+  const c = $('#count'), id = P.runId; P.counting = true; c.classList.add('on');
+  for (const n of ['3', '2', '1']) {
+    c.innerHTML = '<span>' + n + '</span>';
+    await new Promise(r => setTimeout(r, 800));
+    if (id !== P.runId) return false;
+  }
+  c.classList.remove('on'); c.innerHTML = ''; P.counting = false; return true;
 }
 function step() {
   if (!P.script) return;
@@ -1335,7 +1587,7 @@ function step() {
   if (P.idx >= P.script.steps.length) return;
   frame.last = performance.now(); P.stepReq = true;
 }
-function jumpEnd() { if (!P.script) return; if (P.approvalResolve) P.approvalResolve('approve'); P.instant = true; setPlaying(true); }
+function jumpEnd() { if (!P.script || P.counting) return; if (P.approvalResolve) P.approvalResolve('approve'); P.instant = true; setPlaying(true); }
 
 /* =====================================================================
    Scenario drawer
@@ -1345,7 +1597,8 @@ function closeDrawer() { $('#drawer').classList.remove('open'); }
 function selectPane(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('sel', t.dataset.pane === id));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('sel', p.id === id));
-  if (id === 'pLLM' && !$('#llmPrompt').value) $('#llmPrompt').value = buildLlmPrompt();
+  if (id === 'pLLM') $('#llmPrompt').value = buildLlmPrompt();
+  if (id === 'pJSON') renderDataBox();
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => selectPane(t.dataset.pane));
 $('#bScenario').onclick = () => openDrawer();
@@ -1387,29 +1640,39 @@ PRESETS.forEach(p => {
 function buildLlmPrompt() {
   const c = builderCfg();
   const team = parseTeam(c.team);
-  return `You are scripting a SIMULATED multi-agent AI team for a live presentation. Nothing will be executed; the script is played back step by step in a web page. Make it feel realistic: agents plan, call tools, ask each other questions, answer, produce deliverables, get reviewed and revise.
-
-Return ONLY one JSON object, no commentary, matching this shape:
+  const ex = [
+    { type: 'note', text: 'Phase 1 · Planning' },
+    { type: 'human', text: 'the brief from the human' },
+    { type: 'thinking', agent: 'atlas', text: 'internal reasoning, 1 sentence', duration: 1500 },
+    { type: 'tool', agent: 'scout', tool: 'web_search', input: '"query"', output: 'short result summary', duration: 1200 },
+    { type: 'message', from: 'atlas', to: 'scout', kind: 'handoff', text: '@Scout — ...' },
+    { type: 'message', from: 'scout', to: 'ledger', kind: 'ask', text: '@Ledger — question?' },
+    { type: 'message', from: 'ledger', to: 'scout', kind: 'answer', text: 'answer' },
+    { type: 'status', agent: 'scout', status: 'working', note: "what they're doing" },
+    { type: 'task', id: 't1', status: 'doing' },
+    { type: 'output', agent: 'scout', id: 'brief', title: 'Research brief', format: 'markdown', content: '# Heading\n- bullet\n| a | b |\n|---|---|\n| 1 | 2 |' },
+    { type: 'output', agent: 'scout', id: 'brief', append: true, content: '\n\n### Revision 2\n- change' },
+    { type: 'approval', from: 'atlas', text: 'request for human sign-off' }
+  ].map(o => JSON.stringify(o));
+  const shape = settings.promptFmt === 'jsonl'
+    ? `Return ONLY JSON Lines: one compact JSON object per line, no commentary, no code fences. Header lines first, then one line per step, in playback order:
+{"type":"meta","title":"short title","goal":"one-sentence goal"}
+{"type":"agent","id":"atlas","name":"Atlas","role":"Orchestrator","icon":"🧭"}
+{"type":"task","id":"t1","title":"Research competitor pricing","owner":"scout"}
+${ex.join('\n')}`
+    : `Return ONLY one JSON object, no commentary, matching this shape:
 {
   "title": "short title",
   "goal": "one-sentence goal",
-  "agents": [ { "id": "atlas", "name": "Atlas", "role": "Orchestrator", "icon": "🧭" } ],
-  "tasks":  [ { "id": "t1", "title": "Research competitor pricing", "owner": "scout" } ],
+  "agents": [ {"id":"atlas","name":"Atlas","role":"Orchestrator","icon":"🧭"} ],
+  "tasks":  [ {"id":"t1","title":"Research competitor pricing","owner":"scout"} ],
   "steps": [
-    { "type": "note",     "text": "Phase 1 · Planning" },
-    { "type": "human",    "text": "the brief from the human" },
-    { "type": "thinking", "agent": "atlas", "text": "internal reasoning, 1 sentence", "duration": 1500 },
-    { "type": "tool",     "agent": "scout", "tool": "web_search", "input": "\\"query\\"", "output": "short result summary", "duration": 1200 },
-    { "type": "message",  "from": "atlas", "to": "scout", "kind": "handoff", "text": "@Scout — ..." },
-    { "type": "message",  "from": "scout", "to": "ledger", "kind": "ask", "text": "@Ledger — question?" },
-    { "type": "message",  "from": "ledger", "to": "scout", "kind": "answer", "text": "answer" },
-    { "type": "status",   "agent": "scout", "status": "working", "note": "what they're doing" },
-    { "type": "task",     "id": "t1", "status": "doing" },
-    { "type": "output",   "agent": "scout", "id": "brief", "title": "Research brief", "format": "markdown", "content": "# Heading\\n- bullet\\n| a | b |\\n|---|---|\\n| 1 | 2 |" },
-    { "type": "output",   "agent": "scout", "id": "brief", "append": true, "content": "\\n\\n### Revision 2\\n- change" },
-    { "type": "approval", "from": "atlas", "text": "request for human sign-off" }
+    ${ex.join(',\n    ')}
   ]
-}
+}`;
+  return `You are scripting a SIMULATED multi-agent AI team for a live presentation. Nothing will be executed; the script is played back step by step in a web page. Make it feel realistic: agents plan, call tools, ask each other questions, answer, produce deliverables, get reviewed and revise.
+
+${shape}
 Allowed values: message.kind = ask | answer | handoff | review | say ; message.to = an agent id, "all" or "human" ; status = idle | thinking | working | waiting | writing | done ; task.status = todo | doing | review | done ; output.format = markdown | code.
 
 Scenario:
@@ -1430,7 +1693,8 @@ $('#bRefreshPrompt').onclick = () => { $('#llmPrompt').value = buildLlmPrompt();
 $('#bCopyPrompt').onclick = () => copy($('#llmPrompt').value || buildLlmPrompt(), 'Prompt copied — paste it into any model');
 function loadFromText(text, msgEl) {
   try {
-    const sc = normalise(extractJson(text));
+    const sc = parseSource(text);
+    if (sc.appearance && settings.applyScriptLook) { mergeSettings(settings, pickLook(sc.appearance)); applySettings(); }
     load(sc); msgEl.className = 'msg ok'; msgEl.textContent = `Loaded: ${sc.agents.length} agents, ${sc.steps.length} steps.`;
     closeDrawer(); toast('Scenario loaded'); return true;
   } catch (e) { msgEl.className = 'msg err'; msgEl.textContent = 'Could not load: ' + e.message; return false; }
@@ -1453,33 +1717,139 @@ $('#bApi').onclick = async () => {
   } catch (e) { m.className = 'msg err'; m.textContent = 'Failed: ' + e.message + (e instanceof TypeError ? ' (network or CORS blocked; try the copy/paste route)' : ''); }
 };
 
-// JSON route
+// Data pane (JSON / JSONL)
+function renderDataBox() {
+  if (!P.script) return;
+  const look = settings.includeLook ? currentLook() : null;
+  $('#jsonBox').value = settings.dataFmt === 'jsonl' ? toJsonl(P.script, look) : toJsonText(P.script, look);
+  syncFmt();
+}
+function syncFmt() {
+  document.querySelectorAll('#dataFmt button').forEach(b => b.classList.toggle('sel', b.dataset.f === settings.dataFmt));
+  document.querySelectorAll('#promptFmt button').forEach(b => b.classList.toggle('sel', b.dataset.f === settings.promptFmt));
+}
+document.querySelectorAll('#dataFmt button').forEach(b => b.onclick = () => {
+  // keep the user's edits when switching format, if they parse
+  let sc = null; try { sc = parseSource($('#jsonBox').value); } catch (e) { $('#jsonMsg').className = 'msg err'; $('#jsonMsg').textContent = 'Fix the data before switching: ' + e.message; return; }
+  settings.dataFmt = b.dataset.f; store.set('settings', settings);
+  const look = settings.includeLook ? currentLook() : null;
+  $('#jsonBox').value = settings.dataFmt === 'jsonl' ? toJsonl(sc, look) : toJsonText(sc, look);
+  $('#jsonMsg').textContent = ''; syncFmt();
+});
+document.querySelectorAll('#promptFmt button').forEach(b => b.onclick = () => { settings.promptFmt = b.dataset.f; store.set('settings', settings); syncFmt(); $('#llmPrompt').value = buildLlmPrompt(); });
 $('#bApply').onclick = () => loadFromText($('#jsonBox').value, $('#jsonMsg'));
-$('#bCopyJson').onclick = () => copy($('#jsonBox').value, 'Script copied');
+$('#bCopyJson').onclick = () => copy($('#jsonBox').value, 'Data copied');
+function download(name, text, type) {
+  const blob = new Blob([text], { type });
+  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 $('#bDownload').onclick = () => {
-  const blob = new Blob([$('#jsonBox').value], { type: 'application/json' });
-  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = slug(P.script ? P.script.title : 'scenario') + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const t = $('#jsonBox').value, isL = settings.dataFmt === 'jsonl';
+  download(slug(P.script ? P.script.title : 'scenario') + (isL ? '.jsonl' : '.json'), t, isL ? 'application/x-ndjson' : 'application/json');
 };
-$('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { $('#jsonBox').value = t; loadFromText(t, $('#jsonMsg')); }); e.target.value = ''; };
+function standaloneHtml() {
+  const look = settings.includeLook ? currentLook() : null;
+  const data = toJsonText(P.script, look).replace(/</g, '\\u003c');
+  const re = new RegExp('(<script type="application/json" id="embedded-scenario">)[\\s\\S]*?(<\\/script>)');
+  return ORIGINAL_HTML.replace(re, (m, open, close) => open + '\n' + data + '\n' + close);
+}
+$('#bStandalone').onclick = () => { if (!P.script) return; download(slug(P.script.title) + '.html', standaloneHtml(), 'text/html'); toast('Standalone HTML downloaded'); };
+$('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { if (!loadFromText(t, $('#jsonMsg'))) $('#jsonBox').value = t; }); e.target.value = ''; };
+// drag & drop a data file anywhere
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+addEventListener('dragenter', e => { if (!hasFiles(e)) return; dragDepth++; $('#dropzone').classList.add('on'); });
+addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; $('#dropzone').classList.remove('on'); } });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => {
+  if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('#dropzone').classList.remove('on');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  f.text().then(t => { if (!loadFromText(t, $('#jsonMsg'))) { $('#jsonBox').value = t; toast($('#jsonMsg').textContent); } });
+});
 function copy(text, msg) {
   const done = () => toast(msg);
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
   function fallback() { const t = el('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed; select and copy manually'); } t.remove(); }
 }
 
-// settings
-function applySettings() {
-  document.documentElement.dataset.theme = settings.theme;
-  document.documentElement.style.setProperty('--fs', settings.fs + 'px');
-  $('#simBadge').style.display = settings.badge ? '' : 'none';
-  $('#sBadge').checked = settings.badge; $('#sAutoApprove').checked = settings.autoApprove; $('#sAutoOpen').checked = settings.autoOpen; $('#sAutoplay').checked = settings.autoplay; $('#sHuman').value = settings.human;
-  store.set('settings', settings);
+/* =====================================================================
+   Appearance & recording
+   ===================================================================== */
+function frameSize() {
+  if (settings.frame === 'fit') return null;
+  if (settings.frame === 'custom') return [Math.min(7680, Math.max(320, settings.fw || 1920)), Math.min(4320, Math.max(240, settings.fh || 1080))];
+  return settings.frame.split('x').map(Number);
 }
-$('#sBadge').onchange = e => { settings.badge = e.target.checked; applySettings(); };
-$('#sAutoApprove').onchange = e => { settings.autoApprove = e.target.checked; applySettings(); };
-$('#sAutoOpen').onchange = e => { settings.autoOpen = e.target.checked; applySettings(); };
-$('#sAutoplay').onchange = e => { settings.autoplay = e.target.checked; applySettings(); };
-$('#sHuman').onchange = e => { settings.human = e.target.value.trim() || 'You'; applySettings(); if (P.script) renderGraph(); };
+function layoutFrame() {
+  const app = $('#app'), f = frameSize();
+  if (!f) {
+    document.body.classList.remove('framed');
+    ['width', 'height', 'left', 'top', 'transform'].forEach(k => { app.style[k] = ''; });
+    $('#frameInfo').textContent = `Frame follows the window (${innerWidth} × ${innerHeight})`;
+    return;
+  }
+  const [w, h] = f, sc = Math.min(innerWidth / w, innerHeight / h);
+  document.body.classList.add('framed');
+  app.style.width = w + 'px'; app.style.height = h + 'px';
+  app.style.left = ((innerWidth - w * sc) / 2) + 'px'; app.style.top = ((innerHeight - h * sc) / 2) + 'px';
+  app.style.transform = `scale(${sc})`;
+  $('#frameInfo').textContent = `Frame ${w} × ${h}, shown at ${Math.round(sc * 100)}% to fit this window`;
+}
+addEventListener('resize', layoutFrame);
+function applySettings() {
+  const r = document.documentElement, app = $('#app'), st = settings;
+  r.dataset.theme = THEMES.includes(st.theme) ? st.theme : 'dark';
+  if (/^#[0-9a-f]{6}$/i.test(st.accent)) r.style.setProperty('--accent', st.accent); else r.style.removeProperty('--accent');
+  r.style.setProperty('--fs', st.fs + 'px'); r.style.setProperty('--gap', st.gap + 'px'); r.style.setProperty('--r', st.radius + 'px');
+  r.style.setProperty('--lw', st.lw + 'px'); r.style.setProperty('--rw', st.rw + 'px'); r.style.setProperty('--font', FONTS[st.font] || FONTS.system);
+  app.classList.remove('bg-gradient', 'bg-dots'); if (st.bg === 'gradient' || st.bg === 'dots') app.classList.add('bg-' + st.bg);
+  Object.keys(st.show).forEach(k => app.classList.toggle('hide-' + k, !st.show[k]));
+  app.classList.toggle('no-left', !st.show.graph && !st.show.agents);
+  app.classList.toggle('no-right', !st.show.tasks && !st.show.outputs);
+  app.classList.toggle('rec', st.rec);
+  if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
+  $('#simBadge').style.display = st.badge ? '' : 'none';
+  $('#bRec').classList.toggle('primary', st.rec);
+  layoutFrame(); syncControls(); store.set('settings', st);
+}
+const getK = k => k.split('.').reduce((o, p) => o && o[p], settings);
+const setK = (k, v) => { const ps = k.split('.'), last = ps.pop(); ps.reduce((o, p) => o[p], settings)[last] = v; };
+function themeAccentHex() { const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); return /^#[0-9a-f]{6}$/i.test(v) ? v : '#7c9cff'; }
+function syncControls() {
+  document.querySelectorAll('[data-k]').forEach(inp => {
+    const v = getK(inp.dataset.k);
+    if (inp === document.activeElement && (inp.type === 'number' || inp.type === 'text' || inp.tagName === 'INPUT' && !inp.type)) return;
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else if (inp.type === 'color') inp.value = /^#[0-9a-f]{6}$/i.test(v) ? v : themeAccentHex();
+    else inp.value = v;
+  });
+  document.querySelectorAll('[data-o]').forEach(o => { const k = o.dataset.o, v = settings[k]; o.textContent = k === 'typeSpeed' ? Number(v).toFixed(1) + '×' : v + 'px'; });
+  $('#customWrap').style.visibility = settings.frame === 'custom' ? '' : 'hidden';
+}
+document.querySelectorAll('[data-k]').forEach(inp => {
+  const k = inp.dataset.k;
+  const evt = (inp.type === 'range' || inp.type === 'color') ? 'input' : 'change';
+  inp.addEventListener(evt, () => {
+    let v = inp.type === 'checkbox' ? inp.checked : (inp.type === 'range' || inp.type === 'number') ? Number(inp.value) : inp.value;
+    if (k === 'human') v = String(v).trim() || 'You';
+    setK(k, v); applySettings();
+    if (k === 'human' && P.script) renderGraph();
+    if (k === 'includeLook') renderDataBox();
+  });
+});
+$('#bAccentReset').onclick = () => { settings.accent = ''; applySettings(); };
+$('#bResetLook').onclick = () => { LOOK_KEYS.forEach(k => { settings[k] = clone(DEFAULTS[k]); }); applySettings(); toast('Appearance reset'); };
+function toggleRec() {
+  settings.rec = !settings.rec; applySettings();
+  toast(settings.rec ? 'Recording mode on. Press H to show the controls again' : 'Controls shown');
+}
+$('#bRec').onclick = toggleRec;
+let cursorTimer;
+addEventListener('mousemove', () => {
+  document.body.classList.remove('nocursor'); clearTimeout(cursorTimer);
+  if (settings.rec && settings.hideCursor) cursorTimer = setTimeout(() => { if (settings.rec && settings.hideCursor && !$('#drawer').classList.contains('open')) document.body.classList.add('nocursor'); }, 1500);
+});
 
 /* ---------- header controls & keys ---------- */
 $('#bPlay').onclick = togglePlay;
@@ -1487,41 +1857,72 @@ $('#bStep').onclick = step;
 $('#bEnd').onclick = jumpEnd;
 $('#bRestart').onclick = restart;
 $('#speed').onchange = e => { P.speed = Number(e.target.value); e.target.blur(); };
+$('#bLook').onclick = () => openDrawer('pLook');
 document.addEventListener('click', e => { const b = e.target.closest('header button, .outcard, .otab'); if (b) b.blur(); });
-$('#bTheme').onclick = () => { settings.theme = settings.theme === 'dark' ? 'light' : 'dark'; applySettings(); };
-$('#bFont').onclick = () => { settings.fs = settings.fs >= 20 ? 13 : settings.fs + 1; applySettings(); toast('Text size ' + settings.fs + 'px'); };
 $('#bFull').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); };
 $('#bExpand').onclick = () => openReader();
 $('#bReaderClose').onclick = () => $('#reader').classList.remove('open');
 $('#reader').addEventListener('click', e => { if (e.target.id === 'reader') $('#reader').classList.remove('open'); });
 document.addEventListener('keydown', e => {
-  if (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
-  const k = e.key;
-  if (k === 'Escape') { closeDrawer(); $('#reader').classList.remove('open'); return; }
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k !== 'Escape' && (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey)) return;
+  if (k === 'Escape') {
+    if (e.target.matches('input,textarea,select')) e.target.blur();
+    if ($('#drawer').classList.contains('open')) closeDrawer();
+    else if ($('#reader').classList.contains('open')) $('#reader').classList.remove('open');
+    else if (settings.rec) toggleRec();
+    return;
+  }
   if ($('#drawer').classList.contains('open')) return;
   if (k === ' ') { e.preventDefault(); togglePlay(); }
   else if (k === 'ArrowRight') { e.preventDefault(); step(); }
-  else if (k === 'r' || k === 'R') restart();
-  else if (k === 'e' || k === 'E') jumpEnd();
-  else if (k === 's' || k === 'S') openDrawer();
-  else if (k === 'a' || k === 'A') { if (P.approvalResolve) P.approvalResolve('approve'); }
-  else if (k === 'f' || k === 'F') $('#bFull').click();
-  else if (k === 't' || k === 'T') $('#bTheme').click();
-  else if (k === '+' || k === '=') { settings.fs = Math.min(22, settings.fs + 1); applySettings(); }
-  else if (k === '-') { settings.fs = Math.max(12, settings.fs - 1); applySettings(); }
+  else if (k === 'r') restart();
+  else if (k === 'e') jumpEnd();
+  else if (k === 's') openDrawer();
+  else if (k === 'v') openDrawer('pLook');
+  else if (k === 'h') toggleRec();
+  else if (k === 'a') { if (P.approvalResolve) P.approvalResolve('approve'); }
+  else if (k === 'f') $('#bFull').click();
+  else if (k === 't') { settings.theme = THEMES[(THEMES.indexOf(settings.theme) + 1) % THEMES.length]; applySettings(); toast('Theme: ' + settings.theme); }
+  else if (k === '+' || k === '=') { settings.fs = Math.min(32, settings.fs + 1); applySettings(); }
+  else if (k === '-' || k === '_') { settings.fs = Math.max(11, settings.fs - 1); applySettings(); }
 });
 
 /* ---------- boot ---------- */
-(function boot() {
-  applySettings();
+(async function boot() {
+  // URL parameters (handy for a browser source in recording software) win over saved settings
+  const Q = new URLSearchParams(location.search);
+  const urlLook = () => {
+    const o = {};
+    if (Q.get('frame')) o.frame = Q.get('frame');
+    if (Q.get('theme')) o.theme = Q.get('theme');
+    if (Q.get('fs')) o.fs = Q.get('fs');
+    if (Q.get('rec')) o.rec = Q.get('rec') === '1';
+    mergeSettings(settings, o);
+  };
+  urlLook(); applySettings();
+  if (Q.get('speed')) { P.speed = Number(Q.get('speed')) || 1; $('#speed').value = String(P.speed); }
   const api = store.get('api', null); if (api) { $('#apiUrl').value = api.url || ''; $('#apiModel').value = api.model || ''; }
   const b = store.get('builder', null);
   setBuilder(b || { title: PRESETS[0].name, goal: PRESETS[0].goal, team: PRESETS[0].team, items: PRESETS[0].items, seed: 42 });
   if (!$('#fSeed').value) $('#fSeed').value = 42;
-  let sc = null;
-  try { const saved = store.get('script', null); if (saved) sc = normalise(saved); } catch (e) { sc = null; }
+
+  // Scenario source, in priority order: ?src= file, embedded block, last session, generated default
+  let sc = null, from = '';
+  const src = Q.get('src');
+  if (src) {
+    try { const r = await fetch(src); if (!r.ok) throw new Error('HTTP ' + r.status); sc = parseSource(await r.text()); from = 'url'; }
+    catch (e) { toast('Could not load ' + src + ': ' + e.message); }
+  }
+  if (!sc) {
+    const emb = $('#embedded-scenario').textContent.trim();
+    if (emb) { try { sc = parseSource(emb); from = 'embedded'; } catch (e) { toast('Embedded scenario is invalid: ' + e.message); } }
+  }
+  if (!sc) { try { const saved = store.get('script', null); if (saved) sc = normalise(saved); } catch (e) { sc = null; } }
   if (!sc) sc = generate(builderCfg());
-  load(sc, { noAutoplay: true });
+  if (from && sc.appearance && settings.applyScriptLook) { mergeSettings(settings, pickLook(sc.appearance)); urlLook(); applySettings(); }
+  syncFmt();
+  load(sc, { noAutoplay: !from, noSave: !!from, forcePlay: Q.get('autoplay') === '1' });
 })();
 </script>
 </body>

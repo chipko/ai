@@ -1,14 +1,52 @@
 # Agent Team Simulator
 
-`mock-agent-team.html` is a mock "agent team / cowork" demo for presentations. It's one self-contained file with no dependencies, and it works offline. By default nothing calls a model; every run plays back a script.
+`mock-agent-team.html` is a mock "agent team / cowork" demo for presentations and recordings. It's one self-contained file (HTML, CSS and JS) with no dependencies, and it works offline. By default nothing calls a model; every run plays back a script.
 
-Open the file in any browser. Press **Space** to play, **→** to step, and **S** to open the Scenario panel.
+Open the file in any browser. Press **Space** to play, **→** to step, **S** for the Scenario panel and **V** for Appearance.
 
 ## Making a scenario
 - **Quick build**: enter a goal, a team (`Name | Role | emoji`, one per line) and the items the team should mention. A seeded generator fills in the rest: planning, tool calls, agents asking each other questions, deliverables, a review and revision loop, and a human approval step.
 - **Presets**: product launch, incident response, board report, invoice automation, support triage and policy rollout.
-- **Generate with any LLM**: copy the ready-made prompt into any model or chat tool, then paste back the JSON it returns. There's also an optional direct call to any OpenAI-compatible endpoint, such as Ollama, LM Studio or a hosted gateway.
-- **Script (JSON)**: edit, import or export the exact script that plays.
+- **Generate with any LLM**: copy the ready-made prompt (it can ask for JSON or JSONL) into any model or chat tool, then paste back what it returns. There's also an optional direct call to any OpenAI-compatible endpoint.
+- **Data (JSON / JSONL)**: edit, import, export or drag-and-drop the exact data that plays.
+
+## Data format
+The page accepts either a JSON document (`{title, goal, appearance?, agents[], tasks[], steps[]}`) or JSONL, one record per line:
+
+```jsonl
+// comments and blank lines are ignored
+{"type":"meta","title":"Launch crew","goal":"Prepare the launch"}
+{"type":"appearance","theme":"paper","fs":18,"frame":"1920x1080"}
+{"type":"agent","id":"atlas","name":"Atlas","role":"Orchestrator","icon":"🧭"}
+{"type":"agent","id":"scout","name":"Scout","role":"Researcher","icon":"🔎"}
+{"type":"task","id":"t1","title":"Research pricing","owner":"scout"}
+{"type":"note","text":"Phase 1 · Planning"}
+{"type":"human","text":"Please prepare the launch."}
+{"type":"message","from":"atlas","to":"scout","kind":"handoff","text":"@Scout, take t1"}
+{"type":"task","id":"t1","status":"doing"}
+{"type":"thinking","agent":"scout","text":"Checking sources…","duration":1500}
+{"type":"tool","agent":"scout","tool":"web_search","input":"\"pricing\"","output":"12 results"}
+{"type":"output","agent":"scout","id":"brief","title":"Brief","format":"markdown","content":"# Brief\n- point"}
+{"type":"approval","from":"atlas","text":"Ready to publish?"}
+{"type":"task","id":"t1","status":"done"}
+```
+
+Step types: `note, human, message (kind: ask|answer|handoff|review|say), thinking, tool, status, task, output (markdown|code, append:true to revise), approval, pause`. A `task` step with a new id and a `title` creates that task mid-run.
+
+Ways to load data:
+- Paste it into the Data pane.
+- Use the Import button, or drop a file anywhere on the page.
+- Add `?src=file.jsonl` to the URL when the page is served over http.
+- Use **Download standalone HTML**, which embeds the scenario (and optionally the look) in a copy of the page.
+
+## Recording
+- **Frame**: fit the window, or use a fixed 16:9 (1920×1080 or 1280×720), 4:3, 1:1, 4:5, 9:16 vertical or custom size. A fixed frame lays out at exactly that size and scales to fit the window. The layout follows the frame, not the window.
+- **Look**: 7 themes (dark, midnight, slate, light, paper, high contrast, terminal), an accent colour, 5 font styles, 3 background styles, text size, column widths, spacing, corner radius and typing speed.
+- **Panels**: you can show or hide the header, progress bar, team network, agent cards, counters, tasks, outputs, footer and the "Simulated" badge.
+- **Recording mode** (**H**): hides the controls, key hints and scrollbars. The cursor also hides when idle.
+- **Countdown**: an optional 3-2-1 countdown when playing from the start.
+- **Auto-approve**: optional, for hands-free runs.
+- **URL parameters** for a browser source in recording software: `?src=demo.jsonl&frame=1920x1080&theme=midnight&fs=18&speed=1.5&rec=1&autoplay=1`.
 
 ## Keys
-Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · F fullscreen · T theme · +/− text size
+Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · V appearance · H recording mode · F fullscreen · T next theme · +/− text size · Esc close

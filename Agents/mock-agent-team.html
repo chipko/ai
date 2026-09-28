@@ -632,6 +632,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       </div>
       <p class="msg" id="clipFormat" style="margin:0 0 4px"></p>
       <p class="msg" id="clipMsg"></p>
+      <div class="actions" style="margin:4px 0 14px"><label class="btn" style="cursor:pointer">🛠 Make an earlier clip PowerPoint-ready<input type="file" id="fixIn" accept="video/mp4,.mp4,video/*" hidden></label><span class="msg" id="fixMsg">Or drop the .mp4 anywhere on the page. It is rebuilt without re-encoding: same quality, same small size.</span></div>
       <div class="field" style="max-width:260px">
         <label>Name shown for the human</label>
         <input class="inp" data-k="human">
@@ -650,7 +651,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
   <div class="cm" id="clipMeta"></div>
   <div class="actions"><a class="btn primary" id="clipSave" download>⬇ Save clip</a><span class="msg">Goes to your browser's download folder (usually Downloads)</span></div>
 </div>
-<div id="dropzone">Drop a .json or .jsonl scenario</div>
+<div id="dropzone">Drop a .json / .jsonl scenario, or an .mp4 clip to make it PowerPoint-ready</div>
 
 <script>
 "use strict";
@@ -2195,15 +2196,162 @@ $('#bCopyJson').onclick = () => copy($('#jsonBox').value, 'Data copied');
 /* ---------- Record clip: capture just the stage to a small video file ---------- */
 const CLIP = { active: false, rec: null, stream: null, chunks: [], prev: null, t0: 0, size: null, stopTimer: null };
 const realSleep = ms => new Promise(r => setTimeout(r, ms));
+/* ---------- MP4 tools: read the codec, and turn a fragmented MP4 into a standard one ---------- */
+// Browsers' MediaRecorder writes fragmented MP4 (moov + moof/mdat pairs, often with no duration).
+// Players cope, but PowerPoint's importer does not, so we rebuild a plain MP4 with a full sample
+// table (stts/stss/ctts/stsc/stsz/stco), a real duration and the moov before the media ("fast start").
+const MP4 = (() => {
+  const CONTAINERS = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'moof', 'traf', 'edts', 'dinf']);
+  const str = (u8, o) => String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]);
+  function boxes(u8, dv, start, end) {
+    const out = [];
+    let o = start;
+    while (o + 8 <= end) {
+      let size = dv.getUint32(o), hdr = 8;
+      const type = str(u8, o + 4);
+      if (size === 1) { size = Number(dv.getBigUint64(o + 8)); hdr = 16; }
+      else if (size === 0) size = end - o;
+      if (size < hdr || o + size > end) break;
+      const b = { type, start: o, end: o + size, body: o + hdr, kids: null };
+      if (CONTAINERS.has(type)) b.kids = boxes(u8, dv, b.body, b.end);
+      out.push(b); o += size;
+    }
+    return out;
+  }
+  const find = (list, path) => { let cur = list, b = null; for (const t of path.split('/')) { b = (cur || []).find(x => x.type === t); if (!b) return null; cur = b.kids; } return b; };
+  const all = (list, t) => (list || []).filter(x => x.type === t);
+
+  function parse(buf) {
+    const u8 = new Uint8Array(buf), dv = new DataView(buf);
+    return { u8, dv, top: boxes(u8, dv, 0, u8.length) };
+  }
+  // First video sample-entry type (avc1, avc3, hvc1, vp09, av01 …)
+  function codecOf(buf) {
+    try {
+      const { u8, dv, top } = parse(buf);
+      for (const trak of all(find(top, 'moov').kids, 'trak')) {
+        const stsd = find(trak.kids, 'mdia/minf/stbl/stsd'); if (!stsd) continue;
+        const entry = str(u8, stsd.body + 8 + 4);
+        if (find(trak.kids, 'mdia/minf/vmhd')) return entry;
+      }
+    } catch (e) {}
+    return '';
+  }
+  function isFragmented(buf) { try { const { top } = parse(buf); return !!find(top, 'moov/mvex') || top.some(b => b.type === 'moof'); } catch (e) { return false; } }
+
+  // --- writers ---
+  const u32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const u16 = v => [(v >>> 8) & 255, v & 255];
+  const s4 = t => [...t].map(c => c.charCodeAt(0));
+  function box(type, ...parts) {
+    let len = 8; parts.forEach(p => { len += p.length; });
+    const out = new Uint8Array(len); const h = [...u32(len), ...s4(type)]; out.set(h, 0);
+    let o = 8; parts.forEach(p => { out.set(p, o); o += p.length; });
+    return out;
+  }
+  const full = (type, version, flags, ...parts) => box(type, new Uint8Array([version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255]), ...parts);
+  const bytes = arr => new Uint8Array(arr);
+  const MATRIX = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000].flatMap(u32);
+
+  function defragment(buf) {
+    const { u8, dv, top } = parse(buf);
+    const moov = find(top, 'moov'); if (!moov) throw new Error('no moov box');
+    // Pick the video track
+    const trak = all(moov.kids, 'trak').find(t => find(t.kids, 'mdia/minf/vmhd')); if (!trak) throw new Error('no video track');
+    const tkhd = find(trak.kids, 'tkhd'), mdhd = find(trak.kids, 'mdia/mdhd'), hdlr = find(trak.kids, 'mdia/hdlr');
+    const vmhd = find(trak.kids, 'mdia/minf/vmhd'), dinf = find(trak.kids, 'mdia/minf/dinf'), stsd = find(trak.kids, 'mdia/minf/stbl/stsd');
+    const tkV = u8[tkhd.body], trackId = dv.getUint32(tkhd.body + (tkV === 1 ? 20 : 12));
+    const width = dv.getUint32(tkhd.end - 8), height = dv.getUint32(tkhd.end - 4);
+    const mdV = u8[mdhd.body], timescale = dv.getUint32(mdhd.body + (mdV === 1 ? 20 : 12));
+    // Track defaults from mvex/trex
+    let def = { dur: 0, size: 0, flags: 0 };
+    const mvex = find(moov.kids, 'mvex');
+    if (mvex) for (const trex of all(mvex.kids, 'trex')) if (dv.getUint32(trex.body + 4) === trackId) def = { dur: dv.getUint32(trex.body + 12), size: dv.getUint32(trex.body + 16), flags: dv.getUint32(trex.body + 20) };
+    // Walk every fragment and collect samples
+    const samples = [];
+    for (const moof of top.filter(b => b.type === 'moof')) {
+      for (const traf of all(moof.kids, 'traf')) {
+        const tfhd = find(traf.kids, 'tfhd'); if (!tfhd) continue;
+        const tf = dv.getUint32(tfhd.body) & 0xffffff; let p = tfhd.body + 4;
+        if (dv.getUint32(p) !== trackId) continue; p += 4;
+        let base = moof.start;
+        if (tf & 0x1) { base = Number(dv.getBigUint64(p)); p += 8; }
+        if (tf & 0x2) p += 4;
+        let dDur = def.dur, dSize = def.size, dFlags = def.flags;
+        if (tf & 0x8) { dDur = dv.getUint32(p); p += 4; }
+        if (tf & 0x10) { dSize = dv.getUint32(p); p += 4; }
+        if (tf & 0x20) { dFlags = dv.getUint32(p); p += 4; }
+        let pos = base;
+        for (const trun of all(traf.kids, 'trun')) {
+          const ver = u8[trun.body], fl = dv.getUint32(trun.body) & 0xffffff; let q = trun.body + 4;
+          const n = dv.getUint32(q); q += 4;
+          if (fl & 0x1) { pos = base + dv.getInt32(q); q += 4; }
+          let first = null; if (fl & 0x4) { first = dv.getUint32(q); q += 4; }
+          for (let i = 0; i < n; i++) {
+            const dur = fl & 0x100 ? dv.getUint32((q += 4) - 4) : dDur;
+            const size = fl & 0x200 ? dv.getUint32((q += 4) - 4) : dSize;
+            let flags = fl & 0x400 ? dv.getUint32((q += 4) - 4) : dFlags;
+            if (i === 0 && first !== null) flags = first;
+            const cto = fl & 0x800 ? (ver === 0 ? dv.getUint32((q += 4) - 4) : dv.getInt32((q += 4) - 4)) : 0;
+            samples.push({ off: pos, size, dur, sync: !(flags & 0x00010000), cto });
+            pos += size;
+          }
+        }
+      }
+    }
+    if (!samples.length) throw new Error('no samples found');
+    // Some recorders leave the last duration 0: use the typical frame duration instead
+    const typical = samples.map(s => s.dur).filter(Boolean).sort((a, b) => a - b)[Math.floor(samples.length / 2)] || Math.round(timescale / 30);
+    samples.forEach(s => { if (!s.dur) s.dur = typical; });
+    const mediaDur = samples.reduce((a, s) => a + s.dur, 0);
+    const movieTs = 1000, movieDur = Math.round(mediaDur * movieTs / timescale);
+
+    // Sample tables
+    const stts = []; samples.forEach(s => { const l = stts[stts.length - 1]; if (l && l[1] === s.dur) l[0]++; else stts.push([1, s.dur]); });
+    const syncIdx = samples.map((s, i) => s.sync ? i + 1 : 0).filter(Boolean);
+    const hasCto = samples.some(s => s.cto), negCto = samples.some(s => s.cto < 0);
+    const ctts = []; if (hasCto) samples.forEach(s => { const l = ctts[ctts.length - 1]; if (l && l[1] === s.cto) l[0]++; else ctts.push([1, s.cto]); });
+    const mdatSize = samples.reduce((a, s) => a + s.size, 0);
+
+    const build = chunkOffset => {
+      const stbl = box('stbl',
+        u8.slice(stsd.start, stsd.end),
+        full('stts', 0, 0, bytes([...u32(stts.length), ...stts.flatMap(([c, d]) => [...u32(c), ...u32(d)])])),
+        ...(syncIdx.length && syncIdx.length < samples.length ? [full('stss', 0, 0, bytes([...u32(syncIdx.length), ...syncIdx.flatMap(u32)]))] : []),
+        ...(hasCto ? [full('ctts', negCto ? 1 : 0, 0, bytes([...u32(ctts.length), ...ctts.flatMap(([c, o]) => [...u32(c), ...u32(o >>> 0)])]))] : []),
+        full('stsc', 0, 0, bytes([...u32(1), ...u32(1), ...u32(samples.length), ...u32(1)])),
+        full('stsz', 0, 0, bytes([...u32(0), ...u32(samples.length), ...samples.flatMap(s => u32(s.size))])),
+        full('stco', 0, 0, bytes([...u32(1), ...u32(chunkOffset)])));
+      const minf = box('minf', u8.slice(vmhd.start, vmhd.end), dinf ? u8.slice(dinf.start, dinf.end) : full('dinf', 0, 0), stbl);
+      const mdia = box('mdia',
+        full('mdhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(timescale), ...u32(mediaDur), ...u16(0x55c4), ...u16(0)])),
+        u8.slice(hdlr.start, hdlr.end), minf);
+      const tk = full('tkhd', 0, 3, bytes([...u32(0), ...u32(0), ...u32(1), ...u32(0), ...u32(movieDur), ...u32(0), ...u32(0), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...MATRIX, ...u32(width), ...u32(height)]));
+      const mvhd = full('mvhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(movieTs), ...u32(movieDur), ...u32(0x00010000), ...u16(0x0100), ...new Array(10).fill(0), ...MATRIX, ...new Array(24).fill(0), ...u32(2)]));
+      return box('moov', mvhd, box('trak', tk, mdia));
+    };
+    const ftyp = box('ftyp', bytes([...s4('isom'), ...u32(512), ...s4('isom'), ...s4('iso2'), ...s4('avc1'), ...s4('mp41')]));
+    let moovOut = build(0);
+    const firstSampleAt = ftyp.length + moovOut.length + 8;
+    moovOut = build(firstSampleAt);                       // same size, now with the real chunk offset
+    const out = new Uint8Array(firstSampleAt + mdatSize);
+    out.set(ftyp, 0); out.set(moovOut, ftyp.length);
+    out.set([...u32(8 + mdatSize), ...s4('mdat')], ftyp.length + moovOut.length);
+    let o = firstSampleAt; samples.forEach(s => { out.set(u8.subarray(s.off, s.off + s.size), o); o += s.size; });
+    return { buffer: out.buffer, seconds: mediaDur / timescale, frames: samples.length, width: width >>> 16, height: height >>> 16 };
+  }
+  return { codecOf, isFragmented, defragment };
+})();
+
 function clipMime() {
-  const c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.4d0028', 'video/mp4;codecs=avc1.42e01f', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
   return (window.MediaRecorder && c.find(t => MediaRecorder.isTypeSupported(t))) || '';
 }
 function clipMsg(text, cls, loud) { const m = $('#clipMsg'); m.className = 'msg' + (cls ? ' ' + cls : ''); m.textContent = text; if (loud) toast(text, 6000); }
 function syncClipInfo() {
   const mime = clipMime(), f = frameSize(), mbps = (Number(settings.clipQuality) || 1500000) / 1e6;
   $('#clipFormat').textContent = !mime ? 'This browser can’t record clips; use a recent Chrome or Edge.'
-    : `Output: ${mime.startsWith('video/mp4') ? 'MP4 (H.264)' : 'WebM'} · ${f ? f[0] + ' × ' + f[1] : 'window size'} · ≈ ${(mbps * 60 / 8).toFixed(0)} MB per minute`;
+    : `Output: ${mime.startsWith('video/mp4') ? 'MP4 (H.264), PowerPoint-ready' : 'WebM: this browser has no H.264 recorder, so PowerPoint will need the clip converted (Clipchamp or HandBrake). Try the latest Chrome or Edge'} · ${f ? f[0] + ' × ' + f[1] : 'window size'} · ≈ ${(mbps * 60 / 8).toFixed(0)} MB per minute`;
 }
 async function startClip() {
   if (CLIP.active) { stopClip(); return; }
@@ -2267,11 +2415,26 @@ function restoreAfterClip() {
   document.body.classList.remove('nocursor');
   if (CLIP.title) { document.title = CLIP.title; CLIP.title = null; }
 }
-function saveClip(type) {
+// Turn a recorded (or earlier) clip into a file PowerPoint accepts, when possible. Never re-encodes.
+async function pptReady(blob) {
+  const buf = await blob.arrayBuffer();
+  const codec = MP4.codecOf(buf);
+  if (!codec) return { blob, codec: /webm/.test(blob.type) ? 'webm' : '', ok: false };
+  const h264 = codec === 'avc1';
+  if (h264 && MP4.isFragmented(buf)) {
+    try { const r = MP4.defragment(buf); return { blob: new Blob([r.buffer], { type: 'video/mp4' }), codec, ok: true, fixed: true }; }
+    catch (e) { return { blob, codec, ok: false, error: e.message }; }
+  }
+  return { blob, codec, ok: h264 };
+}
+const codecLabel = c => ({ avc1: 'H.264', avc3: 'H.264 (avc3)', vp09: 'VP9', av01: 'AV1', hvc1: 'HEVC', webm: 'WebM' }[c] || c || 'unknown');
+const pptNote = r => r.ok ? 'PowerPoint-ready ✓' : `Not PowerPoint-ready (${codecLabel(r.codec)}${r.error ? ', ' + r.error : ''}). Convert it with Clipchamp or HandBrake, or record in the latest Chrome or Edge`;
+async function saveClip(type) {
   restoreAfterClip();
   if (!CLIP.chunks.length) { clipMsg('Nothing was recorded.', 'err'); return; }
-  const blob = new Blob(CLIP.chunks, { type: type || 'video/webm' }); CLIP.chunks = [];
-  const isMp4 = /mp4/.test(blob.type), name = slug(P.script ? P.script.title : 'agent-team') + (isMp4 ? '.mp4' : '.webm');
+  const raw = new Blob(CLIP.chunks, { type: type || 'video/webm' }); CLIP.chunks = [];
+  const fixedClip = await pptReady(raw), blob = fixedClip.blob;
+  const isMp4 = /mp4/.test(raw.type), name = slug(P.script ? P.script.title : 'agent-team') + (isMp4 ? '.mp4' : '.webm');
   if (CLIP.url) URL.revokeObjectURL(CLIP.url);
   CLIP.url = URL.createObjectURL(blob);
   // Automatic download (may be blocked inside previews); the card's Save button is the reliable path
@@ -2279,14 +2442,28 @@ function saveClip(type) {
   const s = CLIP.size || {}, dur = fmtTime(performance.now() - CLIP.t0);
   const save = $('#clipSave'); save.href = CLIP.url; save.download = name;
   $('#clipVideo').src = CLIP.url;
-  $('#clipMeta').textContent = `${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${s.width ? s.width + ' × ' + s.height : 'unknown size'} · ${dur}` +
+  $('#clipMeta').textContent = `${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${s.width ? s.width + ' × ' + s.height : 'unknown size'} · ${dur} · ${codecLabel(fixedClip.codec)} · ${pptNote(fixedClip)}` +
     (CLIP.embedded ? ' · If nothing downloaded, this page is inside a preview: use Save, or open the file directly.' : '');
   $('#clipReady').classList.add('on');
   const res = s.width ? `${s.width} × ${s.height}` : 'unknown size';
   clipMsg(`Saved ${name}: ${(blob.size / 1048576).toFixed(1)} MB · ${res} · ${dur}${CLIP.cropped ? '' : ' · whole tab (this browser can’t crop to the stage)'}` +
-    (isMp4 ? '' : ' · WebM: PowerPoint prefers MP4, so convert it or record in a recent Chrome or Edge'), 'ok');
+    ' · ' + pptNote(fixedClip), fixedClip.ok ? 'ok' : 'err');
   toast('Clip recorded: ' + name, 4000);
 }
+async function fixClipFile(f) {
+  const m = $('#fixMsg'); m.className = 'msg'; m.textContent = 'Checking ' + f.name + '…';
+  try {
+    const r = await pptReady(f);
+    if (!r.ok) { m.className = 'msg err'; m.textContent = f.name + ': ' + pptNote(r); toast(m.textContent, 6000); return; }
+    if (!r.fixed) { m.className = 'msg ok'; m.textContent = f.name + ' is already PowerPoint-ready (H.264, standard MP4). If PowerPoint still refuses it, check that the file isn’t blocked by Windows (Properties → Unblock).'; toast(m.textContent, 6000); return; }
+    const name = f.name.replace(/\.[^.]+$/, '') + '-ppt.mp4';
+    const a = el('a'); a.href = URL.createObjectURL(r.blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    m.className = 'msg ok'; m.textContent = `Saved ${name} (${(r.blob.size / 1048576).toFixed(1)} MB, was ${(f.size / 1048576).toFixed(1)} MB): PowerPoint-ready ✓`;
+    toast('PowerPoint-ready copy saved: ' + name, 5000);
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Could not read ' + f.name + ': ' + e.message; }
+}
+$('#fixIn').onchange = e => { const f = e.target.files[0]; if (f) fixClipFile(f); e.target.value = ''; };
 $('#bClip').onclick = startClip;
 $('#bRecClip').onclick = startClip;
 $('#bClipClose').onclick = () => { $('#clipReady').classList.remove('on'); $('#clipVideo').removeAttribute('src'); $('#clipVideo').load(); };
@@ -2316,6 +2493,7 @@ addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
 addEventListener('drop', e => {
   if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('#dropzone').classList.remove('on');
   const f = e.dataTransfer.files[0]; if (!f) return;
+  if (/^video\//.test(f.type) || /\.(mp4|m4v|mov)$/i.test(f.name)) { openDrawer('pLook'); fixClipFile(f); return; }
   f.text().then(t => { if (!loadFromText(t, $('#jsonMsg'))) { $('#jsonBox').value = t; toast($('#jsonMsg').textContent); } });
 });
 function copy(text, msg) {

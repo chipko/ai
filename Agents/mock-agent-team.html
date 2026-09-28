@@ -136,9 +136,22 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .lthumb .mini i{position:absolute;border-radius:3px;border:1px solid var(--bg);opacity:.85}
 
 /* ---------- recording mode ---------- */
-#app.rec .controls,#app.rec .hint-keys{display:none}
-#app.rec,#app.rec *{scrollbar-width:none}
-#app.rec ::-webkit-scrollbar{display:none}
+/* recording mode: controls fade out, and fade back in while the mouse is over the header */
+#app.rec .hint-keys{display:none}
+#app.rec .controls{opacity:0;pointer-events:none;transition:opacity .25s}
+#app.rec header:hover .controls,#app.rec .controls:focus-within{opacity:1;pointer-events:auto}
+/* no visible scrollbars on the stage: panels still scroll by wheel / trackpad / touch */
+#app.noscrollbars,#app.noscrollbars *{scrollbar-width:none}
+#app.noscrollbars::-webkit-scrollbar,#app.noscrollbars ::-webkit-scrollbar{display:none;width:0;height:0}
+/* soft fade on edges that have more content, so panels read as scrollable without bars */
+#app .scroll.ft{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 2.2em);mask-image:linear-gradient(to bottom,transparent 0,#000 2.2em)}
+#app .scroll.fb{-webkit-mask-image:linear-gradient(to top,transparent 0,#000 2.2em);mask-image:linear-gradient(to top,transparent 0,#000 2.2em)}
+#app .scroll.ft.fb{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 2.2em,#000 calc(100% - 2.2em),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 2.2em,#000 calc(100% - 2.2em),transparent 100%)}
+#feedPanel{position:relative}
+.jump{position:absolute;left:50%;bottom:14px;transform:translate(-50%,8px);opacity:0;pointer-events:none;z-index:6;background:var(--accent);color:#fff;border:0;border-radius:99px;padding:6px 14px;font-size:.82em;font-weight:600;box-shadow:var(--shadow);transition:opacity .2s,transform .2s}
+.jump.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#drawer *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+#drawer ::-webkit-scrollbar{width:8px;height:8px}#drawer ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}#drawer ::-webkit-scrollbar-track{background:transparent}
 body.nocursor,body.nocursor *{cursor:none!important}
 #count{position:absolute;inset:0;display:none;place-items:center;z-index:80;background:var(--scrim);pointer-events:none}
 #count.on{display:grid}
@@ -174,7 +187,7 @@ body.nocursor,body.nocursor *{cursor:none!important}
 .agent .ctr{grid-column:1/-1;display:flex;gap:10px;font-size:.72em;color:var(--faint)}
 
 /* ---------- feed ---------- */
-#feed{padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+#feed{padding:14px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
 .ev{display:flex;gap:10px;animation:in .25s ease-out}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .ev .body{min-width:0;flex:1}
@@ -218,7 +231,7 @@ body.nocursor,body.nocursor *{cursor:none!important}
 @keyframes blink{50%{opacity:0}}
 
 /* ---------- tasks & outputs ---------- */
-#tasks{padding:6px 10px;display:flex;flex-direction:column;gap:2px;max-height:13em}
+#tasks{position:relative;padding:6px 10px;display:flex;flex-direction:column;gap:2px;max-height:13em}
 .task{display:flex;align-items:center;gap:8px;font-size:.86em;padding:4px 4px;border-radius:7px}
 .task .st{width:18px;text-align:center;flex:none}
 .task .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -226,7 +239,7 @@ body.nocursor,body.nocursor *{cursor:none!important}
 .task .own{font-size:.8em;color:var(--dim);flex:none}
 .task.doing .st{animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.35}}
-#outTabs{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;border-bottom:1px solid var(--line);flex:none}
+#outTabs{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;overscroll-behavior:contain;border-bottom:1px solid var(--line);flex:none}
 .otab{flex:none;border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:4px 9px;font-size:.8em;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:2px solid var(--c)}
 .otab.sel{background:color-mix(in srgb,var(--c) 18%,var(--panel2));border-color:var(--c)}
 .otab.live::before{content:"● ";color:var(--bad);animation:pulse 1s infinite}
@@ -344,6 +357,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option>
     </select>
     <button class="btn" id="bScenario" title="Scenario (S)">⚙ Scenario</button>
+    <button class="btn icon" id="bTheme" title="Light / dark (T cycles all themes)">◐</button>
     <button class="btn" id="bLook" title="Appearance &amp; recording (V)">🎨 Look</button>
     <button class="btn icon hide-sm" id="bLayout" title="Edit layout: drag &amp; resize panels (L)">✥</button>
     <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
@@ -367,6 +381,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
   <section class="panel" id="feedPanel">
     <h2>Activity <span class="sp"></span><span id="stepLbl" style="text-transform:none;letter-spacing:0"></span></h2>
     <div id="feed" class="scroll" style="flex:1"></div>
+    <button class="jump" id="jumpLatest" title="Back to the live activity">↓ Latest</button>
   </section>
 
   <div class="col right">
@@ -574,11 +589,12 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
         <label><input type="checkbox" data-k="show.outputs"> Outputs</label>
         <label><input type="checkbox" data-k="show.footer"> Footer stats</label>
         <label><input type="checkbox" data-k="badge"> “Simulated” badge</label>
+        <label><input type="checkbox" data-k="hideScrollbars"> Hide scrollbars</label>
       </div>
 
       <h3 class="sec">Recording</h3>
       <div class="field checks" style="flex-direction:column">
-        <label><input type="checkbox" data-k="rec"> Recording mode: hide the header controls, key hints and scrollbars (toggle with <b>H</b>)</label>
+        <label><input type="checkbox" data-k="rec"> Recording mode: hide the header controls and key hints. Hover the header to use them, or press <b>H</b> / <b>Esc</b> to exit</label>
         <label><input type="checkbox" data-k="hideCursor"> Hide the mouse cursor after 1.5 s of stillness in recording mode</label>
         <label><input type="checkbox" data-k="countdown"> 3-2-1 countdown when playing from the start</label>
         <label><input type="checkbox" data-k="autoApprove"> Auto-approve human checkpoints after 3 seconds (hands-free runs)</label>
@@ -1483,10 +1499,10 @@ const DEFAULTS = {
   show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
   rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
   includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
-  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true
 };
 // Keys that travel with a scenario file as its "appearance"
-const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ'];
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ', 'hideScrollbars'];
 const THEMES = ['dark', 'midnight', 'slate', 'light', 'paper', 'contrast', 'terminal'];
 const FRAMES = ['fit', '1920x1080', '1280x720', '1440x1080', '1080x1080', '1080x1350', '1080x1920', 'custom'];
 const FONTS = {
@@ -1620,7 +1636,7 @@ async function exec(s) {
       let t = P.tasks[s.id];
       if (!t) { if (!s.title) break; t = P.tasks[s.id] = { id: s.id, title: s.title, owner: s.owner, status: 'todo' }; }
       if (s.title) t.title = s.title; if (s.owner) t.owner = s.owner;
-      t.status = s.status || (s.title ? 'todo' : 'done'); renderTasks();
+      t.status = s.status || (s.title ? 'todo' : 'done'); renderTasks(t.id);
       if (t.status === 'done') { const a = agentOf(t.owner); const n = el('div', 'ev ev-task'); n.innerHTML = `<b>✓</b> ${esc(a.name)} completed “${esc(t.title)}”`; feedAdd(n); }
       break;
     }
@@ -1701,8 +1717,31 @@ function mentionify(text) {
 }
 let stickBottom = true;
 function autoScroll() { const f = $('#feed'); if (stickBottom) f.scrollTop = f.scrollHeight; }
-function feedAdd(node) { const f = $('#feed'); const e = f.querySelector('.empty'); if (e) e.remove(); f.appendChild(node); autoScroll(); }
-$('#feed').addEventListener('scroll', () => { const f = $('#feed'); stickBottom = f.scrollHeight - f.scrollTop - f.clientHeight < 60; });
+function feedAdd(node) {
+  const f = $('#feed'); const e = f.querySelector('.empty'); if (e) e.remove(); f.appendChild(node); autoScroll();
+  if (!stickBottom) $('#jumpLatest').classList.add('on');
+}
+$('#feed').addEventListener('scroll', () => {
+  const f = $('#feed'); stickBottom = f.scrollHeight - f.scrollTop - f.clientHeight < 60;
+  if (stickBottom) $('#jumpLatest').classList.remove('on');
+});
+// Any upward wheel / touch / key scroll means the viewer is reading back: stop following until they return to the bottom
+const stopFollow = () => { if (stickBottom && $('#feed').scrollHeight > $('#feed').clientHeight) { stickBottom = false; } };
+$('#feed').addEventListener('wheel', e => { if (e.deltaY < 0) stopFollow(); }, { passive: true });
+$('#feed').addEventListener('touchmove', stopFollow, { passive: true });
+$('#feed').addEventListener('keydown', e => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) stopFollow(); });
+$('#jumpLatest').onclick = () => { stickBottom = true; const f = $('#feed'); f.scrollTop = f.scrollHeight; $('#jumpLatest').classList.remove('on'); };
+// Fade the edges of any stage panel that has more to scroll to (replaces visible scrollbars)
+function updFade(n) { n.classList.toggle('ft', n.scrollTop > 4); n.classList.toggle('fb', n.scrollTop + n.clientHeight < n.scrollHeight - 4); }
+let fadeQueued = false;
+function queueFade() { if (fadeQueued) return; fadeQueued = true; requestAnimationFrame(() => { fadeQueued = false; document.querySelectorAll('#app .scroll').forEach(updFade); }); }
+document.querySelectorAll('#app .scroll').forEach(n => {
+  n.addEventListener('scroll', queueFade, { passive: true });
+  new MutationObserver(queueFade).observe(n, { childList: true, subtree: true, characterData: true });
+});
+addEventListener('resize', queueFade);
+// vertical wheel scrolls the output tabs sideways
+$('#outTabs').addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { $('#outTabs').scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
 
 function renderAgents() {
   const box = $('#agents'); box.innerHTML = '';
@@ -1731,18 +1770,23 @@ function countTokens(text, id, mult = 1) {
   P.stats.tok += t; const a = P.agents[id];
   if (a) { a.c.tok = (a.c.tok || 0) + t; const n = document.querySelector('#ag_' + CSS.escape(id) + ' .c-tok'); if (n) n.textContent = a.c.tok >= 1000 ? (a.c.tok / 1000).toFixed(1) + 'k' : a.c.tok; }
 }
-function renderTasks() {
+function renderTasks(focusId) {
   const box = $('#tasks'); box.innerHTML = '';
   const list = Object.values(P.tasks);
   if (!list.length) { box.innerHTML = '<div class="msg" style="padding:6px">No tasks in this script.</div>'; $('#taskLbl').textContent = ''; return; }
   const icons = { todo: '○', doing: '◐', review: '◑', done: '✅' };
   list.forEach(t => {
     const a = agentOf(t.owner);
-    const r = el('div', 'task ' + t.status);
+    const r = el('div', 'task ' + t.status); r.dataset.id = t.id;
     r.innerHTML = `<span class="st">${icons[t.status] || '○'}</span><span class="tt" title="${esc(t.title)}">${esc(t.title)}</span><span class="own">${t.owner ? esc(a.icon || '') + ' ' + esc(a.name) : ''}</span>`;
     box.appendChild(r);
   });
   $('#taskLbl').textContent = list.filter(t => t.status === 'done').length + '/' + list.length + ' done';
+  const f = focusId && Array.from(box.children).find(n => n.dataset.id === focusId);
+  if (f && box.scrollHeight > box.clientHeight + 2) {
+    if (f.offsetTop < box.scrollTop) box.scrollTop = f.offsetTop - 6;
+    else if (f.offsetTop + f.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = f.offsetTop + f.offsetHeight - box.clientHeight + 6;
+  }
 }
 function renderOutTabs() {
   const box = $('#outTabs'); box.innerHTML = '';
@@ -1857,7 +1901,7 @@ function load(script, opts = {}) {
   renderAgents(); renderGraph(); renderTasks(); renderOutTabs();
   $('#outView').innerHTML = '<div class="empty" style="padding:20px"><div class="big">📄</div>Deliverables appear here as agents produce them.</div>';
   $('#feed').innerHTML = `<div class="empty"><div class="big">▶</div><p><b>${esc(script.title || 'Ready')}</b></p><p>${script.agents.length} agents · ${script.steps.length} steps. Press <b>Play</b> or <b>Space</b> to start, <b>→</b> to step through.</p></div>`;
-  stickBottom = true;
+  stickBottom = true; $('#jumpLatest').classList.remove('on');
   updateProgress(); refreshStats(); setPlaying(false);
   P.counting = false; $('#count').classList.remove('on');
   renderDataBox();
@@ -2089,6 +2133,7 @@ function frameSize() {
 }
 function layoutFrame() {
   const app = $('#app'), f = frameSize();
+  requestAnimationFrame(() => { app.style.overflow = app.clientWidth <= 720 ? 'auto' : 'hidden'; if (app.style.overflow === 'hidden') app.scrollTop = 0; });
   if (!f) {
     document.body.classList.remove('framed');
     ['width', 'height', 'left', 'top', 'transform'].forEach(k => { app.style[k] = ''; });
@@ -2114,6 +2159,7 @@ function applySettings() {
   app.classList.toggle('no-left', !st.show.graph && !st.show.agents);
   app.classList.toggle('no-right', !st.show.tasks && !st.show.outputs);
   app.classList.toggle('rec', st.rec);
+  app.classList.toggle('noscrollbars', st.hideScrollbars);
   if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
   $('#simBadge').style.display = st.badge ? '' : 'none';
   $('#bRec').classList.toggle('primary', st.rec);
@@ -2151,7 +2197,7 @@ $('#bResetLook').onclick = () => { LOOK_KEYS.forEach(k => { settings[k] = clone(
 function toggleRec() {
   if (editing) setEditing(false);
   settings.rec = !settings.rec; applySettings();
-  toast(settings.rec ? 'Recording mode on. Press H to show the controls again' : 'Controls shown');
+  toast(settings.rec ? 'Recording mode on. Hover the header for controls; press H or Esc to exit' : 'Controls shown');
 }
 $('#bRec').onclick = toggleRec;
 
@@ -2295,6 +2341,8 @@ $('#bEnd').onclick = jumpEnd;
 $('#bRestart').onclick = restart;
 $('#speed').onchange = e => { P.speed = Number(e.target.value); e.target.blur(); };
 $('#bLook').onclick = () => openDrawer('pLook');
+const LIGHT_THEMES = ['light', 'paper'];
+$('#bTheme').onclick = () => { settings.theme = LIGHT_THEMES.includes(settings.theme) ? 'dark' : 'light'; applySettings(); toast('Theme: ' + settings.theme); };
 document.addEventListener('click', e => { const b = e.target.closest('header button, .outcard, .otab'); if (b) b.blur(); });
 $('#bFull').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); };
 $('#bExpand').onclick = () => openReader();

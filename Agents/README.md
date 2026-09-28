@@ -51,7 +51,9 @@ Ways to load data:
 - **Layout**: choose *Columns* or *Free canvas*. Press **L** (or ✥) to edit on the stage: drag a panel to move it, and drag its edges or corners to resize. Panels snap to a 1% grid and to each other's edges. Arrow keys nudge the selected panel; hold Shift to resize, or Alt for finer steps. Panels can be hidden from the editor. Presets: Classic columns, Conversation focus, Studio (agents strip), Network hero, Deliverables hero, Vertical (9:16). Positions are stored as percentages of the frame, so a layout works at any resolution and is saved with exported scenarios.
 - **Look**: 7 themes (dark, midnight, slate, light, paper, high contrast, terminal), an accent colour, 5 font styles, 3 background styles, text size, column widths, spacing, corner radius and typing speed.
 - **Panels**: you can show or hide the header, progress bar, team network, agent cards, counters, tasks, outputs, footer and the "Simulated" badge.
-- **Recording mode** (**H**): hides the controls, key hints and scrollbars. The cursor also hides when idle.
+- **Recording mode** (**H**): hides the controls and key hints. Hover over the header to use the controls, or press **H** or **Esc** to exit. The cursor also hides when idle.
+- **No scrollbars**: the stage never shows scrollbars (you can switch this off in Appearance). Panels still scroll with the wheel, trackpad or touch. They fade at the edges where there's more content, and the activity feed follows live output. Scroll up to read back, and a **↓ Latest** button takes you back to live.
+- **Light/dark**: the ◐ button in the header toggles light and dark; **T** cycles through all 7 themes.
 - **Countdown**: an optional 3-2-1 countdown when playing from the start.
 - **Auto-approve**: optional, for hands-free runs.
 - **URL parameters** for a browser source in recording software: `?src=demo.jsonl&frame=1920x1080&theme=midnight&fs=18&speed=1.5&rec=1&autoplay=1`.

@@ -1,0 +1,2125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agent Team Simulator</title>
+<!-- Optional embedded scenario (JSON or JSONL). "Download standalone HTML" fills this in. -->
+<script type="application/json" id="embedded-scenario"></script>
+<!--
+  Agent Team Simulator — a mock "agent team / cowork" demo for presentations.
+  Single file, no dependencies, works offline. Nothing here calls a model unless
+  you choose the optional "Generate via API" route (any OpenAI-compatible endpoint).
+
+  Ways to make a scenario:
+    1. Quick build  — goal + team + items to mention → procedural generator fills the blanks
+    2. LLM prompt   — copy a prompt into ANY model/chat, paste the JSON / JSONL it returns
+    3. Data         — JSON or JSONL: paste, import, drag-drop, ?src=file.jsonl, or embedded below
+
+  Keys: Space play/pause · → step / skip typing · R restart · E jump to end · A approve
+        S scenario · V appearance · L layout editor · H recording mode · F fullscreen · T theme · +/- text size
+-->
+<style>
+/* ---------- theme tokens (recording surface) ---------- */
+:root{
+  --bg:#0d1017; --bg2:#131824; --panel:#171d2b; --panel2:#1d2436; --line:#2a3350;
+  --text:#e6e9f2; --dim:#98a1b9; --faint:#5f6884; --accent:#7c9cff; --accent2:#b18cff; --ok:#5ed1a5;
+  --warn:#f2c14e; --bad:#ff7a7a; --code:#0a0d14; --shadow:0 8px 30px rgba(0,0,0,.35); --scrim:rgba(5,8,15,.6);
+  --fs:15px; --av:calc(var(--fs) * 2.4); --r:14px; --gap:12px; --lw:300px; --rw:400px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+:root[data-theme="light"]{
+  --bg:#f3f5fa; --bg2:#e9edf5; --panel:#ffffff; --panel2:#f5f7fc; --line:#d8deeb;
+  --text:#1b2033; --dim:#5b6480; --faint:#9aa3bb; --accent:#4062e0; --accent2:#8a5cf0; --ok:#1f9d6e;
+  --warn:#b7860b; --bad:#d64545; --code:#f1f3f9; --shadow:0 8px 24px rgba(30,40,80,.10); --scrim:rgba(20,25,40,.35);
+}
+:root[data-theme="midnight"]{
+  --bg:#05070f; --bg2:#080c19; --panel:#0c1122; --panel2:#111831; --line:#1c2745;
+  --text:#e9ecff; --dim:#8d97c2; --faint:#4b557d; --accent:#8b7bff; --accent2:#ff7bd5; --code:#03050b;
+}
+:root[data-theme="slate"]{
+  --bg:#1e222a; --bg2:#23282f; --panel:#282d36; --panel2:#2f3540; --line:#3c4350;
+  --text:#eceff4; --dim:#a3abb9; --faint:#6b7382; --accent:#4fb3ff; --accent2:#7ee0c3; --code:#1a1d23;
+}
+:root[data-theme="paper"]{
+  --bg:#f6f1e7; --bg2:#efe8da; --panel:#fffdf8; --panel2:#f9f5ec; --line:#e3dac8;
+  --text:#2b2620; --dim:#6f6555; --faint:#a89c86; --accent:#c2571a; --accent2:#8d5a97; --ok:#3f8f5a;
+  --warn:#a87708; --bad:#c0392b; --code:#f3ede1; --shadow:0 6px 20px rgba(80,60,30,.10); --scrim:rgba(40,30,20,.35);
+}
+:root[data-theme="contrast"]{
+  --bg:#000; --bg2:#000; --panel:#000; --panel2:#0b0b0b; --line:#ffffff;
+  --text:#fff; --dim:#e6e6e6; --faint:#b3b3b3; --accent:#ffd400; --accent2:#00e5ff; --ok:#5dff8f;
+  --warn:#ffd400; --bad:#ff6b6b; --code:#000; --shadow:none;
+}
+:root[data-theme="terminal"]{
+  --bg:#020a04; --bg2:#031006; --panel:#041208; --panel2:#06180b; --line:#0f3d1c;
+  --text:#b8ffcc; --dim:#5fbf7a; --faint:#2f6b40; --accent:#39ff88; --accent2:#00d5ff; --ok:#39ff88;
+  --warn:#ffe066; --bad:#ff5f5f; --code:#010702;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+/* body = operator surface (drawer, toasts). #app = the recording surface. */
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overflow:hidden}
+body.framed{background:#030407}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+code,pre,.mono{font-family:var(--mono)}
+#app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;overflow:auto;container:app / size;background:var(--bg);color:var(--text);font:var(--fs)/1.5 var(--font)}
+body.framed #app{position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+#app.bg-gradient{background:radial-gradient(70% 60% at 0% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%),radial-gradient(60% 60% at 100% 100%,color-mix(in srgb,var(--accent2) 13%,transparent),transparent 70%),var(--bg)}
+#app.bg-dots{background:radial-gradient(color-mix(in srgb,var(--text) 11%,transparent) 1px,transparent 1.4px) 0 0/22px 22px,var(--bg)}
+#app.bg-gradient header,#app.bg-dots header,#app.bg-gradient footer,#app.bg-dots footer{background:color-mix(in srgb,var(--bg2) 75%,transparent);backdrop-filter:blur(6px)}
+
+/* ---------- header ---------- */
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:none}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.brand .logo{width:2.1em;height:2.1em;border-radius:calc(var(--r) * .65);display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;flex:none}
+.brand .t{min-width:0}
+.brand h1{margin:0;font-size:1.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand .goal{color:var(--dim);font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60cqw}
+.badge-sim{font-size:.7em;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim);flex:none}
+.controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 11px;display:inline-flex;align-items:center;gap:6px;line-height:1.2}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="contrast"] .btn.primary,:root[data-theme="terminal"] .btn.primary{color:#000}
+.btn.icon{padding:6px 9px;min-width:34px;justify-content:center}
+select.btn{padding:6px 8px}
+.progress{height:3px;background:var(--line);flex:none}
+.progress>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+
+/* ---------- layout ---------- */
+main{display:grid;grid-template-columns:var(--lw) minmax(0,1fr) var(--rw);gap:var(--gap);padding:var(--gap);flex:1;min-height:0}
+#app.no-left main{grid-template-columns:minmax(0,1fr) var(--rw)}
+#app.no-right main{grid-template-columns:var(--lw) minmax(0,1fr)}
+#app.no-left.no-right main{grid-template-columns:minmax(0,1fr)}
+#app.no-left .col.left,#app.no-right .col.right{display:none}
+#app.hide-header header,#app.hide-progress .progress,#app.hide-footer footer,#app.hide-graph #graphPanel,#app.hide-agents #agentsPanel,#app.hide-tasks #tasksPanel,#app.hide-outputs #outPanel,#app.hide-counters .agent .ctr{display:none}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0}
+.panel>h2{margin:0;padding:10px 14px;font-size:.78em;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.panel>h2 .sp{flex:1}
+.scroll{overflow:auto;min-height:0}
+footer{display:flex;gap:18px;align-items:center;padding:6px 16px;flex:none;font-size:.8em;color:var(--dim);border-top:1px solid var(--line);background:var(--bg2);overflow:hidden;white-space:nowrap}
+footer b{color:var(--text);font-variant-numeric:tabular-nums}
+
+/* ---------- free canvas layout (panels positioned in % of the stage) ---------- */
+@container app (min-width:721px){
+  #app.canvas main{display:block;position:relative;padding:0;margin:calc(var(--gap) / 2)}
+  #app.canvas .col{display:contents}
+  #app.canvas .panel.cv{position:absolute;left:calc(var(--x) * 1% + var(--gap) / 2);top:calc(var(--y) * 1% + var(--gap) / 2);width:calc(var(--w) * 1% - var(--gap));height:calc(var(--h) * 1% - var(--gap));z-index:var(--z)}
+  #app.canvas #graph{flex:1;height:auto;min-height:0}
+  #app.canvas #tasks{max-height:none;flex:1}
+  #app.editing main{background-image:linear-gradient(to right,color-mix(in srgb,var(--accent) 22%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--accent) 22%,transparent) 1px,transparent 1px);background-size:5% 5%;outline:1px dashed color-mix(in srgb,var(--accent) 50%,transparent)}
+  #app.editing .edit-ov{display:block}
+}
+.edit-ov{display:none;position:absolute;inset:0;z-index:20;border:2px dashed var(--accent);border-radius:inherit;background:color-mix(in srgb,var(--accent) 10%,transparent);cursor:move;touch-action:none;font-family:system-ui,sans-serif}
+.edit-ov.sel{border-style:solid;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.edit-ov .lbl{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--accent);color:#fff;padding:6px 12px;border-radius:9px;font-weight:600;font-size:14px;white-space:nowrap;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow)}
+.edit-ov .lbl .size{font-weight:400;opacity:.85;font-variant-numeric:tabular-nums}
+.edit-ov .lbl button{background:rgba(0,0,0,.2);border:0;color:#fff;border-radius:6px;padding:1px 7px;cursor:pointer}
+.edit-ov .h{position:absolute;z-index:2}
+.edit-ov .h-n,.edit-ov .h-s{left:14px;right:14px;height:12px;cursor:ns-resize}.edit-ov .h-n{top:-6px}.edit-ov .h-s{bottom:-6px}
+.edit-ov .h-e,.edit-ov .h-w{top:14px;bottom:14px;width:12px;cursor:ew-resize}.edit-ov .h-e{right:-6px}.edit-ov .h-w{left:-6px}
+.edit-ov .h-ne,.edit-ov .h-nw,.edit-ov .h-se,.edit-ov .h-sw{width:16px;height:16px;background:var(--accent);border:2px solid var(--panel);border-radius:5px}
+.edit-ov .h-nw{left:-8px;top:-8px;cursor:nwse-resize}.edit-ov .h-se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.edit-ov .h-ne{right:-8px;top:-8px;cursor:nesw-resize}.edit-ov .h-sw{left:-8px;bottom:-8px;cursor:nesw-resize}
+#editBar{display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:85;gap:10px;align-items:center;padding:8px 10px 8px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--accent);box-shadow:var(--shadow);font:14px/1.3 system-ui,sans-serif;white-space:nowrap}
+#app.editing #editBar{display:flex}
+#editBar select{padding:5px 8px}
+#editBar label{display:flex;gap:5px;align-items:center;color:var(--dim)}
+.lthumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.lthumb{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;text-align:left;font-size:.85em}
+.lthumb:hover,.lthumb.sel{border-color:var(--accent)}
+.lthumb .mini{position:relative;aspect-ratio:16/9;background:var(--bg);border-radius:6px;margin-bottom:6px;overflow:hidden}
+.lthumb .mini i{position:absolute;border-radius:3px;border:1px solid var(--bg);opacity:.85}
+
+/* ---------- recording mode ---------- */
+#app.rec .controls,#app.rec .hint-keys{display:none}
+#app.rec,#app.rec *{scrollbar-width:none}
+#app.rec ::-webkit-scrollbar{display:none}
+body.nocursor,body.nocursor *{cursor:none!important}
+#count{position:absolute;inset:0;display:none;place-items:center;z-index:80;background:var(--scrim);pointer-events:none}
+#count.on{display:grid}
+#count span{font-size:calc(var(--fs) * 9);font-weight:800;color:#fff;text-shadow:0 6px 40px var(--accent);animation:pop .8s ease-out both}
+@keyframes pop{from{transform:scale(1.6);opacity:0}30%{opacity:1}to{transform:scale(.9);opacity:.9}}
+
+/* ---------- graph ---------- */
+#graph{width:100%;height:calc(var(--fs) * 15.5);display:block}
+#graph .edge{stroke:var(--line);stroke-width:1.5;fill:none;transition:stroke .4s}
+#graph .edge.hot{stroke:var(--accent);stroke-width:2.5}
+#graph .node circle.ring{fill:var(--panel2);stroke-width:2.5}
+#graph .node text.ic{font-size:17px;text-anchor:middle;dominant-baseline:central}
+#graph .node text.lb{font-size:10.5px;text-anchor:middle;fill:var(--dim)}
+#graph .node.active circle.halo{opacity:.35}
+#graph circle.halo{opacity:0;transition:opacity .3s}
+#graph .pulse{filter:drop-shadow(0 0 4px currentColor)}
+
+/* ---------- agents ---------- */
+#agents{padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;align-content:start;position:relative}
+.agent{border:1px solid var(--line);border-radius:calc(var(--r) * .8);padding:9px 10px;background:var(--panel2);display:grid;grid-template-columns:var(--av) 1fr;gap:4px 10px;transition:box-shadow .3s,border-color .3s}
+.agent.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px -4px var(--c)}
+.av{width:var(--av);height:var(--av);border-radius:calc(var(--r) * .7);display:grid;place-items:center;font-size:calc(var(--fs) * 1.2);background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);flex:none}
+.agent .nm{display:flex;align-items:center;gap:6px;min-width:0}
+.agent .nm b{white-space:nowrap}
+.agent .role{color:var(--dim);font-size:.8em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:.68em;text-transform:uppercase;letter-spacing:.05em;padding:1px 7px;border-radius:99px;margin-left:auto;flex:none;border:1px solid var(--line);color:var(--dim)}
+.pill.thinking{color:#b18cff;border-color:#b18cff}
+.pill.working{color:var(--ok);border-color:var(--ok)}
+.pill.waiting{color:var(--warn);border-color:var(--warn)}
+.pill.writing{color:var(--accent);border-color:var(--accent)}
+.pill.done{color:var(--ok);border-color:var(--ok);background:color-mix(in srgb,var(--ok) 15%,transparent)}
+.agent .act{grid-column:1/-1;font-size:.8em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.2em}
+.agent .ctr{grid-column:1/-1;display:flex;gap:10px;font-size:.72em;color:var(--faint)}
+
+/* ---------- feed ---------- */
+#feed{padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.ev{display:flex;gap:10px;animation:in .25s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.ev .body{min-width:0;flex:1}
+.ev .meta{font-size:.82em;color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}
+.ev .meta b{color:var(--text)}
+.ev .bubble{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:4px 12px 12px 12px;padding:8px 12px;white-space:pre-wrap;word-wrap:break-word}
+.ev .bubble .mention{color:var(--mc,var(--accent));font-weight:600}
+:root[data-theme="light"] .ev .bubble .mention,:root[data-theme="paper"] .ev .bubble .mention{color:color-mix(in srgb,var(--mc,var(--accent)) 62%,#000)}
+.kind{font-size:.72em;padding:0 7px;border-radius:99px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.05em}
+.kind.ask{color:var(--warn)} .kind.answer{color:var(--ok)} .kind.handoff{color:var(--accent)} .kind.review{color:#e879c6} .kind.say{color:var(--dim)}
+.ev-human .bubble{border-left-color:var(--text);background:color-mix(in srgb,var(--accent) 10%,var(--panel2))}
+.ev-think{color:var(--dim);font-size:.88em;align-items:flex-start;padding-left:calc(var(--av) + 10px)}
+.ev-think .body{border-left:2px dashed color-mix(in srgb,var(--c) 60%,transparent);padding-left:10px}
+.ev-think i{display:block}
+.dots::after{content:"";animation:dots 1.2s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.ev-tool{padding-left:calc(var(--av) + 10px)}
+.tool{border:1px solid var(--line);border-radius:10px;background:var(--code);font-size:.84em;overflow:hidden;width:100%}
+.tool .th{padding:6px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tool .th code{color:var(--c)}
+.tool .to{padding:6px 10px;border-top:1px dashed var(--line);color:var(--dim)}
+.tool .to.ok::before{content:"↳ ";color:var(--ok)}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ev-note{justify-content:center;color:var(--dim);font-size:.78em;letter-spacing:.08em;text-transform:uppercase;gap:10px;align-items:center;margin:6px 0}
+.ev-note::before,.ev-note::after{content:"";flex:1;height:1px;background:var(--line)}
+.ev-task{padding-left:calc(var(--av) + 10px);font-size:.84em;color:var(--dim)}
+.ev-task b{color:var(--ok)}
+.ev-out{padding-left:calc(var(--av) + 10px)}
+.outcard{border:1px solid color-mix(in srgb,var(--c) 50%,var(--line));background:color-mix(in srgb,var(--c) 8%,var(--panel2));border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;width:100%;text-align:left}
+.outcard:hover{border-color:var(--c)}
+.outcard .ot{flex:1;min-width:0}
+.outcard .ot div{font-size:.8em;color:var(--dim)}
+.approval{border:1px solid var(--warn);border-radius:12px;padding:10px 12px;background:color-mix(in srgb,var(--warn) 9%,var(--panel2))}
+.approval .row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.approval .row .btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.done-banner{text-align:center;padding:14px;border-radius:12px;border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,transparent);font-weight:600}
+.empty{margin:auto;text-align:center;color:var(--dim);max-width:440px;padding:30px}
+.empty .big{font-size:2.4em}
+.caret::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite;margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- tasks & outputs ---------- */
+#tasks{padding:6px 10px;display:flex;flex-direction:column;gap:2px;max-height:13em}
+.task{display:flex;align-items:center;gap:8px;font-size:.86em;padding:4px 4px;border-radius:7px}
+.task .st{width:18px;text-align:center;flex:none}
+.task .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task.done .tt{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--faint)}
+.task .own{font-size:.8em;color:var(--dim);flex:none}
+.task.doing .st{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+#outTabs{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;border-bottom:1px solid var(--line);flex:none}
+.otab{flex:none;border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:4px 9px;font-size:.8em;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:2px solid var(--c)}
+.otab.sel{background:color-mix(in srgb,var(--c) 18%,var(--panel2));border-color:var(--c)}
+.otab.live::before{content:"● ";color:var(--bad);animation:pulse 1s infinite}
+#outView{padding:12px 16px;flex:1}
+.doc{font-size:.92em}
+.doc h2{font-size:1.25em;margin:.2em 0 .5em}.doc h3{font-size:1.05em;margin:1em 0 .4em}.doc h4,.doc h5{font-size:.95em;margin:.8em 0 .3em}
+.doc p{margin:.4em 0}.doc ul,.doc ol{margin:.3em 0;padding-left:1.4em}
+.doc ul li.chkli{list-style:none;margin-left:-1.2em}
+.doc code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+.doc pre{background:var(--code);border:1px solid var(--line);border-radius:9px;padding:10px 12px;overflow:auto;font-size:.86em;line-height:1.45}
+.doc pre code{background:none;padding:0}
+.doc table{border-collapse:collapse;width:100%;font-size:.88em;margin:.5em 0}
+.doc th,.doc td{border:1px solid var(--line);padding:5px 8px;text-align:left}
+.doc th{background:var(--panel2)}
+.doc blockquote{margin:.5em 0;padding:4px 12px;border-left:3px solid var(--accent);color:var(--dim)}
+.doc hr{border:0;border-top:1px dashed var(--line);margin:1em 0}
+.doc .by{font-size:.8em;color:var(--dim);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.tk-c{color:var(--faint);font-style:italic}.tk-s{color:var(--ok)}.tk-k{color:#b18cff}.tk-n{color:var(--warn)}
+
+/* ---------- drawer ---------- */
+#drawer{position:fixed;inset:0;background:rgba(5,8,15,.55);display:none;z-index:90}
+#drawer.open{display:block}
+#drawer .sheet{position:absolute;right:0;top:0;bottom:0;width:min(760px,100%);background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+#drawer .sh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#drawer .sh h2{margin:0;font-size:1.05em;flex:1}
+.tabs{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--dim);white-space:nowrap}
+.tab.sel{color:var(--text);border-bottom-color:var(--accent)}
+.pane{display:none;padding:16px;overflow:auto;flex:1}
+.pane.sel{display:block}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.82em;color:var(--dim);margin-bottom:5px}
+.field .hint{font-size:.76em;color:var(--faint);margin-top:4px}
+.inp{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+.inp:focus{border-color:var(--accent)}
+textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
+textarea.code{font-family:var(--mono);font-size:.82em;min-height:360px;white-space:pre}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.88em}
+.checks label,.field.checks label{display:flex;gap:6px;align-items:center;color:var(--text);font-size:1em;margin:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{font-size:.84em;color:var(--dim)}
+.msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.preset{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:left}
+.preset:hover{border-color:var(--accent)}
+.preset b{display:block;margin-bottom:4px}
+.preset span{font-size:.8em;color:var(--dim)}
+.preset .ics{margin-top:8px;font-size:1.1em;letter-spacing:2px}
+details.api{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:16px;background:var(--panel)}
+details.api summary{cursor:pointer;color:var(--dim)}
+h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:18px 0 8px}
+
+/* ---------- reader modal ---------- */
+#reader{position:absolute;inset:0;background:var(--scrim);display:none;z-index:60;padding:4cqh 4cqw}
+#reader.open{display:flex}
+#reader .card{margin:auto;width:min(900px,100%);max-height:100%;background:var(--panel);border:1px solid var(--line);border-radius:calc(var(--r) + 2px);display:flex;flex-direction:column;box-shadow:var(--shadow)}
+#reader .card .sh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+#reader .card .sh b{flex:1}
+#reader .card .doc{padding:16px 22px;overflow:auto;font-size:1.02em}
+
+.toast{position:fixed;bottom:44px;font-family:system-ui,sans-serif;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:10px;box-shadow:var(--shadow);font-size:.88em;z-index:70;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+.fmt{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.fmt button{background:var(--panel);border:0;padding:5px 12px;color:var(--dim)}
+.fmt button.sel{background:var(--accent);color:#fff}
+.range{display:flex;align-items:center;gap:10px}
+.range input[type=range]{flex:1;accent-color:var(--accent)}
+.range output{min-width:4.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--dim);font-size:.85em}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:700px){.grid3{grid-template-columns:1fr 1fr}}
+.panelchecks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;font-size:.9em}
+.panelchecks label{display:flex;gap:6px;align-items:center}
+#dropzone{position:fixed;inset:0;z-index:95;display:none;place-items:center;background:rgba(10,15,30,.7);color:#fff;font:600 22px system-ui,sans-serif;border:3px dashed #7c9cff}
+#dropzone.on{display:grid}
+
+/* ---------- responsive (container queries: follow the frame, not the window) ---------- */
+@container app (max-width:1100px){
+  #app main{grid-template-columns:minmax(200px,var(--lw)) minmax(0,1fr);grid-template-rows:minmax(0,1.35fr) minmax(0,1fr)}
+  #app.no-left main{grid-template-columns:minmax(0,1fr)}
+  #app.no-right main{grid-template-rows:minmax(0,1fr)}
+  #app .col.right{grid-column:1/-1;flex-direction:row}
+  #app .col.right .panel{flex:1}
+}
+@container app (max-width:720px){
+  #app main{display:flex;flex-direction:column;flex:none;min-height:auto;padding:10px 16px}
+  #app .col.right{flex-direction:column}
+  #app #feedPanel{height:72cqh}
+  #app #outPanel{height:62cqh}
+  .brand .goal{max-width:80cqw}
+  footer{flex-wrap:wrap;gap:6px 14px}
+  .hide-sm{display:none}
+}
+@media (max-width:700px){ .row2{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="brand">
+    <div class="logo">⌬</div>
+    <div class="t">
+      <h1 id="title">Agent Team Simulator</h1>
+      <div class="goal" id="goalLine">Open “Scenario” to build a team</div>
+    </div>
+    <span class="badge-sim" id="simBadge" title="All agent activity is scripted — no live model calls">Simulated</span>
+  </div>
+  <div class="controls">
+    <button class="btn icon" id="bRestart" title="Restart (R)">⟲</button>
+    <button class="btn primary" id="bPlay" title="Play / pause (Space)">▶ Play</button>
+    <button class="btn icon" id="bStep" title="Step / skip typing (→)">⏭</button>
+    <button class="btn icon" id="bEnd" title="Jump to end (E)">⏩</button>
+    <select class="btn" id="speed" title="Playback speed">
+      <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="4">4×</option>
+    </select>
+    <button class="btn" id="bScenario" title="Scenario (S)">⚙ Scenario</button>
+    <button class="btn" id="bLook" title="Appearance &amp; recording (V)">🎨 Look</button>
+    <button class="btn icon hide-sm" id="bLayout" title="Edit layout: drag &amp; resize panels (L)">✥</button>
+    <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
+    <button class="btn icon hide-sm" id="bFull" title="Fullscreen (F)">⛶</button>
+  </div>
+</header>
+<div class="progress"><div id="prog"></div></div>
+
+<main>
+  <div class="col left">
+    <section class="panel" id="graphPanel">
+      <h2>Team network</h2>
+      <svg id="graph" viewBox="0 0 300 230" role="img" aria-label="Agent collaboration network"></svg>
+    </section>
+    <section class="panel" id="agentsPanel" style="flex:1">
+      <h2>Agents <span class="sp"></span><span id="teamCount"></span></h2>
+      <div id="agents" class="scroll"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="feedPanel">
+    <h2>Activity <span class="sp"></span><span id="stepLbl" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div id="feed" class="scroll" style="flex:1"></div>
+  </section>
+
+  <div class="col right">
+    <section class="panel" id="tasksPanel">
+      <h2>Tasks <span class="sp"></span><span id="taskLbl" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div id="tasks" class="scroll"></div>
+    </section>
+    <section class="panel" id="outPanel" style="flex:1">
+      <h2>Outputs <span class="sp"></span><button class="btn icon" id="bExpand" title="Open in reader" style="padding:2px 8px;font-size:1em">⤢</button></h2>
+      <div id="outTabs"></div>
+      <div id="outView" class="scroll doc"></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <span>Step <b id="fStep">0/0</b></span>
+  <span>Elapsed <b id="fTime">00:00</b></span>
+  <span>Messages <b id="fMsg">0</b></span>
+  <span>Tool calls <b id="fTool">0</b></span>
+  <span>Outputs <b id="fOut">0</b></span>
+  <span>Tokens <b id="fTok">0</b></span>
+  <span style="margin-left:auto" class="hide-sm hint-keys">Space ▶︎/❚❚ · → step · R restart · S scenario · H hide controls</span>
+</footer>
+
+<div id="reader"><div class="card"><div class="sh"><b id="readerTitle"></b><button class="btn icon" id="bReaderClose">✕</button></div><div class="doc" id="readerBody"></div></div></div>
+<div id="count"></div>
+<div id="editBar"><b>Layout editor</b><span style="color:var(--dim)">drag to move · edges &amp; corners resize</span>
+  <select class="btn" id="layoutPreset"><option value="">Apply preset…</option></select>
+  <label><input type="checkbox" data-k="snap"> Snap</label>
+  <button class="btn" id="bShowAll" title="Show every panel">Show all</button>
+  <button class="btn primary" id="bEditDone">Done</button></div>
+</div><!-- /#app -->
+
+<!-- ============ Scenario drawer (operator UI, never part of the recording frame) ============ -->
+<div id="drawer">
+  <div class="sheet">
+    <div class="sh"><h2>Scenario</h2><button class="btn icon" id="bClose" title="Close (Esc)">✕</button></div>
+    <div class="tabs">
+      <button class="tab sel" data-pane="pBuild">Quick build</button>
+      <button class="tab" data-pane="pPresets">Presets</button>
+      <button class="tab" data-pane="pLLM">Generate with any LLM</button>
+      <button class="tab" data-pane="pJSON">Data (JSON / JSONL)</button>
+      <button class="tab" data-pane="pLook">Appearance &amp; recording</button>
+    </div>
+
+    <div class="pane sel" id="pBuild">
+      <div class="field">
+        <label for="fTitle">Session title (shown in the header)</label>
+        <input class="inp" id="fTitle" placeholder="e.g. Product launch crew">
+      </div>
+      <div class="field">
+        <label for="fGoal">Goal / brief — what the team is asked to do</label>
+        <input class="inp" id="fGoal" placeholder="e.g. Prepare the launch of our new self-service onboarding flow">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="fTeam">Team — one per line: <span class="mono">Name | Role | emoji</span></label>
+          <textarea class="inp" id="fTeam" rows="7"></textarea>
+          <div class="hint">Roles are matched to behaviours: orchestrator/lead, research, data/analyst, engineer/automation, writer/comms, reviewer/QA, design, security/compliance/legal, support, finance. Anything else becomes a generalist. The first lead-like role coordinates.</div>
+        </div>
+        <div class="field">
+          <label for="fItems">Items to mention — one per line (systems, docs, topics, KPIs)</label>
+          <textarea class="inp" id="fItems" rows="7"></textarea>
+          <div class="hint">The generator weaves each item into questions, tool calls and deliverables at least once.</div>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="fSeed">Variation seed</label>
+          <div class="actions"><input class="inp" id="fSeed" type="number" style="width:140px"><button class="btn" id="bDice" title="Random seed">🎲 Shuffle</button></div>
+          <div class="hint">Same inputs + same seed = same run, every time.</div>
+        </div>
+        <div class="field">
+          <label for="fChat">Chattiness (questions between agents)</label>
+          <select class="inp" id="fChat"><option value="1">Light</option><option value="2" selected>Normal</option><option value="3">Busy</option></select>
+        </div>
+      </div>
+      <div class="field checks">
+        <label><input type="checkbox" id="oReview" checked> Review &amp; revision loop</label>
+        <label><input type="checkbox" id="oApproval" checked> Human approval checkpoint</label>
+        <label><input type="checkbox" id="oPhases" checked> Phase captions</label>
+        <label><input type="checkbox" id="oThinking" checked> Show agent “thinking”</label>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="bGen">Generate &amp; load</button>
+        <span class="msg" id="genMsg"></span>
+      </div>
+    </div>
+
+    <div class="pane" id="pPresets">
+      <p class="msg" style="margin-top:0">Pick a starting point. It fills in Quick build and loads immediately; tweak and regenerate from there.</p>
+      <div class="presets" id="presetList"></div>
+    </div>
+
+    <div class="pane" id="pLLM">
+      <p class="msg" style="margin-top:0">Model- and platform-agnostic: copy this prompt into any chat assistant or local model, then paste what it returns below (JSON or JSONL). The prompt uses the goal, team and items from <b>Quick build</b>.</p>
+      <div class="field">
+        <label>1 · Prompt <span class="fmt" id="promptFmt" style="margin-left:8px;vertical-align:middle"><button data-f="json" class="sel">JSON</button><button data-f="jsonl">JSONL</button></span></label>
+        <textarea class="inp code" id="llmPrompt" style="min-height:220px" readonly></textarea>
+        <div class="actions" style="margin-top:8px"><button class="btn" id="bCopyPrompt">⧉ Copy prompt</button><button class="btn" id="bRefreshPrompt">↻ Refresh from Quick build</button></div>
+      </div>
+      <div class="field">
+        <label>2 · Paste the model's response</label>
+        <textarea class="inp code" id="llmResp" style="min-height:160px" placeholder="Paste here — code fences and surrounding chatter are stripped automatically"></textarea>
+        <div class="actions" style="margin-top:8px"><button class="btn primary" id="bLoadResp">Load response</button><span class="msg" id="respMsg"></span></div>
+      </div>
+      <details class="api">
+        <summary>Optional: call a model directly (any OpenAI-compatible endpoint)</summary>
+        <p class="msg">Works with hosted gateways and local servers that speak the <span class="mono">/v1/chat/completions</span> format (for example Ollama at <span class="mono">http://localhost:11434/v1/chat/completions</span> or LM Studio at <span class="mono">http://localhost:1234/v1/chat/completions</span>). The key stays in this page's memory only and is sent to the endpoint you enter. Browser CORS rules apply.</p>
+        <div class="row2">
+          <div class="field"><label for="apiUrl">Endpoint URL</label><input class="inp" id="apiUrl" placeholder="http://localhost:11434/v1/chat/completions"></div>
+          <div class="field"><label for="apiModel">Model name</label><input class="inp" id="apiModel" placeholder="e.g. llama3.1"></div>
+        </div>
+        <div class="field"><label for="apiKey">API key (optional)</label><input class="inp" id="apiKey" type="password" autocomplete="off"></div>
+        <div class="actions"><button class="btn" id="bApi">Generate via API</button><span class="msg" id="apiMsg"></span></div>
+      </details>
+    </div>
+
+    <div class="pane" id="pJSON">
+      <p class="msg" style="margin-top:0">The data that plays. Paste, edit, import or drop a <span class="mono">.json</span> / <span class="mono">.jsonl</span> file anywhere on the page; the format is detected automatically. In JSONL each line is one record: <span class="mono">meta</span>, <span class="mono">agent</span>, <span class="mono">task</span>, <span class="mono">appearance</span>, then steps (<span class="mono">note, human, message, thinking, tool, status, task, output, approval, pause</span>). Lines starting with <span class="mono">//</span> or <span class="mono">#</span> are comments.</p>
+      <div class="actions" style="margin-bottom:8px"><span class="msg">Show as</span><span class="fmt" id="dataFmt"><button data-f="json" class="sel">JSON</button><button data-f="jsonl">JSONL</button></span></div>
+      <textarea class="inp code" id="jsonBox" spellcheck="false"></textarea>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn primary" id="bApply">Apply &amp; restart</button>
+        <button class="btn" id="bCopyJson">⧉ Copy</button>
+        <button class="btn" id="bDownload">⬇ Download</button>
+        <label class="btn" style="cursor:pointer">⬆ Import file<input type="file" id="fileIn" accept=".json,.jsonl,.ndjson,.txt,application/json" hidden></label>
+        <span class="msg" id="jsonMsg"></span>
+      </div>
+      <h3 class="sec">Single-file hand-off</h3>
+      <div class="actions"><button class="btn" id="bStandalone">⬇ Download standalone HTML with this scenario</button></div>
+      <p class="msg">Saves a copy of this page with the current scenario (and, if ticked below, the current look) embedded. It opens straight into that scenario, with no other files needed, which is ideal for the recording machine.</p>
+      <div class="field checks" style="flex-direction:column">
+        <label><input type="checkbox" data-k="includeLook"> Include the current appearance in downloads &amp; standalone HTML</label>
+        <label><input type="checkbox" data-k="applyScriptLook"> Apply the appearance stored in loaded files</label>
+      </div>
+      <h3 class="sec">Load from a URL</h3>
+      <p class="msg">When the page is served over http(s), add <span class="mono">?src=scenario.jsonl</span> to load a data file. Other parameters: <span class="mono">frame=1920x1080</span>, <span class="mono">theme=paper</span>, <span class="mono">fs=18</span>, <span class="mono">speed=1.5</span>, <span class="mono">rec=1</span>, <span class="mono">autoplay=1</span>. Handy for a browser source in recording software.</p>
+    </div>
+
+    <div class="pane" id="pLook">
+      <h3 class="sec" style="margin-top:0">Frame &amp; size</h3>
+      <div class="row2">
+        <div class="field">
+          <label for="aFrame">Frame</label>
+          <select class="inp" id="aFrame" data-k="frame">
+            <option value="fit">Fit window</option>
+            <option value="1920x1080">16:9 · 1920 × 1080</option>
+            <option value="1280x720">16:9 · 1280 × 720</option>
+            <option value="1440x1080">4:3 · 1440 × 1080</option>
+            <option value="1080x1080">1:1 · 1080 × 1080</option>
+            <option value="1080x1350">4:5 · 1080 × 1350</option>
+            <option value="1080x1920">9:16 · 1080 × 1920 (vertical)</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <div class="hint">A fixed frame lays out at exactly that size and scales to fit the window, so what you record matches the output resolution.</div>
+        </div>
+        <div class="field" id="customWrap">
+          <label>Custom size (px)</label>
+          <div class="actions"><input class="inp" type="number" data-k="fw" min="320" max="7680" style="width:110px"> × <input class="inp" type="number" data-k="fh" min="240" max="4320" style="width:110px"></div>
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Text size</label><div class="range"><input type="range" data-k="fs" min="11" max="32" step="1"><output data-o="fs"></output></div></div>
+        <div class="field"><label>Left column</label><div class="range"><input type="range" data-k="lw" min="200" max="520" step="10"><output data-o="lw"></output></div></div>
+        <div class="field"><label>Right column</label><div class="range"><input type="range" data-k="rw" min="280" max="760" step="10"><output data-o="rw"></output></div></div>
+        <div class="field"><label>Spacing</label><div class="range"><input type="range" data-k="gap" min="4" max="28" step="1"><output data-o="gap"></output></div></div>
+        <div class="field"><label>Corner radius</label><div class="range"><input type="range" data-k="radius" min="0" max="26" step="1"><output data-o="radius"></output></div></div>
+        <div class="field"><label>Typing speed</label><div class="range"><input type="range" data-k="typeSpeed" min="0.3" max="3" step="0.1"><output data-o="typeSpeed"></output></div></div>
+      </div>
+
+      <h3 class="sec">Look</h3>
+      <div class="grid3">
+        <div class="field"><label>Theme</label>
+          <select class="inp" data-k="theme">
+            <option value="dark">Dark</option><option value="midnight">Midnight</option><option value="slate">Slate</option>
+            <option value="light">Light</option><option value="paper">Paper</option><option value="contrast">High contrast</option><option value="terminal">Terminal</option>
+          </select></div>
+        <div class="field"><label>Font</label>
+          <select class="inp" data-k="font">
+            <option value="system">System sans</option><option value="humanist">Humanist sans</option><option value="rounded">Rounded</option>
+            <option value="serif">Serif</option><option value="mono">Monospace</option>
+          </select></div>
+        <div class="field"><label>Background</label>
+          <select class="inp" data-k="bg"><option value="solid">Solid</option><option value="gradient">Soft gradient</option><option value="dots">Dot grid</option></select></div>
+        <div class="field"><label>Accent colour</label>
+          <div class="actions"><input type="color" data-k="accent" style="width:52px;height:34px;border:1px solid var(--line);border-radius:8px;background:none;padding:2px"><button class="btn" id="bAccentReset">Theme default</button></div></div>
+      </div>
+
+      <h3 class="sec">Layout</h3>
+      <div class="actions" style="margin-bottom:10px"><span class="fmt" id="layoutMode"><button data-m="columns">Columns</button><button data-m="canvas">Free canvas</button></span>
+        <button class="btn" id="bEditLayout">✥ Edit layout on the stage</button></div>
+      <p class="msg" style="margin-top:0">Free canvas lets you drag and resize every panel on the stage. Positions are stored as percentages of the frame, so a layout works at any resolution and travels with exported scenarios. Pick a starting point:</p>
+      <div class="lthumbs" id="layoutThumbs"></div>
+
+      <h3 class="sec">Panels</h3>
+      <div class="panelchecks">
+        <label><input type="checkbox" data-k="show.header"> Header</label>
+        <label><input type="checkbox" data-k="show.progress"> Progress bar</label>
+        <label><input type="checkbox" data-k="show.graph"> Team network</label>
+        <label><input type="checkbox" data-k="show.agents"> Agent cards</label>
+        <label><input type="checkbox" data-k="show.counters"> Agent counters</label>
+        <label><input type="checkbox" data-k="show.tasks"> Tasks</label>
+        <label><input type="checkbox" data-k="show.outputs"> Outputs</label>
+        <label><input type="checkbox" data-k="show.footer"> Footer stats</label>
+        <label><input type="checkbox" data-k="badge"> “Simulated” badge</label>
+      </div>
+
+      <h3 class="sec">Recording</h3>
+      <div class="field checks" style="flex-direction:column">
+        <label><input type="checkbox" data-k="rec"> Recording mode: hide the header controls, key hints and scrollbars (toggle with <b>H</b>)</label>
+        <label><input type="checkbox" data-k="hideCursor"> Hide the mouse cursor after 1.5 s of stillness in recording mode</label>
+        <label><input type="checkbox" data-k="countdown"> 3-2-1 countdown when playing from the start</label>
+        <label><input type="checkbox" data-k="autoApprove"> Auto-approve human checkpoints after 3 seconds (hands-free runs)</label>
+        <label><input type="checkbox" data-k="autoOpen"> Switch the Outputs panel to each new deliverable</label>
+        <label><input type="checkbox" data-k="autoplay"> Start playing as soon as a scenario loads</label>
+      </div>
+      <div class="field" style="max-width:260px">
+        <label>Name shown for the human</label>
+        <input class="inp" data-k="human">
+      </div>
+      <div class="actions"><button class="btn" id="bResetLook">↺ Reset appearance</button><span class="msg" id="frameInfo"></span></div>
+      <h3 class="sec">Keyboard</h3>
+      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · + / − text size · Esc close</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="dropzone">Drop a .json or .jsonl scenario</div>
+
+<script>
+"use strict";
+// Snapshot of the untouched page, used by "Download standalone HTML".
+const ORIGINAL_HTML = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+/* =====================================================================
+   Utilities
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ats:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ats:' + k, JSON.stringify(v)); } catch (e) {} }
+};
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); }
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'item';
+const camel = s => String(s).replace(/[^a-zA-Z0-9]+(.)?/g, (m, c) => c ? c.toUpperCase() : '').replace(/^./, c => c.toUpperCase()) || 'Item';
+const fmtTime = ms => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+/* ---------- tiny markdown renderer (escapes first) ---------- */
+function inlineMd(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<em>$2</em>');
+}
+function mdTable(rows) {
+  const cells = r => { let c = r.trim(); if (c.startsWith('|')) c = c.slice(1); if (c.endsWith('|')) c = c.slice(0, -1); return c.split('|').map(x => x.trim()); };
+  const body = rows.filter(r => !/^\s*\|?[\s:|-]+\|?\s*$/.test(r));
+  if (!body.length) return '';
+  let h = '<table><thead><tr>' + cells(body[0]).map(c => '<th>' + inlineMd(c) + '</th>').join('') + '</tr></thead><tbody>';
+  body.slice(1).forEach(r => { h += '<tr>' + cells(r).map(c => '<td>' + inlineMd(c) + '</td>').join('') + '</tr>'; });
+  return h + '</tbody></table>';
+}
+function md(src) {
+  const L = String(src).split('\n'), out = []; let i = 0, list = null;
+  const close = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+  const open = t => { if (list !== t) { close(); out.push('<' + t + '>'); list = t; } };
+  while (i < L.length) {
+    const l = L[i]; let m;
+    if (/^\s*```/.test(l)) { close(); const b = []; i++; while (i < L.length && !/^\s*```/.test(L[i])) b.push(L[i++]); i++; out.push('<pre><code>' + highlight(b.join('\n')) + '</code></pre>'); continue; }
+    if (/^\s*\|/.test(l)) { close(); const rows = []; while (i < L.length && /^\s*\|/.test(L[i])) rows.push(L[i++]); out.push(mdTable(rows)); continue; }
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { close(); const n = m[1].length + 1; out.push('<h' + n + '>' + inlineMd(m[2]) + '</h' + n + '>'); }
+    else if ((m = l.match(/^\s*[-*]\s+\[( |x|X)\]\s+(.*)/))) { open('ul'); out.push('<li class="chkli">' + (m[1] === ' ' ? '☐ ' : '☑ ') + inlineMd(m[2]) + '</li>'); }
+    else if ((m = l.match(/^\s*[-*]\s+(.*)/))) { open('ul'); out.push('<li>' + inlineMd(m[1]) + '</li>'); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { open('ol'); out.push('<li>' + inlineMd(m[1]) + '</li>'); }
+    else if ((m = l.match(/^>\s?(.*)/))) { close(); out.push('<blockquote>' + inlineMd(m[1]) + '</blockquote>'); }
+    else if (/^\s*---+\s*$/.test(l)) { close(); out.push('<hr>'); }
+    else if (!l.trim()) close();
+    else { close(); out.push('<p>' + inlineMd(l) + '</p>'); }
+    i++;
+  }
+  close(); return out.join('');
+}
+function highlight(code) {
+  const e = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const re = /(\/\/[^\n]*|#[^\n]*)|('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`[^`]*`)|\b(const|let|var|function|async|await|return|if|else|for|of|in|import|from|export|def|class|new|try|catch|throw|true|false|null|None|True|False|SELECT|FROM|WHERE|GROUP|BY|ORDER|JOIN|AND|OR)\b|\b(\d+(?:\.\d+)?)\b/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(code))) {
+    out += e(code.slice(last, m.index));
+    const cls = m[1] ? 'tk-c' : m[2] ? 'tk-s' : m[3] ? 'tk-k' : 'tk-n';
+    out += '<span class="' + cls + '">' + e(m[0]) + '</span>';
+    last = re.lastIndex;
+  }
+  return out + e(code.slice(last));
+}
+
+/* =====================================================================
+   Role archetypes — the "fill in the blanks" content banks
+   Placeholders: {to} {from} {item} {item2} {Item} {Item2} {short} {task} {n} {num} {pct}
+   ===================================================================== */
+const ARCH = {
+  lead: {
+    match: /orchestr|lead|manager|coordinat|planner|director|head of|chief|supervisor|\bpm\b|product owner|conductor|dispatcher/i,
+    icon: '🧭', task: 'Coordinate the team & compile the summary',
+    tools: [['plan_tasks', '"{short}"', '{n} workstreams · 3 can run in parallel · est. {num} min'], ['check_progress', 'team', '{pct}% complete · 0 blockers · 1 open question'], ['memory.recall', '"previous {item} decisions"', '2 prior decisions found (both still valid)']],
+    think: ['Breaking “{short}” into workstreams and matching them to each agent’s strengths.', 'Mapping dependencies — {item} has to land before anything that depends on it.', 'Checking the critical path. {item} is the long pole; everything else can run in parallel.'],
+    handoff: ['@{to} — you own “{task}”. Start with {item}; flag anything that blocks you.', '@{to}, please take “{task}”. {Item} is the priority; pull in whoever you need.', '@{to} — over to you for “{task}”. Keep it tight, I need a first pass on {item} soon.'],
+    asks: ['@{to} — how confident are you on {item}? I need to state it in the summary.', '@{to}, anything blocking you on {item}? Happy to re-prioritise.', '@{to} — quick check: is {item} in scope for this pass or a follow-up?'],
+    answers: ['Agreed — prioritise {item}, park the rest for the next iteration.', 'Decision: go with the simpler option on {item}. We can iterate once it’s live.', 'In scope. {Item} is the part stakeholders will ask about first.'],
+    work: ['Tracking dependencies', 'Monitoring progress', 'Re-balancing workload']
+  },
+  researcher: {
+    match: /research|investigat|scout|intel|discover|librar|search|market/i,
+    icon: '🔎', task: 'Research {item}',
+    tools: [['web_search', '"{item} best practice {year}"', '{num} results · 6 high-relevance sources kept'], ['read_docs', '"{Item} — internal wiki"', 'Extracted 14 passages · 2 conflicting claims flagged'], ['knowledge_base.query', '"{item}"', '{n} matching records · most recent 12 days old']],
+    think: ['Cross-referencing sources on {item} — two disagree, weighting the more recent one.', 'Filtering noise: {num} hits down to the handful that actually address {short}.', 'Looking for primary sources on {item} rather than summaries of summaries.'],
+    asks: ['@{to} — do you have internal data on {item}? Public sources only get me so far.', '@{to}, which matters more for you: breadth on {item} or depth on {item2}?', '@{to} — what did we learn last time we touched {item}? I can’t find a write-up.'],
+    answers: ['From what I found, {item} is the bigger lever — roughly {pct}% of cases cite it.', 'Sources are split, but the strongest evidence says tackle {item} first, then {item2}.', 'Short version: {item} is well understood externally; our gap is internal data.'],
+    work: ['Reading sources', 'Synthesising findings', 'Checking citations']
+  },
+  data: {
+    match: /data|analy|metric|sql|statistic|insight|ledger|bi\b|quant/i,
+    icon: '📊', task: 'Analyse the numbers behind {item}',
+    tools: [['sql.query', '"SELECT week, COUNT(*) FROM {itemslug} GROUP BY week"', '{num} rows · 0.4s'], ['python.run', '"trend_analysis.py --metric {itemslug}"', 'Trend +{pct}% over 8 weeks · p < 0.05'], ['spreadsheet.read', '"{Item} tracker.xlsx"', '3 sheets · {num} rows · 2 columns with gaps']],
+    think: ['Baseline looks noisy — smoothing over 4 weeks before comparing {item}.', 'Checking whether the {item} spike is real or just a reporting change.', 'Segmenting {item} by customer type; the average hides the story.'],
+    asks: ['@{to} — which definition of {item} should I use? Finance and Ops count it differently.', '@{to}, is a {pct}% change on {item} meaningful to you, or do you need a bigger signal?', '@{to} — can I get read access to the {item} source? The export is a week stale.'],
+    answers: ['Data says {item} moved {pct}% over the period — and it’s statistically solid.', 'Use the Ops definition for {item}; it’s the one the dashboard already reports.', 'The signal on {item} is real but small. I’d present it as directional.'],
+    work: ['Querying data', 'Building charts', 'Validating numbers']
+  },
+  engineer: {
+    match: /engineer|develop|dev\b|coder|build|automat|forge|sre|reliab|devops|platform|integrat|architect|tech/i,
+    icon: '🛠️', task: 'Build the automation for {item}',
+    tools: [['repo.search', '"{itemslug}"', '{n} files reference it · 1 deprecated helper'], ['run_tests', '"{itemslug}.spec"', '{num} passed · 0 failed · 94% coverage'], ['api.call', '"GET /v2/{itemslug}/status"', '200 OK · 128 ms'], ['logs.search', '"{itemslug} error last 24h"', '{n} errors · all the same timeout']],
+    think: ['The {item} integration can be event-driven instead of polling — simpler and cheaper.', 'Adding a retry with back-off around {item}; that timeout is transient.', 'Writing the test for {item} first so I know when I’m done.'],
+    asks: ['@{to} — what should happen when {item} fails? Retry, alert, or route to a human?', '@{to}, is the {item} field ever empty in real data? The spec doesn’t say.', '@{to} — do we need an audit trail on {item} changes?'],
+    answers: ['Technically yes — {item} exposes an API, so we can automate it end-to-end.', 'Retry twice, then route to a human queue. No silent failures.', 'It’s a {n}-line change behind a feature flag; low risk to ship.'],
+    work: ['Writing code', 'Running tests', 'Wiring up integrations']
+  },
+  writer: {
+    match: /writ|copy|content|editor|comms|communicat|author|quill|story|pr\b|marketing|messag/i,
+    icon: '✍️', task: 'Draft the messaging for {item}',
+    tools: [['style_guide.lookup', '"tone: customer-facing"', 'Plain English · active voice · no jargon'], ['draft.create', '"{Item} announcement"', 'Draft v1 · {num} words'], ['readability.check', '"draft v1"', 'Grade 8 · 3 long sentences flagged']],
+    think: ['Leading with the benefit, not the feature — what does {item} change for the reader?', 'Cutting the intro in half. Nobody reads past the second line.', 'Checking every claim about {item} has something behind it.'],
+    asks: ['@{to} — can I say “{pct}% faster” about {item}, or is that too strong?', '@{to}, who’s the audience for the {item} piece — execs or end users?', '@{to} — is there a customer quote about {item} I can use?'],
+    answers: ['I’d phrase {item} as an outcome: “less waiting, fewer errors”.', 'Execs first; I’ll do a shorter version for end users after.', 'Yes — I’ll soften the {item} claim and link the source.'],
+    work: ['Drafting', 'Editing', 'Tightening copy']
+  },
+  reviewer: {
+    match: /review|qa\b|quality|test|critic|check|audit|sentinel|verif|proof|editor-in-chief/i,
+    icon: '✅', task: 'Quality review of all deliverables',
+    tools: [['checklist.run', '"release-readiness"', '{n}/12 checks passed · rest need evidence'], ['diff.compare', '"v1 → v2"', '{num} lines changed · 2 claims updated'], ['fact_check', '"{item}"', '1 claim unsupported · 1 figure out of date']],
+    think: ['Reading as a sceptic — where would a stakeholder push back on {item}?', 'Checking the numbers in the draft match the analysis on {item}.', 'Consistency pass: are we calling {item} the same thing everywhere?'],
+    asks: ['@{to} — the section on {item} makes a claim without a source. Can you back it up or soften it?', '@{to}, the {item} figure doesn’t match the analysis. Which one is right?', '@{to} — what happens to {item} in the failure case? It isn’t covered.'],
+    answers: ['From a quality view, {item} is fine; the risk is in {item2}.', 'Pass, with one change: add the source for {item}.', 'Looks good. I’d still want a human to sign off on {item}.'],
+    work: ['Reviewing', 'Fact-checking', 'Running checklists']
+  },
+  designer: {
+    match: /design|ux|ui\b|creative|visual|product design|research ops/i,
+    icon: '🎨', task: 'Design the {item} experience',
+    tools: [['design_system.lookup', '"form patterns"', '4 components match · 1 needs an empty state'], ['wireframe.generate', '"{Item} flow"', '3 screens · 2 decision points'], ['a11y.check', '"{Item} flow v1"', 'Contrast AA ✓ · 2 missing labels']],
+    think: ['Removing a step from the {item} flow — that confirmation screen adds nothing.', 'What’s the empty state for {item}? First-time users will see it most.', 'Sketching the error path for {item} before the happy path.'],
+    asks: ['@{to} — how often does {item} actually go wrong? It changes how prominent the error UI is.', '@{to}, can {item} be pre-filled? It would save users a step.', '@{to} — any hard constraints on {item} I should design around?'],
+    answers: ['I’d surface {item} inline rather than in a separate step.', 'Pre-filling {item} is doable; I’ll add it to the flow.', 'Keep it to one screen; {item} is the only decision the user makes.'],
+    work: ['Wireframing', 'Prototyping', 'Accessibility pass']
+  },
+  compliance: {
+    match: /secur|complian|legal|risk|privacy|governance|shield|policy|regulat|counsel|gdpr/i,
+    icon: '⚖️', task: 'Risk & compliance check on {item}',
+    tools: [['policy.search', '"{item}"', '2 relevant policies · 1 updated this quarter'], ['risk.score', '"{Item} change"', 'Risk: Low (3/10) · 1 mitigation required'], ['pii.scan', '"{itemslug} dataset"', '0 unmasked PII fields']],
+    think: ['Does {item} touch personal data? If so we need a retention rule.', 'Checking {item} against the current policy, not last year’s version.', 'The risk isn’t {item} itself — it’s who can change it.'],
+    asks: ['@{to} — who has write access to {item}? I need it for the access review.', '@{to}, where is {item} data stored, and for how long?', '@{to} — is there a human in the loop before {item} goes out?'],
+    answers: ['{Item} is compliant as long as we log who approved it.', 'Low risk. Mitigation: mask the fields before {item} leaves the system.', 'Retention is 90 days; I’ve added that to the {item} requirements.'],
+    work: ['Assessing risk', 'Checking policy', 'Writing controls']
+  },
+  support: {
+    match: /support|customer|success|service|help ?desk|echo|care|advocate|community/i,
+    icon: '💬', task: 'Prepare customer responses on {item}',
+    tools: [['tickets.search', '"{item}" last 30d', '{num} tickets mention it · top theme: confusion'], ['sentiment.analyze', '"{item} tickets"', '{pct}% negative · mostly about wait times'], ['kb.lookup', '"{Item} FAQ"', 'Article exists · last edited 7 months ago']],
+    think: ['Customers don’t call it “{item}” — using their words in the replies.', 'The top 3 {item} questions cover most of the volume; start there.', 'Drafting a reply for the angriest ticket first; if it works there it works anywhere.'],
+    asks: ['@{to} — when {item} changes, will existing customers get notified automatically?', '@{to}, what should agents say if a customer asks about {item} timelines?', '@{to} — is there a workaround for {item} we can share today?'],
+    answers: ['Customers mostly ask about {item} — {pct}% of recent tickets.', 'Frontline view: {item} needs a one-line explanation, not a policy link.', 'We can deflect most {item} tickets with a clear help article.'],
+    work: ['Reading tickets', 'Drafting replies', 'Updating help articles']
+  },
+  finance: {
+    match: /financ|budget|cost|account|revenue|pricing|cfo|commercial|procure/i,
+    icon: '💰', task: 'Model the cost impact of {item}',
+    tools: [['ledger.query', '"{item} spend YTD"', '{num}k across {n} cost centres'], ['forecast.run', '"{Item} scenario B"', 'Payback in {n} months · NPV positive'], ['budget.check', '"Q4 {item}"', 'Within budget · 12% headroom']],
+    think: ['Separating one-off from recurring cost on {item}; they tell different stories.', 'Stress-testing the {item} forecast with a 20% worse case.', 'Checking {item} savings aren’t double-counted with last year’s programme.'],
+    asks: ['@{to} — how many hours a week does {item} take today? I need a baseline.', '@{to}, is {item} a one-off cost or ongoing?', '@{to} — what’s the worst case for {item} if adoption is slow?'],
+    answers: ['Financially {item} pays back in about {n} months.', 'Budget is fine; the risk on {item} is timing, not cost.', 'Recurring. I’ve modelled {item} over 3 years to be safe.'],
+    work: ['Modelling costs', 'Building forecast', 'Reconciling figures']
+  },
+  specialist: {
+    match: /.*/,
+    icon: '🤖', task: 'Investigate {item}',
+    tools: [['search', '"{item}"', '{n} relevant results'], ['analyze', '"{item}"', 'Summary ready · 3 key points'], ['notes.write', '"{Item} findings"', 'Saved']],
+    think: ['Working through {item} step by step.', 'Comparing two approaches to {item}.', 'Checking assumptions about {item} before going further.'],
+    asks: ['@{to} — what’s your take on {item}?', '@{to}, do you have context on {item} I might be missing?'],
+    answers: ['My take: {item} is simpler than it looks once {item2} is sorted.', 'Happy to help — {item} mainly needs a clear owner.'],
+    work: ['Investigating', 'Analysing', 'Writing notes']
+  }
+};
+const ARCH_ORDER = ['lead', 'compliance', 'reviewer', 'designer', 'finance', 'support', 'writer', 'data', 'engineer', 'researcher', 'specialist'];
+const archFor = role => ARCH_ORDER.find(k => ARCH[k].match.test(role || '')) || 'specialist';
+const PALETTE = ['#7c9cff', '#f7a35c', '#5ed1a5', '#e879c6', '#f2d45c', '#62c6f0', '#b18cff', '#ff7a7a', '#9ad14b', '#ffa6c9'];
+
+/* =====================================================================
+   Procedural generator: goal + team + items → script
+   ===================================================================== */
+function parseTeam(text) {
+  return text.split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => {
+    const [name, role, icon] = l.split('|').map(s => (s || '').trim());
+    const arch = archFor(role || name);
+    return { id: slug(name || 'agent' + i), name: name || 'Agent ' + (i + 1), role: role || 'Generalist', icon: icon || ARCH[arch].icon, color: PALETTE[i % PALETTE.length], arch };
+  });
+}
+function parseItems(text) { return text.split(/\n|,/).map(s => s.trim()).filter(Boolean); }
+
+function generate(cfg) {
+  const rng = mulberry32(Number(cfg.seed) || 1);
+  const pick = a => a[Math.floor(rng() * a.length)];
+  const int = (a, b) => a + Math.floor(rng() * (b - a + 1));
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  let agents = parseTeam(cfg.team);
+  if (!agents.length) agents = parseTeam('Atlas | Orchestrator\nScout | Researcher\nQuill | Writer');
+  const seen = {}; agents.forEach(a => { let id = a.id; while (seen[id]) id += '_'; seen[id] = 1; a.id = id; });
+  const lead = agents.find(a => a.arch === 'lead') || agents[0];
+  const workers = agents.filter(a => a !== lead);
+  const reviewer = cfg.review ? workers.find(a => a.arch === 'reviewer') : null;
+  const doers = workers.filter(a => a !== reviewer);
+  const goal = (cfg.goal || 'Deliver the project').trim();
+  const short = goal.replace(/[.!?]+$/, '').replace(/^./, c => c.toLowerCase());
+  let items = parseItems(cfg.items || '');
+  if (!items.length) items = ['requirements', 'timeline', 'risks', 'success metrics'];
+  const q = shuffle(items); let qi = 0;
+  const nextItem = () => q[qi++ % q.length];
+  const other = it => { if (items.length < 2) return it; let o; do { o = pick(items); } while (o === it); return o; };
+
+  const fill = (tpl, x = {}) => {
+    const it = x.item || items[0], it2 = x.item2 || other(it);
+    const ctx = Object.assign({ short, goal, year: new Date().getFullYear(), n: int(2, 9), num: int(12, 480), pct: int(12, 68), item: it, item2: it2, Item: cap(it), Item2: cap(it2), itemslug: slug(it) }, x);
+    return tpl.replace(/\{(\w+)\}/g, (m, k) => ctx[k] !== undefined ? ctx[k] : m);
+  };
+  const A = a => ARCH[a.arch] || ARCH.specialist;
+  const steps = [];
+  const S = s => steps.push(s);
+  const phase = t => { if (cfg.phases) S({ type: 'note', text: t }); };
+  const think = (a, tpl, x) => { if (cfg.thinking) S({ type: 'thinking', agent: a.id, text: fill(tpl, x), duration: int(1100, 2200) }); };
+  const tool = (a, x) => { const [name, input, output] = pick(A(a).tools); S({ type: 'tool', agent: a.id, tool: name, input: fill(input, x), output: fill(output, x), duration: int(900, 1800) }); };
+
+  // tasks
+  const tasks = [];
+  const taskOf = {};
+  const workerItem = {};
+  doers.forEach(a => { const it = nextItem(); workerItem[a.id] = it; const t = { id: 't' + (tasks.length + 1), title: fill(A(a).task, { item: it }), owner: a.id }; tasks.push(t); taskOf[a.id] = t; });
+  if (reviewer) { const t = { id: 't' + (tasks.length + 1), title: fill(A(reviewer).task), owner: reviewer.id }; tasks.push(t); taskOf[reviewer.id] = t; }
+  const leadTask = { id: 't' + (tasks.length + 1), title: 'Compile summary & recommendations', owner: lead.id }; tasks.push(leadTask);
+
+  // 1. kickoff
+  phase('Brief');
+  S({ type: 'human', text: goal + (items.length ? '\n\nMake sure we cover: ' + items.join(', ') + '.' : '') });
+  S({ type: 'status', agent: lead.id, status: 'thinking', note: 'Reading the brief' });
+  think(lead, pick(ARCH.lead.think), { item: items[0] });
+
+  // 2. plan
+  phase('Planning');
+  S({ type: 'tool', agent: lead.id, tool: 'plan_tasks', input: '"' + short + '"', output: `${tasks.length} tasks · ${doers.length} parallel tracks · ${items.length} items to cover`, duration: 1400 });
+  S({ type: 'output', agent: lead.id, id: 'plan', title: 'Plan: ' + cap(short), format: 'markdown', content: buildPlan() });
+  S({ type: 'message', from: lead.id, to: 'all', kind: 'say', text: `Plan is up — ${tasks.length} tasks across the team. I’ll hand out owners now; ask each other directly rather than routing through me.` });
+  [...doers, ...(reviewer ? [reviewer] : [])].forEach(a => {
+    const t = taskOf[a.id];
+    S({ type: 'message', from: lead.id, to: a.id, kind: 'handoff', text: fill(pick(ARCH.lead.handoff), { to: a.name, task: t.title, item: workerItem[a.id] || items[0] }) });
+    S({ type: 'task', id: t.id, status: 'doing' });
+    S({ type: 'status', agent: a.id, status: 'working', note: pick(A(a).work) });
+  });
+  S({ type: 'task', id: leadTask.id, status: 'doing' });
+  S({ type: 'status', agent: lead.id, status: 'working', note: 'Monitoring progress' });
+
+  // 3. parallel work
+  phase('Parallel execution');
+  doers.forEach(a => {
+    const it = workerItem[a.id];
+    S({ type: 'status', agent: a.id, status: 'thinking', note: pick(A(a).work) });
+    think(a, pick(A(a).think), { item: it });
+    tool(a, { item: it });
+  });
+  if (reviewer) {
+    S({ type: 'status', agent: reviewer.id, status: 'working', note: 'Preparing review checklist' });
+    S({ type: 'tool', agent: reviewer.id, tool: 'checklist.load', input: '"release-readiness"', output: '12 checks loaded · tailored to ' + items.length + ' focus items', duration: 1000 });
+  }
+
+  // 4. collaboration Q&A
+  phase('Collaboration');
+  const rounds = Math.max(1, Number(cfg.chat) || 2);
+  const pairs = [];
+  for (let r = 0; r < rounds; r++) {
+    shuffle(doers).forEach((a, i) => {
+      if (r > 0 && rng() < 0.45) return;
+      const pool = agents.filter(b => b !== a && b !== reviewer);
+      if (!pool.length) return;
+      const b = r === 0 ? pool[(i + 1) % pool.length] : pick(pool);
+      pairs.push([a, b, r === 0 ? workerItem[a.id] : nextItem()]);
+    });
+  }
+  // lead check-in partway through
+  if (doers.length) pairs.splice(Math.min(pairs.length, 2), 0, [lead, pick(doers), nextItem(), true]);
+  pairs.forEach(([a, b, it]) => {
+    const it2 = other(it);
+    S({ type: 'message', from: a.id, to: b.id, kind: 'ask', text: fill(pick(A(a).asks), { to: b.name, item: it, item2: it2 }) });
+    S({ type: 'status', agent: a.id, status: 'waiting', note: 'Waiting on ' + b.name });
+    if (cfg.thinking && rng() < 0.5) think(b, pick(A(b).think), { item: it, item2: it2 });
+    else if (rng() < 0.5) tool(b, { item: it, item2: it2 });
+    S({ type: 'message', from: b.id, to: a.id, kind: 'answer', text: fill(pick(A(b).answers), { to: a.name, item: it, item2: it2 }) });
+    S({ type: 'status', agent: a.id, status: 'working', note: pick(A(a).work) });
+  });
+
+  // 5. deliverables
+  phase('Deliverables');
+  const outputs = [];
+  doers.forEach(a => {
+    const it = workerItem[a.id];
+    const o = buildOutput(a, it);
+    outputs.push({ agent: a, id: o.id, title: o.title, item: it, format: o.format });
+    S({ type: 'status', agent: a.id, status: 'writing', note: 'Writing ' + o.title });
+    S(Object.assign({ type: 'output', agent: a.id }, o));
+    S({ type: 'task', id: taskOf[a.id].id, status: reviewer ? 'review' : 'done' });
+    S({ type: 'status', agent: a.id, status: reviewer ? 'waiting' : 'done', note: reviewer ? 'Awaiting review' : 'Delivered' });
+  });
+
+  // 6. review loop
+  if (reviewer && outputs.length) {
+    phase('Review');
+    S({ type: 'status', agent: reviewer.id, status: 'working', note: 'Reviewing deliverables' });
+    const flagged = shuffle(outputs).slice(0, Math.min(2, outputs.length));
+    think(reviewer, pick(ARCH.reviewer.think), { item: flagged[0].item });
+    S({ type: 'tool', agent: reviewer.id, tool: 'fact_check', input: outputs.map(o => '"' + o.title + '"').join(', '), output: `${outputs.length} documents · ${flagged.length} need changes · rest approved`, duration: 1600 });
+    flagged.forEach(o => {
+      S({ type: 'message', from: reviewer.id, to: o.agent.id, kind: 'review', text: fill(pick(ARCH.reviewer.asks), { to: o.agent.name, item: o.item }) });
+      S({ type: 'status', agent: o.agent.id, status: 'working', note: 'Revising ' + o.title });
+      S({ type: 'message', from: o.agent.id, to: reviewer.id, kind: 'answer', text: fill(pick(['Good catch — fixing now. {Item} claim will cite the source.', 'Fair. I’ve updated the {item} figure and noted the definition used.', 'Agreed. Added the failure case for {item} and a line on who owns it.']), { item: o.item }) });
+      S({ type: 'output', agent: o.agent.id, id: o.id, append: true, content: revisionNote(o) });
+    });
+    S({ type: 'output', agent: reviewer.id, id: 'review', title: 'Review notes', format: 'markdown', content: buildReview(outputs, flagged) });
+    outputs.forEach(o => { S({ type: 'task', id: taskOf[o.agent.id].id, status: 'done' }); S({ type: 'status', agent: o.agent.id, status: 'done', note: 'Delivered' }); });
+    S({ type: 'message', from: reviewer.id, to: lead.id, kind: 'say', text: `All ${outputs.length} deliverables pass after revisions. Good to summarise.` });
+    S({ type: 'task', id: taskOf[reviewer.id].id, status: 'done' });
+    S({ type: 'status', agent: reviewer.id, status: 'done', note: 'Review complete' });
+  }
+
+  // 7. summary + approval
+  phase('Sign-off');
+  S({ type: 'status', agent: lead.id, status: 'writing', note: 'Compiling summary' });
+  think(lead, 'Pulling the deliverables together — what does a busy stakeholder need to decide?');
+  S({ type: 'output', agent: lead.id, id: 'summary', title: 'Summary & recommendations', format: 'markdown', content: buildSummary(outputs) });
+  if (cfg.approval) {
+    S({ type: 'approval', from: lead.id, text: `Summary is ready. ${outputs.length} deliverables, all reviewed. Approve to publish, or request changes.` });
+  }
+  S({ type: 'task', id: leadTask.id, status: 'done' });
+  S({ type: 'message', from: lead.id, to: 'human', kind: 'say', text: 'Done. Everything is in the Outputs panel — the summary is the place to start.' });
+  agents.forEach(a => S({ type: 'status', agent: a.id, status: 'done', note: 'Finished' }));
+
+  return {
+    title: cfg.title || 'Agent team',
+    goal,
+    agents: agents.map(({ id, name, role, icon, color }) => ({ id, name, role, icon, color })),
+    tasks,
+    steps
+  };
+
+  /* ---- content builders (closures over generator state) ---- */
+  function buildPlan() {
+    let s = `# Plan: ${cap(short)}\n**Objective:** ${goal}\n\n## Workstreams\n`;
+    tasks.forEach(t => { const a = agents.find(x => x.id === t.owner); s += `- [ ] ${t.title} — *${a.name}, ${a.role}*\n`; });
+    s += `\n## Items to cover\n` + items.map(i => `- ${cap(i)}`).join('\n');
+    s += `\n\n## Definition of done\n- Every workstream has a written output\n${reviewer ? '- Outputs pass review\n' : ''}- Summary ready for ${cfg.approval ? 'human sign-off' : 'hand-over'}`;
+    return s;
+  }
+  function buildOutput(a, it) {
+    const it2 = other(it), I = cap(it), I2 = cap(it2), id = 'o_' + a.id;
+    switch (a.arch) {
+      case 'researcher': return { id, title: 'Research brief: ' + I, format: 'markdown', content:
+`# Research brief: ${I}
+**Question:** How does ${it} affect ${short}?
+
+## Key findings
+1. ${I} is the most-cited factor — around ${int(30, 60)}% of the sources raise it.
+2. Teams that tackle ${it} early report ${int(15, 40)}% fewer downstream issues.
+3. ${I2} matters, but mostly as a consequence of ${it}, not a cause.
+
+## Sources
+- Industry benchmark report (${new Date().getFullYear()}) — high relevance
+- Internal wiki: “${I} FAQ” — partially out of date
+- Customer interviews (n=${int(8, 24)})
+
+## Confidence
+Medium-high. Two sources disagree on ${it2}; flagged for review.` };
+      case 'data': { const r = () => int(200, 4800); const b1 = r(), b2 = r(), b3 = int(20, 90);
+        const ch = (x, y) => ((y - x) / x * 100).toFixed(1);
+        const c1 = Math.round(b1 * (1 + int(-10, 35) / 100)), c2 = Math.round(b2 * (1 + int(-25, 10) / 100)), c3 = Math.min(99, b3 + int(-5, 15));
+        return { id, title: 'Analysis: ' + I, format: 'markdown', content:
+`# Analysis: ${I}
+Period: last 8 weeks vs previous 8 weeks.
+
+| Metric | Baseline | Current | Change |
+|---|---|---|---|
+| ${I} volume | ${b1.toLocaleString()} | ${c1.toLocaleString()} | ${ch(b1, c1)}% |
+| ${I2} volume | ${b2.toLocaleString()} | ${c2.toLocaleString()} | ${ch(b2, c2)}% |
+| Automation rate | ${b3}% | ${c3}% | ${c3 - b3 >= 0 ? '+' : ''}${c3 - b3} pts |
+| Avg. handling time | ${int(9, 30)} min | ${int(3, 12)} min | faster |
+
+**Takeaway:** ${I} is where the time goes. Automating it gives the biggest return; ${it2} is secondary.
+
+> Caveat: two weeks of ${it2} data had gaps and were interpolated.` }; }
+      case 'engineer': return { id, title: 'Automation: ' + slug(it) + '.js', format: 'code', content:
+`// ${slug(it)}.js — automation for "${it}" (draft for review)
+import { queue, notify, audit } from './runtime.js';
+
+const MAX_RETRIES = 2;
+
+export async function handle${camel(it)}(event) {
+  const record = await fetchRecord(event.id);
+  if (!isValid(record)) {
+    return queue.toHuman(event, { reason: 'validation failed' });
+  }
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await process${camel(it2)}(record);
+      await audit.log('${slug(it)}', record.id, result.status);
+      return result;
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        await notify('${lead.name.toLowerCase()}', \`${it} failed for \${record.id}\`);
+        return queue.toHuman(event, { reason: err.message });
+      }
+    }
+  }
+}` };
+      case 'writer': return { id, title: 'Draft: ' + I + ' announcement', format: 'markdown', content:
+`# ${cap(short)}: what’s changing
+*Audience: stakeholders · Tone: clear, confident, no jargon*
+
+**Headline:** Less waiting and fewer errors, starting with ${it}.
+
+We’ve been listening. The most common frustration was ${it}, so that’s where we started. From next month, the slow manual steps are automated and checked, and people are freed up for the work that needs judgement.
+
+### What’s changing
+- ${I} is handled automatically, with a person reviewing exceptions
+- ${I2} gets clearer ownership and a single place to track it
+- Progress is visible to everyone, not buried in inboxes
+
+### Why it matters
+Faster turnaround, fewer mistakes, and more time for the work that matters.
+
+### What you need to do
+Nothing yet. We’ll share a short guide before go-live.` };
+      case 'designer': return { id, title: 'Flow spec: ' + I, format: 'markdown', content:
+`# Flow spec: ${I}
+## Screens
+1. **Start** — one question, pre-filled where possible
+2. **Review** — ${it} shown inline with an edit option
+3. **Done** — confirmation + what happens next
+
+## Decisions
+- Removed the separate confirmation step (saves ~${int(10, 25)}s per task)
+- ${I2} errors appear inline, never as a modal
+
+## Accessibility
+- [x] Colour contrast AA
+- [x] Keyboard navigable
+- [ ] Screen-reader labels on the ${it} fields (in progress)` };
+      case 'compliance': return { id, title: 'Risk register: ' + I, format: 'markdown', content:
+`# Risk register: ${I}
+| Risk | Likelihood | Impact | Mitigation | Owner |
+|---|---|---|---|---|
+| Unauthorised change to ${it} | Low | High | Role-based access + approval log | ${lead.name} |
+| Personal data in ${it2} | Medium | Medium | Mask fields before processing | ${a.name} |
+| Automation error goes unnoticed | Low | Medium | Human review of exceptions | ${pick(workers).name} |
+| Policy drift | Low | Low | Quarterly re-check | ${a.name} |
+
+**Overall rating:** Low, provided the approval log is in place before go-live.` };
+      case 'support': return { id, title: 'Reply templates: ' + I, format: 'markdown', content:
+`# Reply templates: ${I}
+### 1 · “What’s changing?”
+> Thanks for asking! From next month ${it} is handled automatically, so you’ll get an answer faster. Nothing changes on your side.
+
+### 2 · “Something went wrong”
+> Sorry about that. I’ve flagged it to the team and a person will check it today. Your reference is **#${int(10000, 99999)}**.
+
+### 3 · “When will this reach me?”
+> It’s rolling out over the next few weeks. We’ll email you when it’s live on your account.
+
+**Help article:** “${I} FAQ” rewritten (reading time 2 min, was 7).` };
+      case 'finance': { const cost = int(20, 90), save = int(60, 240);
+        return { id, title: 'Cost model: ' + I, format: 'markdown', content:
+`# Cost model: ${I}
+| Item | Year 1 | Year 2 | Year 3 |
+|---|---|---|---|
+| Build & setup | ${cost}k | — | — |
+| Running cost | ${int(8, 20)}k | ${int(8, 20)}k | ${int(8, 20)}k |
+| Time saved (${it}) | ${Math.round(save * .6)}k | ${save}k | ${save}k |
+| Error reduction (${it2}) | ${int(5, 25)}k | ${int(15, 40)}k | ${int(15, 40)}k |
+
+**Payback:** ~${int(4, 11)} months. **Worst case** (half the adoption): ~${int(12, 20)} months, still positive by year 3.` }; }
+      case 'lead':
+      case 'reviewer':
+      default: return { id, title: 'Notes: ' + I, format: 'markdown', content:
+`# Notes: ${I}
+## What we looked at
+- Current state of ${it}
+- How it interacts with ${it2}
+
+## Findings
+- ${I} is simpler than expected once ownership is clear
+- Main dependency: ${it2}
+
+## Recommendation
+Proceed, with a check-in after two weeks.` };
+    }
+  }
+  function revisionNote(o) {
+    if (o.format === 'code') return `\n\n// v2 (after review): added audit trail + explicit human fallback for "${o.item}"`;
+    return `\n\n---\n### Revision 2 (after review)\n- Added source and definition for the ${o.item} figures\n- Covered the failure case and named an owner`;
+  }
+  function buildReview(outs, flagged) {
+    let s = `# Review notes\n| Deliverable | Author | Result |\n|---|---|---|\n`;
+    outs.forEach(o => { s += `| ${o.title} | ${o.agent.name} | ${flagged.includes(o) ? '✏️ Revised → ✅ Pass' : '✅ Pass'} |\n`; });
+    s += `\n**Checks:** facts sourced · numbers consistent · failure cases covered · tone matches audience\n\n**Overall:** Ready for sign-off.`;
+    return s;
+  }
+  function buildSummary(outs) {
+    const hl = ['is the biggest lever; tackling it first reduces risk everywhere else.', 'can be automated end-to-end with a human reviewing exceptions.', 'needs a clear owner; that one decision unblocks the rest.', 'showed a measurable improvement in the analysis.', 'is low risk once the approval log is in place.', 'was the top theme in customer feedback.'];
+    let s = `# Summary: ${cap(short)}\n## Outcome\nThe team completed ${tasks.length} tasks across ${agents.length} agents${reviewer ? ', with every deliverable reviewed' : ''}.\n\n## Highlights\n`;
+    items.forEach(i => { s += `- **${cap(i)}** ${pick(hl)}\n`; });
+    s += `\n## Deliverables\n`;
+    outs.forEach(o => { s += `- 📄 ${o.title}, *${o.agent.name}*\n`; });
+    s += `\n## Recommended next steps\n1. Approve the plan and start with ${items[0]}\n2. Pilot for 2 weeks with one team\n3. Review the metrics, then roll out more widely\n\n## Open questions\n- Who owns ${items[items.length - 1]} after go-live?`;
+    return s;
+  }
+}
+
+/* =====================================================================
+   Presets
+   ===================================================================== */
+const PRESETS = [
+  { name: 'Product launch', desc: 'Research, data, copy and review ahead of a feature launch.', goal: 'Prepare the launch of our new self-service onboarding flow',
+    team: 'Atlas | Orchestrator | 🧭\nScout | Market Researcher | 🔎\nLedger | Data Analyst | 📊\nQuill | Copywriter | ✍️\nSentinel | QA Reviewer | ✅', items: 'pricing page\ncompetitor features\nlaunch email\ncustomer feedback' },
+  { name: 'Incident response', desc: 'Engineers, security and comms work a live incident together.', goal: 'Investigate and resolve elevated checkout errors, then brief customers',
+    team: 'Beacon | Incident Lead | 🚨\nForge | Site Reliability Engineer | 🛠️\nLedger | Data Analyst | 📊\nShield | Security Analyst | 🛡️\nEcho | Customer Support Agent | 💬\nSentinel | Post-incident Reviewer | ✅', items: 'checkout latency\npayment API\nstatus page\nroot cause' },
+  { name: 'Board report', desc: 'Finance, research and writing pull a monthly pack together.', goal: 'Produce the monthly board report with commentary and a forecast',
+    team: 'Atlas | Chief of Staff (lead) | 🧭\nLedger | Finance Analyst | 💰\nScout | Market Researcher | 🔎\nQuill | Report Writer | ✍️\nSentinel | Reviewer | ✅', items: 'revenue\nchurn\nhiring plan\nQ4 forecast' },
+  { name: 'Automate invoices', desc: 'Automation with compliance, finance and support in the loop.', goal: 'Automate supplier invoice processing end-to-end',
+    team: 'Atlas | Orchestrator | 🧭\nForge | Automation Engineer | ⚙️\nShield | Compliance Officer | ⚖️\nLedger | Finance Analyst | 💰\nEcho | Supplier Support | 💬\nSentinel | QA Reviewer | ✅', items: 'supplier invoices\napproval workflow\nOCR accuracy\nduplicate payments' },
+  { name: 'Customer support triage', desc: 'A support desk that sorts, drafts and escalates on its own.', goal: 'Triage this week’s support backlog and fix the top recurring issue',
+    team: 'Relay | Support Coordinator (lead) | 🧭\nEcho | Customer Support Agent | 💬\nScout | Knowledge Researcher | 🔎\nForge | Integration Engineer | 🛠️\nPixel | UX Designer | 🎨\nSentinel | Quality Reviewer | ✅', items: 'password resets\nbilling questions\nhelp centre\nresponse time' },
+  { name: 'Policy update', desc: 'Legal, comms and design roll out a policy change.', goal: 'Roll out the updated data retention policy to staff and customers',
+    team: 'Atlas | Programme Manager | 🧭\nShield | Legal Counsel | ⚖️\nQuill | Internal Comms Writer | ✍️\nPixel | Designer | 🎨\nEcho | Customer Success | 💬', items: 'retention periods\nconsent records\nstaff training\nFAQ' }
+];
+
+/* =====================================================================
+   Data: JSON or JSONL in, normalised script out
+   JSONL = one record per line: meta / agent / task / appearance headers, then steps.
+   ===================================================================== */
+const STEP_TYPES = ['note', 'human', 'message', 'thinking', 'tool', 'status', 'task', 'output', 'approval', 'pause'];
+function extractJson(text) {
+  const t = String(text);
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a < 0 || b < a) throw new Error('No JSON object found');
+  return JSON.parse(t.slice(a, b + 1));
+}
+function fromRecords(recs) {
+  const sc = { agents: [], tasks: [], steps: [] }; let started = false;
+  recs.forEach(r => {
+    if (!r || typeof r !== 'object') return;
+    const t = r.type, o = Object.assign({}, r); delete o.type;
+    if (t === 'meta' || t === 'scenario' || t === 'header') {
+      if (o.title != null) sc.title = o.title; if (o.goal != null) sc.goal = o.goal;
+      if (Array.isArray(o.agents)) sc.agents.push(...o.agents); if (Array.isArray(o.tasks)) sc.tasks.push(...o.tasks);
+      if (o.appearance) sc.appearance = o.appearance; return;
+    }
+    if (t === 'agent') { sc.agents.push(o); return; }
+    if (t === 'appearance' || t === 'look') { sc.appearance = o; return; }
+    if (t === 'task' && !started && o.title && !o.status) { sc.tasks.push(o); return; }
+    started = true; sc.steps.push(r);
+  });
+  return sc;
+}
+function parseSource(text) {
+  let t = String(text).replace(/^﻿/, '').trim();
+  if (!t) throw new Error('Nothing to load');
+  const fence = t.match(/```[\w-]*\s*\n([\s\S]*?)```/); if (fence) t = fence[1].trim();
+  // 1) a whole JSON document (object, or array of records)
+  try {
+    const v = JSON.parse(t);
+    return normalise(Array.isArray(v) ? fromRecords(v) : (v && (v.steps || v.agents) ? v : fromRecords([v])));
+  } catch (e) { if (!(e instanceof SyntaxError)) throw e; }
+  // 2) JSON Lines; lines that don't start with { are treated as chatter or comments
+  const recs = []; let bad = null;
+  t.split(/\r?\n/).forEach((l, i) => {
+    const x = l.trim(); if (bad || !x.startsWith('{')) return;
+    try { recs.push(JSON.parse(x.replace(/,\s*$/, ''))); } catch (e) { bad = { line: i + 1, msg: e.message }; }
+  });
+  if (!bad && recs.length) return normalise(fromRecords(recs));
+  // 3) one JSON object buried in surrounding text
+  try { return normalise(extractJson(t)); } catch (e) { if (!bad) throw new Error('Not valid JSON or JSONL: ' + e.message); }
+  throw new Error(`JSONL line ${bad.line}: ${bad.msg}`);
+}
+function normalise(sc) {
+  if (!sc || typeof sc !== 'object') throw new Error('Script must be an object');
+  if (!Array.isArray(sc.steps) || !sc.steps.length) throw new Error('No steps found');
+  const agents = (Array.isArray(sc.agents) ? sc.agents : []).map((a, i) => {
+    const role = a.role || 'Agent', arch = archFor(role);
+    return { id: String(a.id || slug(a.name || 'agent' + i)), name: a.name || a.id || 'Agent ' + (i + 1), role, icon: a.icon || ARCH[arch].icon, color: a.color || PALETTE[i % PALETTE.length] };
+  });
+  const ids = new Set(agents.map(a => a.id));
+  const byName = {}; agents.forEach(a => { byName[a.name.toLowerCase()] = a.id; });
+  const ref = v => { if (v == null) return v; const s = String(v); if (ids.has(s) || s === 'all' || s === 'human') return s; return byName[s.toLowerCase()] || s; };
+  const addUnknown = v => { if (v && v !== 'all' && v !== 'human' && !ids.has(v)) { ids.add(v); byName[String(v).toLowerCase()] = v; agents.push({ id: v, name: cap(String(v)), role: 'Agent', icon: '🤖', color: PALETTE[agents.length % PALETTE.length] }); } };
+  const steps = sc.steps.filter(s => s && STEP_TYPES.includes(s.type)).map(s => {
+    const o = Object.assign({}, s);
+    ['agent', 'from', 'to', 'owner'].forEach(k => { if (k in o) { o[k] = ref(o[k]); addUnknown(o[k]); } });
+    return o;
+  });
+  if (!steps.length) throw new Error('No recognised steps (types: ' + STEP_TYPES.join(', ') + ')');
+  const tasks = (Array.isArray(sc.tasks) ? sc.tasks : []).map((t, i) => { const o = ref(t.owner); addUnknown(o); return { id: String(t.id || 't' + (i + 1)), title: t.title || 'Task ' + (i + 1), owner: o }; });
+  if (!agents.length) throw new Error('No agents found');
+  const out = { title: sc.title || 'Agent team', goal: sc.goal || '', agents, tasks, steps };
+  if (sc.appearance && typeof sc.appearance === 'object') out.appearance = sc.appearance;
+  return out;
+}
+function toJsonText(sc, look) {
+  const o = { title: sc.title, goal: sc.goal }; if (look) o.appearance = look;
+  o.agents = sc.agents; o.tasks = sc.tasks; o.steps = sc.steps;
+  return JSON.stringify(o, null, 2);
+}
+function toJsonl(sc, look) {
+  const L = [], line = o => L.push(JSON.stringify(o));
+  line({ type: 'meta', title: sc.title, goal: sc.goal });
+  if (look) line(Object.assign({ type: 'appearance' }, look));
+  sc.agents.forEach(a => line(Object.assign({ type: 'agent' }, a)));
+  sc.tasks.forEach(t => line(Object.assign({ type: 'task' }, t)));
+  sc.steps.forEach(st => line(st));
+  return L.join('\n') + '\n';
+}
+
+/* =====================================================================
+   Playback engine
+   ===================================================================== */
+const CANCEL = { cancelled: true };
+const P = { script: null, idx: 0, playing: false, stepReq: false, skip: false, instant: false, speed: 1, runId: 0, elapsed: 0,
+  agents: {}, tasks: {}, outputs: {}, outOrder: [], selOut: null, stats: { msg: 0, tool: 0, out: 0, tok: 0 }, approvalResolve: null };
+const clone = o => JSON.parse(JSON.stringify(o));
+// Free-canvas layouts: [x, y, w, h] in % of the stage
+const PANELS = [['graphPanel', 'graph', 'Team network'], ['agentsPanel', 'agents', 'Agents'], ['feedPanel', null, 'Activity'], ['tasksPanel', 'tasks', 'Tasks'], ['outPanel', 'outputs', 'Outputs']];
+const PANEL_IDS = PANELS.map(x => x[0]);
+const LAYOUTS = {
+  classic:  { name: 'Classic columns', r: { graphPanel: [0, 0, 21, 32], agentsPanel: [0, 32, 21, 68], feedPanel: [21, 0, 50, 100], tasksPanel: [71, 0, 29, 30], outPanel: [71, 30, 29, 70] } },
+  convo:    { name: 'Conversation focus', r: { graphPanel: [0, 0, 18, 36], agentsPanel: [0, 36, 18, 64], feedPanel: [18, 0, 60, 100], tasksPanel: [78, 0, 22, 36], outPanel: [78, 36, 22, 64] } },
+  studio:   { name: 'Studio (agents strip)', r: { graphPanel: [0, 0, 22, 72], feedPanel: [22, 0, 43, 72], outPanel: [65, 0, 35, 72], agentsPanel: [0, 72, 70, 28], tasksPanel: [70, 72, 30, 28] } },
+  network:  { name: 'Network hero', r: { graphPanel: [0, 0, 46, 62], agentsPanel: [0, 62, 46, 38], feedPanel: [46, 0, 54, 62], tasksPanel: [46, 62, 22, 38], outPanel: [68, 62, 32, 38] } },
+  output:   { name: 'Deliverables hero', r: { feedPanel: [0, 0, 36, 100], outPanel: [36, 0, 64, 68], graphPanel: [36, 68, 18, 32], tasksPanel: [54, 68, 22, 32], agentsPanel: [76, 68, 24, 32] } },
+  vertical: { name: 'Vertical (9:16)', r: { graphPanel: [0, 0, 42, 20], tasksPanel: [42, 0, 58, 20], feedPanel: [0, 20, 100, 47], agentsPanel: [0, 67, 42, 33], outPanel: [42, 67, 58, 33] } }
+};
+const DEFAULTS = {
+  theme: 'dark', accent: '', bg: 'solid', font: 'system', fs: 15, gap: 12, radius: 14, lw: 300, rw: 400,
+  frame: 'fit', fw: 1920, fh: 1080, typeSpeed: 1, badge: true,
+  show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
+  rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
+  includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true
+};
+// Keys that travel with a scenario file as its "appearance"
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ'];
+const THEMES = ['dark', 'midnight', 'slate', 'light', 'paper', 'contrast', 'terminal'];
+const FRAMES = ['fit', '1920x1080', '1280x720', '1440x1080', '1080x1080', '1080x1350', '1080x1920', 'custom'];
+const FONTS = {
+  system: 'system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+  humanist: '"Avenir Next",Avenir,"Segoe UI Variable","Segoe UI","Gill Sans","Trebuchet MS",Candara,Optima,sans-serif',
+  rounded: 'ui-rounded,"SF Pro Rounded","Hiragino Maru Gothic ProN",Quicksand,Nunito,"Varela Round","Arial Rounded MT Bold",system-ui,sans-serif',
+  serif: 'Charter,"Bitstream Charter","Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif',
+  mono: 'ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace'
+};
+function mergeSettings(base, o) {
+  if (!o || typeof o !== 'object') return base;
+  Object.keys(DEFAULTS).forEach(k => {
+    if (!(k in o)) return;
+    if (k === 'show') { if (o.show && typeof o.show === 'object') Object.keys(base.show).forEach(p => { if (p in o.show) base.show[p] = !!o.show[p]; }); }
+    else if (typeof DEFAULTS[k] === 'number') { const n = Number(o[k]); if (isFinite(n)) base[k] = n; }
+    else if (typeof DEFAULTS[k] === 'boolean') base[k] = !!o[k];
+    else if (k === 'canvas') {
+      if (o.canvas && typeof o.canvas === 'object') PANEL_IDS.forEach(id => {
+        const r = o.canvas[id];
+        if (Array.isArray(r) && r.length === 4 && r.every(v => isFinite(+v))) base.canvas[id] = r.map(Number);
+      });
+    }
+    else if (k === 'canvasZ') { if (Array.isArray(o.canvasZ)) base.canvasZ = o.canvasZ.filter(id => PANEL_IDS.includes(id)).concat(PANEL_IDS.filter(id => !o.canvasZ.includes(id))); }
+    else base[k] = String(o[k]);
+  });
+  if (base.layout !== 'canvas') base.layout = 'columns';
+  // "1920x1080"-style frames that aren't presets become custom sizes
+  const m = String(base.frame).match(/^(\d{3,4})x(\d{3,4})$/);
+  if (m && !FRAMES.includes(base.frame)) { base.fw = +m[1]; base.fh = +m[2]; base.frame = 'custom'; }
+  if (!FRAMES.includes(base.frame)) base.frame = 'fit';
+  return base;
+}
+const pickLook = a => { const o = {}; LOOK_KEYS.forEach(k => { if (a && a[k] !== undefined) o[k] = a[k]; }); return o; };
+const currentLook = () => { const o = {}; LOOK_KEYS.forEach(k => { o[k] = clone(settings[k]); }); return o; };
+const settings = mergeSettings(clone(DEFAULTS), store.get('settings', {}));
+
+function frame(id) {
+  return new Promise((res, rej) => requestAnimationFrame(now => {
+    if (id !== P.runId) return rej(CANCEL);
+    const dt = Math.min(100, now - (frame.last || now)); frame.last = now;
+    const running = P.playing || P.stepReq;
+    const scaled = running ? dt * P.speed : 0;
+    if (running) { P.elapsed += scaled; }
+    res(scaled);
+  }));
+}
+async function wait(ms) {
+  const id = P.runId; let left = ms;
+  while (left > 0) { if (P.instant || P.skip) return; left -= await frame(id); }
+}
+async function typeText(node, text, cps = 75, onUpdate) {
+  const id = P.runId; let t = 0, shown = 0;
+  node.classList.add('caret');
+  while (shown < text.length) {
+    if (P.instant || P.skip) break;
+    t += await frame(id);
+    const n = Math.min(text.length, Math.floor(t * cps * settings.typeSpeed / 1000));
+    if (n > shown) { shown = n; onUpdate ? onUpdate(text.slice(0, n)) : (node.textContent = text.slice(0, n)); if (!onUpdate) autoScroll(); }
+  }
+  onUpdate ? onUpdate(text) : (node.textContent = text);
+  node.classList.remove('caret');
+}
+
+async function runLoop() {
+  const id = P.runId;
+  try {
+    while (P.idx < P.script.steps.length) {
+      while (!(P.playing || P.stepReq || P.instant)) await frame(id);
+      const st = P.script.steps[P.idx];
+      P.skip = false;
+      await exec(st);
+      if (id !== P.runId) return;
+      P.skip = false;
+      P.idx++;
+      if (P.stepReq) { P.stepReq = false; }
+      updateProgress();
+      if (!P.instant && st.type !== 'status' && st.type !== 'task') await wait(st.type === 'message' ? 450 : 250);
+    }
+    finish();
+  } catch (e) { if (e !== CANCEL) { console.error(e); toast('Playback error: ' + e.message); } }
+}
+
+function agentOf(id) { return P.agents[id] || { id, name: id === 'human' ? settings.human : id === 'all' ? 'Team' : id, role: '', icon: id === 'human' ? '🧑' : '👥', color: id === 'human' ? 'var(--text)' : 'var(--dim)' }; }
+
+async function exec(s) {
+  switch (s.type) {
+    case 'note': { const n = el('div', 'ev ev-note'); n.textContent = s.text || ''; feedAdd(n); break; }
+    case 'pause': { if (s.text) { const n = el('div', 'ev ev-note'); n.textContent = s.text; feedAdd(n); } if (!P.instant) setPlaying(false); break; }
+    case 'human': {
+      const n = evMsg({ icon: '🧑', name: settings.human, role: 'Human', color: 'var(--text)' }, null, null, 'ev-human');
+      feedAdd(n.root); const ld = leadId(); if (ld) pulse('human', ld); await typeText(n.txt, s.text || '', 90); countTokens(s.text, 1); P.stats.msg++; break;
+    }
+    case 'message': {
+      const a = agentOf(s.from), to = s.to ? agentOf(s.to) : null;
+      setActive(a.id); setStatus(a.id, 'working', to ? 'Talking to ' + to.name : 'Posting an update');
+      const n = evMsg(a, to, s.kind || 'say');
+      feedAdd(n.root);
+      if (to && P.agents[to.id]) pulse(a.id, to.id);
+      else if (s.to === 'all') Object.keys(P.agents).forEach(k => k !== a.id && pulse(a.id, k));
+      else if (s.to === 'human') pulse(a.id, 'human');
+      await typeText(n.txt, s.text || '', 75);
+      n.txt.innerHTML = mentionify(s.text || '');
+      bump(a.id, 'msg'); P.stats.msg++; countTokens(s.text, a.id);
+      await wait(Math.min(1400, 300 + (s.text || '').length * 8));
+      break;
+    }
+    case 'thinking': {
+      const a = agentOf(s.agent); setActive(a.id); setStatus(a.id, 'thinking', 'Thinking…');
+      const n = el('div', 'ev ev-think'); n.style.setProperty('--c', a.color);
+      n.innerHTML = `<div class="body"><div><b>${esc(a.name)}</b> <span class="lbl dots">is thinking</span></div><i></i></div>`;
+      feedAdd(n);
+      const t0 = P.elapsed;
+      await typeText(n.querySelector('i'), s.text || '', 95);
+      await wait(Math.max(0, (s.duration || 1500) - (P.elapsed - t0)));
+      const lbl = n.querySelector('.lbl'); lbl.classList.remove('dots'); lbl.textContent = 'thought for ' + ((s.duration || 1500) / 1000).toFixed(1) + 's';
+      countTokens(s.text, a.id, 3);
+      break;
+    }
+    case 'tool': {
+      const a = agentOf(s.agent); setActive(a.id); setStatus(a.id, 'working', 'Using ' + (s.tool || 'tool'));
+      const n = el('div', 'ev ev-tool'); n.style.setProperty('--c', a.color);
+      n.innerHTML = `<div class="tool"><div class="th">🔧 <b>${esc(a.name)}</b> <code>${esc(s.tool || 'tool')}</code><span class="mono" style="color:var(--dim)">(${esc(s.input || '')})</span></div><div class="to"><span class="spin"></span>running…</div></div>`;
+      feedAdd(n);
+      await wait(s.duration || 1200);
+      const o = n.querySelector('.to'); o.className = 'to ok'; o.textContent = s.output || 'done';
+      bump(a.id, 'tool'); P.stats.tool++; P.stats.tok += 150;
+      break;
+    }
+    case 'status': { if (P.agents[s.agent]) setStatus(s.agent, s.status || 'idle', s.note || ''); break; }
+    case 'task': {
+      let t = P.tasks[s.id];
+      if (!t) { if (!s.title) break; t = P.tasks[s.id] = { id: s.id, title: s.title, owner: s.owner, status: 'todo' }; }
+      if (s.title) t.title = s.title; if (s.owner) t.owner = s.owner;
+      t.status = s.status || (s.title ? 'todo' : 'done'); renderTasks();
+      if (t.status === 'done') { const a = agentOf(t.owner); const n = el('div', 'ev ev-task'); n.innerHTML = `<b>✓</b> ${esc(a.name)} completed “${esc(t.title)}”`; feedAdd(n); }
+      break;
+    }
+    case 'output': await doOutput(s); break;
+    case 'approval': await doApproval(s); break;
+  }
+  refreshStats();
+}
+
+async function doOutput(s) {
+  const a = agentOf(s.agent); setActive(a.id);
+  let o = P.outputs[s.id];
+  if (!o) {
+    o = P.outputs[s.id] = { id: s.id, title: s.title || 'Output', format: s.format || 'markdown', agent: a.id, content: '' };
+    P.outOrder.push(s.id);
+    P.stats.out++; bump(a.id, 'out');
+  } else if (!s.append) { o.content = ''; if (s.title) o.title = s.title; if (s.format) o.format = s.format; }
+  setStatus(a.id, 'writing', (s.append ? 'Revising ' : 'Writing ') + o.title);
+  const card = el('div', 'ev ev-out'); card.style.setProperty('--c', a.color);
+  card.innerHTML = `<button class="outcard"><span style="font-size:1.3em">${s.append ? '✏️' : o.format === 'code' ? '🧩' : '📄'}</span><span class="ot"><b>${esc(o.title)}</b><div>${esc(a.name)} ${s.append ? 'revised a deliverable' : 'is producing a deliverable'}</div></span><span style="color:var(--dim)">open ›</span></button>`;
+  card.querySelector('button').onclick = () => { selectOut(o.id); openReader(o.id); };
+  feedAdd(card);
+  if (settings.autoOpen || !P.selOut) selectOut(o.id);
+  o.live = true; renderOutTabs();
+  const base = o.content, add = s.content || '';
+  await typeText(el('span'), add, 380, txt => { o.content = base + txt; if (P.selOut === o.id) renderOutView(true); });
+  o.live = false; renderOutTabs(); if (P.selOut === o.id) renderOutView(false);
+  card.querySelector('.ot div').textContent = `${a.name} ${s.append ? 'revised' : 'produced'} · ${o.format === 'code' ? 'code' : 'document'}`;
+  countTokens(add, a.id);
+}
+
+async function doApproval(s) {
+  const a = agentOf(s.from); setActive(a.id); setStatus(a.id, 'waiting', 'Waiting for human approval');
+  pulse(a.id, 'human');
+  const n = el('div', 'ev'); n.style.setProperty('--c', a.color);
+  n.innerHTML = `<div class="av" style="--c:${a.color}">${esc(a.icon)}</div><div class="body"><div class="meta"><b>${esc(a.name)}</b><span>→</span><b>${esc(settings.human)}</b><span class="kind ask">approval</span></div><div class="approval"><div class="t"></div><div class="row"><button class="btn ok">✓ Approve</button><button class="btn">✎ Request changes</button><span class="msg" style="align-self:center">or press A</span></div></div></div>`;
+  feedAdd(n);
+  await typeText(n.querySelector('.t'), s.text || 'Approve?', 80);
+  let decision = 'approve';
+  if (!P.instant) {
+    const id = P.runId;
+    decision = await new Promise((res, rej) => {
+      P.approvalResolve = res;
+      const [ok, ch] = n.querySelectorAll('.row .btn');
+      ok.onclick = () => res('approve'); ch.onclick = () => res('changes');
+      if (settings.autoApprove) { (async () => { try { let t = 0; while (t < 3000 && P.approvalResolve === res) t += await frame(id); if (P.approvalResolve === res) res('approve'); } catch (e) { rej(e); } })(); }
+      (async () => { try { while (P.approvalResolve === res) await frame(id); } catch (e) { rej(e); } })();
+    });
+    P.approvalResolve = null;
+  }
+  const row = n.querySelector('.row');
+  row.innerHTML = decision === 'approve' ? '<span style="color:var(--ok)">✓ Approved by ' + esc(settings.human) + '</span>' : '<span style="color:var(--warn)">✎ Changes requested by ' + esc(settings.human) + '</span>';
+  const reply = evMsg({ icon: '🧑', name: settings.human, role: 'Human', color: 'var(--text)' }, a, decision === 'approve' ? 'answer' : 'review', 'ev-human');
+  feedAdd(reply.root);
+  await typeText(reply.txt, decision === 'approve' ? 'Approved — ship it. 👍' : 'Close — tighten the next steps and add owners, then publish.', 90);
+  if (decision === 'changes') {
+    const r = evMsg(a, { name: settings.human, color: 'var(--text)' }, 'answer'); feedAdd(r.root);
+    await typeText(r.txt, 'On it — owners added to each next step. Publishing the updated summary.', 75);
+    if (P.outputs.summary) { const o = P.outputs.summary; o.content += '\n\n---\n### Owners (added after feedback)\n' + P.script.agents.slice(0, 3).map(x => `- ${x.name}: ${x.role}`).join('\n'); if (P.selOut === 'summary') renderOutView(false); }
+  }
+  setStatus(a.id, 'working', 'Publishing');
+}
+
+/* =====================================================================
+   Rendering helpers
+   ===================================================================== */
+function evMsg(a, to, kind, extra) {
+  const root = el('div', 'ev ev-msg' + (extra ? ' ' + extra : ''));
+  root.style.setProperty('--c', a.color);
+  const kinds = { ask: 'asks', answer: 'answers', handoff: 'hands off', review: 'review', say: 'update' };
+  root.innerHTML = `<div class="av" style="--c:${a.color}">${esc(a.icon)}</div><div class="body"><div class="meta"><b>${esc(a.name)}</b>${a.role ? `<span>${esc(a.role)}</span>` : ''}${to ? `<span>→</span><b style="color:${to.color}">${esc(to.name)}</b>` : ''}${kind ? `<span class="kind ${kind}">${kinds[kind] || esc(kind)}</span>` : ''}</div><div class="bubble"></div></div>`;
+  return { root, txt: root.querySelector('.bubble') };
+}
+function mentionify(text) {
+  let h = esc(text);
+  Object.values(P.agents).forEach(a => { h = h.split('@' + esc(a.name)).join(`<span class="mention" style="--mc:${a.color}">@${esc(a.name)}</span>`); });
+  return h;
+}
+let stickBottom = true;
+function autoScroll() { const f = $('#feed'); if (stickBottom) f.scrollTop = f.scrollHeight; }
+function feedAdd(node) { const f = $('#feed'); const e = f.querySelector('.empty'); if (e) e.remove(); f.appendChild(node); autoScroll(); }
+$('#feed').addEventListener('scroll', () => { const f = $('#feed'); stickBottom = f.scrollHeight - f.scrollTop - f.clientHeight < 60; });
+
+function renderAgents() {
+  const box = $('#agents'); box.innerHTML = '';
+  P.script.agents.forEach(a => {
+    const c = el('div', 'agent'); c.id = 'ag_' + a.id; c.style.setProperty('--c', a.color);
+    c.innerHTML = `<div class="av">${esc(a.icon)}</div><div style="min-width:0"><div class="nm"><b>${esc(a.name)}</b><span class="pill">idle</span></div><div class="role">${esc(a.role)}</div></div><div class="act"></div><div class="ctr"><span>💬 <b class="c-msg">0</b></span><span>🔧 <b class="c-tool">0</b></span><span>📄 <b class="c-out">0</b></span><span>◇ <b class="c-tok">0</b> tok</span></div>`;
+    box.appendChild(c);
+  });
+  $('#teamCount').textContent = P.script.agents.length + ' agents';
+}
+function setStatus(id, status, note) {
+  const c = document.getElementById('ag_' + id); if (!c) return;
+  const p = c.querySelector('.pill'); p.className = 'pill ' + status; p.textContent = status;
+  c.querySelector('.act').textContent = note || '';
+  if (status === 'done' || status === 'idle') c.classList.remove('active');
+}
+function setActive(id) {
+  document.querySelectorAll('.agent.active').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('#graph .node.active').forEach(n => n.classList.remove('active'));
+  const c = document.getElementById('ag_' + id); if (c) { c.classList.add('active'); const box = $('#agents'); if (box.scrollHeight > box.clientHeight + 4) { if (c.offsetTop < box.scrollTop || c.offsetTop + c.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = c.offsetTop - 8; } }
+  const g = document.getElementById('gn_' + id); if (g) g.classList.add('active');
+}
+function bump(id, k) { const a = P.agents[id]; if (!a) return; a.c[k] = (a.c[k] || 0) + 1; const n = document.querySelector('#ag_' + CSS.escape(id) + ' .c-' + k); if (n) n.textContent = a.c[k]; }
+function countTokens(text, id, mult = 1) {
+  const t = Math.ceil(String(text || '').length / 3.6 * mult) + 60;
+  P.stats.tok += t; const a = P.agents[id];
+  if (a) { a.c.tok = (a.c.tok || 0) + t; const n = document.querySelector('#ag_' + CSS.escape(id) + ' .c-tok'); if (n) n.textContent = a.c.tok >= 1000 ? (a.c.tok / 1000).toFixed(1) + 'k' : a.c.tok; }
+}
+function renderTasks() {
+  const box = $('#tasks'); box.innerHTML = '';
+  const list = Object.values(P.tasks);
+  if (!list.length) { box.innerHTML = '<div class="msg" style="padding:6px">No tasks in this script.</div>'; $('#taskLbl').textContent = ''; return; }
+  const icons = { todo: '○', doing: '◐', review: '◑', done: '✅' };
+  list.forEach(t => {
+    const a = agentOf(t.owner);
+    const r = el('div', 'task ' + t.status);
+    r.innerHTML = `<span class="st">${icons[t.status] || '○'}</span><span class="tt" title="${esc(t.title)}">${esc(t.title)}</span><span class="own">${t.owner ? esc(a.icon || '') + ' ' + esc(a.name) : ''}</span>`;
+    box.appendChild(r);
+  });
+  $('#taskLbl').textContent = list.filter(t => t.status === 'done').length + '/' + list.length + ' done';
+}
+function renderOutTabs() {
+  const box = $('#outTabs'); box.innerHTML = '';
+  P.outOrder.forEach(id => {
+    const o = P.outputs[id], a = agentOf(o.agent);
+    const b = el('button', 'otab' + (P.selOut === id ? ' sel' : '') + (o.live ? ' live' : ''));
+    b.style.setProperty('--c', a.color); b.textContent = o.title; b.title = o.title + ' · ' + a.name;
+    b.onclick = () => selectOut(id);
+    box.appendChild(b);
+    if (P.selOut === id) requestAnimationFrame(() => { box.scrollLeft = Math.max(0, b.offsetLeft - box.offsetLeft - 20); });
+  });
+  box.style.display = P.outOrder.length ? '' : 'none';
+}
+function outHtml(o, live) {
+  const a = agentOf(o.agent);
+  const body = o.format === 'code' ? '<pre><code>' + highlight(o.content) + '</code></pre>' : md(o.content);
+  return `<div class="by"><span>${esc(a.icon)}</span><b style="color:${a.color}">${esc(a.name)}</b><span>· ${esc(a.role || '')}</span>${live ? '<span style="color:var(--bad)">· writing…</span>' : ''}</div>` + body;
+}
+function renderOutView(live) {
+  const v = $('#outView'); const o = P.outputs[P.selOut]; if (!o) return;
+  const nearBottom = v.scrollHeight - v.scrollTop - v.clientHeight < 80;
+  v.innerHTML = outHtml(o, live);
+  if (live && nearBottom) v.scrollTop = v.scrollHeight;
+  if ($('#reader').classList.contains('open') && $('#reader').dataset.id === o.id) { $('#readerBody').innerHTML = outHtml(o, live); }
+}
+function selectOut(id) { P.selOut = id; renderOutTabs(); renderOutView(P.outputs[id] && P.outputs[id].live); $('#outView').scrollTop = 0; }
+function openReader(id) {
+  const o = P.outputs[id || P.selOut]; if (!o) return toast('No output selected yet');
+  $('#reader').dataset.id = o.id; $('#readerTitle').textContent = o.title; $('#readerBody').innerHTML = outHtml(o, o.live); $('#reader').classList.add('open');
+}
+
+/* ---------- network graph ---------- */
+function renderGraph() {
+  const svg = $('#graph'); const W = 300, H = 230;
+  const ags = P.script.agents; const cx = W / 2, cy = H / 2 - 2;
+  const R = Math.min(88, 40 + ags.length * 8);
+  const pos = {};
+  const lid = ags.length > 2 ? leadId() : null;
+  const ring = ags.filter(a => a.id !== lid);
+  if (lid) pos[lid] = [cx, cy];
+  ring.forEach((a, k) => {
+    const ang = -Math.PI / 2 + (k + 0.5) * 2 * Math.PI / ring.length;
+    pos[a.id] = [cx + Math.cos(ang) * R * 1.3, cy + Math.sin(ang) * R * .8];
+  });
+  pos.human = [22, 22];
+  P.gpos = pos; P.edges = {};
+  let h = '<g id="edges"></g><g id="pulses"></g>';
+  const node = (id, icon, name, color) => { const [x, y] = pos[id]; return `<g class="node" id="gn_${esc(id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle class="halo" r="24" fill="${color}"/><circle class="ring" r="17" stroke="${color}"/><text class="ic">${esc(icon)}</text><text class="lb" y="30">${esc(name)}</text></g>`; };
+  h += node('human', '🧑', settings.human, 'var(--dim)');
+  ags.forEach(a => { h += node(a.id, a.icon, a.name, a.color); });
+  svg.innerHTML = h;
+}
+function leadId() {
+  const ags = P.script ? P.script.agents : [];
+  const l = ags.find(a => ARCH.lead.match.test(a.role || '')) || ags[0];
+  return l && l.id;
+}
+function edgeFor(a, b) {
+  const key = [a, b].sort().join('|');
+  if (!P.edges[key] && P.gpos[a] && P.gpos[b]) {
+    const [x1, y1] = P.gpos[a], [x2, y2] = P.gpos[b];
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    p.setAttribute('x1', x1); p.setAttribute('y1', y1); p.setAttribute('x2', x2); p.setAttribute('y2', y2); p.setAttribute('class', 'edge');
+    $('#edges').appendChild(p); P.edges[key] = p;
+  }
+  return P.edges[key];
+}
+function pulse(a, b) {
+  const e = edgeFor(a, b); if (!e || P.instant) { if (e) e.classList.add('hot'); return; }
+  e.classList.add('hot'); setTimeout(() => e.classList.remove('hot'), 900 / P.speed);
+  const [x1, y1] = P.gpos[a], [x2, y2] = P.gpos[b];
+  const col = (P.agents[a] && P.agents[a].color) || '#fff';
+  const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  c.setAttribute('r', 4.5); c.setAttribute('fill', col); c.setAttribute('class', 'pulse'); c.style.color = col;
+  $('#pulses').appendChild(c);
+  const dur = 700 / P.speed, t0 = performance.now();
+  (function anim(now) { const t = Math.min(1, (now - t0) / dur); const e2 = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; c.setAttribute('cx', x1 + (x2 - x1) * e2); c.setAttribute('cy', y1 + (y2 - y1) * e2); if (t < 1) requestAnimationFrame(anim); else c.remove(); })(t0);
+}
+
+/* ---------- stats / controls ---------- */
+function refreshStats() {
+  $('#fMsg').textContent = P.stats.msg; $('#fTool').textContent = P.stats.tool; $('#fOut').textContent = P.stats.out;
+  $('#fTok').textContent = P.stats.tok >= 1000 ? (P.stats.tok / 1000).toFixed(1) + 'k' : P.stats.tok;
+}
+function updateProgress() {
+  const n = P.script ? P.script.steps.length : 0;
+  $('#prog').style.width = n ? (P.idx / n * 100) + '%' : '0';
+  $('#fStep').textContent = P.idx + '/' + n; $('#stepLbl').textContent = n ? `step ${P.idx} of ${n}` : '';
+}
+setInterval(() => { $('#fTime').textContent = fmtTime(P.elapsed); }, 250);
+function setPlaying(v) {
+  P.playing = v; if (v) frame.last = performance.now();
+  const b = $('#bPlay'); b.innerHTML = v ? '❚❚ Pause' : (P.script && P.idx >= P.script.steps.length ? '⟲ Replay' : '▶ Play');
+}
+function finish() {
+  setPlaying(false); P.instant = false;
+  document.querySelectorAll('.agent.active,#graph .node.active').forEach(n => n.classList.remove('active'));
+  const d = el('div', 'done-banner', `✓ Run complete: ${P.stats.msg} messages · ${P.stats.tool} tool calls · ${P.stats.out} outputs · ${fmtTime(P.elapsed)}`);
+  feedAdd(d); updateProgress(); refreshStats();
+  $('#bPlay').innerHTML = '⟲ Replay';
+}
+
+function load(script, opts = {}) {
+  P.runId++; P.approvalResolve = null;
+  P.script = script; P.idx = 0; P.playing = false; P.stepReq = false; P.skip = false; P.instant = false; P.elapsed = 0;
+  P.stats = { msg: 0, tool: 0, out: 0, tok: 0 }; P.outputs = {}; P.outOrder = []; P.selOut = null;
+  P.agents = {}; script.agents.forEach(a => { P.agents[a.id] = Object.assign({ c: {} }, a); });
+  P.tasks = {}; script.tasks.forEach(t => { P.tasks[t.id] = Object.assign({ status: 'todo' }, t); });
+  $('#title').textContent = script.title || 'Agent team';
+  $('#goalLine').textContent = script.goal || '';
+  document.title = (script.title || 'Agent Team') + ' · Agent Team Simulator';
+  renderAgents(); renderGraph(); renderTasks(); renderOutTabs();
+  $('#outView').innerHTML = '<div class="empty" style="padding:20px"><div class="big">📄</div>Deliverables appear here as agents produce them.</div>';
+  $('#feed').innerHTML = `<div class="empty"><div class="big">▶</div><p><b>${esc(script.title || 'Ready')}</b></p><p>${script.agents.length} agents · ${script.steps.length} steps. Press <b>Play</b> or <b>Space</b> to start, <b>→</b> to step through.</p></div>`;
+  stickBottom = true;
+  updateProgress(); refreshStats(); setPlaying(false);
+  P.counting = false; $('#count').classList.remove('on');
+  renderDataBox();
+  if (!opts.noSave) store.set('script', script);
+  runLoop();
+  if ((settings.autoplay && !opts.noAutoplay) || opts.forcePlay) startPlay();
+}
+function restart() { if (P.script) load(P.script, { noSave: true, noAutoplay: true }); }
+function togglePlay() {
+  if (!P.script) return openDrawer();
+  if (P.counting) return;
+  if (P.idx >= P.script.steps.length) { restart(); startPlay(); return; }
+  if (P.playing) setPlaying(false); else startPlay();
+}
+async function startPlay() {
+  if (settings.countdown && P.idx === 0 && !P.counting && !P.instant) { if (!(await countdown())) return; }
+  setPlaying(true);
+}
+async function countdown() {
+  const c = $('#count'), id = P.runId; P.counting = true; c.classList.add('on');
+  for (const n of ['3', '2', '1']) {
+    c.innerHTML = '<span>' + n + '</span>';
+    await new Promise(r => setTimeout(r, 800));
+    if (id !== P.runId) return false;
+  }
+  c.classList.remove('on'); c.innerHTML = ''; P.counting = false; return true;
+}
+function step() {
+  if (!P.script) return;
+  if (P.approvalResolve) { P.approvalResolve('approve'); return; }
+  if (P.playing) { P.skip = true; return; }
+  if (P.stepReq) { P.skip = true; return; }
+  if (P.idx >= P.script.steps.length) return;
+  frame.last = performance.now(); P.stepReq = true;
+}
+function jumpEnd() { if (!P.script || P.counting) return; if (P.approvalResolve) P.approvalResolve('approve'); P.instant = true; setPlaying(true); }
+
+/* =====================================================================
+   Scenario drawer
+   ===================================================================== */
+function openDrawer(pane) { $('#drawer').classList.add('open'); if (pane) selectPane(pane); }
+function closeDrawer() { $('#drawer').classList.remove('open'); }
+function selectPane(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('sel', t.dataset.pane === id));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('sel', p.id === id));
+  if (id === 'pLLM') $('#llmPrompt').value = buildLlmPrompt();
+  if (id === 'pJSON') renderDataBox();
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => selectPane(t.dataset.pane));
+$('#bScenario').onclick = () => openDrawer();
+$('#bClose').onclick = closeDrawer;
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') closeDrawer(); });
+
+function builderCfg() {
+  return { title: $('#fTitle').value.trim(), goal: $('#fGoal').value, team: $('#fTeam').value, items: $('#fItems').value, seed: $('#fSeed').value || 1, chat: $('#fChat').value,
+    review: $('#oReview').checked, approval: $('#oApproval').checked, phases: $('#oPhases').checked, thinking: $('#oThinking').checked };
+}
+function setBuilder(c) {
+  if (c.title != null) $('#fTitle').value = c.title; if (c.goal != null) $('#fGoal').value = c.goal; if (c.team != null) $('#fTeam').value = c.team; if (c.items != null) $('#fItems').value = c.items;
+  if (c.seed != null) $('#fSeed').value = c.seed; if (c.chat != null) $('#fChat').value = c.chat;
+  ['review', 'approval', 'phases', 'thinking'].forEach(k => { if (c[k] != null) $('#o' + cap(k)).checked = c[k]; });
+}
+function genAndLoad(close = true) {
+  const cfg = builderCfg();
+  if (!cfg.team.trim()) { $('#genMsg').className = 'msg err'; $('#genMsg').textContent = 'Add at least one team member.'; return; }
+  store.set('builder', cfg);
+  const sc = generate(cfg);
+  load(sc);
+  $('#genMsg').className = 'msg ok'; $('#genMsg').textContent = `Generated ${sc.steps.length} steps for ${sc.agents.length} agents.`;
+  $('#llmPrompt').value = buildLlmPrompt();
+  if (close) closeDrawer();
+}
+$('#bGen').onclick = () => genAndLoad();
+$('#bDice').onclick = () => { $('#fSeed').value = Math.floor(Math.random() * 99999) + 1; };
+
+// presets
+PRESETS.forEach(p => {
+  const b = el('button', 'preset');
+  const icons = p.team.split('\n').map(l => (l.split('|')[2] || '').trim()).join('');
+  b.innerHTML = `<b>${esc(p.name)}</b><span>${esc(p.desc)}</span><div class="ics">${esc(icons)}</div>`;
+  b.onclick = () => { setBuilder({ title: p.name, goal: p.goal, team: p.team, items: p.items }); genAndLoad(); toast('Loaded preset: ' + p.name); };
+  $('#presetList').appendChild(b);
+});
+
+// LLM prompt route
+function buildLlmPrompt() {
+  const c = builderCfg();
+  const team = parseTeam(c.team);
+  const ex = [
+    { type: 'note', text: 'Phase 1 · Planning' },
+    { type: 'human', text: 'the brief from the human' },
+    { type: 'thinking', agent: 'atlas', text: 'internal reasoning, 1 sentence', duration: 1500 },
+    { type: 'tool', agent: 'scout', tool: 'web_search', input: '"query"', output: 'short result summary', duration: 1200 },
+    { type: 'message', from: 'atlas', to: 'scout', kind: 'handoff', text: '@Scout — ...' },
+    { type: 'message', from: 'scout', to: 'ledger', kind: 'ask', text: '@Ledger — question?' },
+    { type: 'message', from: 'ledger', to: 'scout', kind: 'answer', text: 'answer' },
+    { type: 'status', agent: 'scout', status: 'working', note: "what they're doing" },
+    { type: 'task', id: 't1', status: 'doing' },
+    { type: 'output', agent: 'scout', id: 'brief', title: 'Research brief', format: 'markdown', content: '# Heading\n- bullet\n| a | b |\n|---|---|\n| 1 | 2 |' },
+    { type: 'output', agent: 'scout', id: 'brief', append: true, content: '\n\n### Revision 2\n- change' },
+    { type: 'approval', from: 'atlas', text: 'request for human sign-off' }
+  ].map(o => JSON.stringify(o));
+  const shape = settings.promptFmt === 'jsonl'
+    ? `Return ONLY JSON Lines: one compact JSON object per line, no commentary, no code fences. Header lines first, then one line per step, in playback order:
+{"type":"meta","title":"short title","goal":"one-sentence goal"}
+{"type":"agent","id":"atlas","name":"Atlas","role":"Orchestrator","icon":"🧭"}
+{"type":"task","id":"t1","title":"Research competitor pricing","owner":"scout"}
+${ex.join('\n')}`
+    : `Return ONLY one JSON object, no commentary, matching this shape:
+{
+  "title": "short title",
+  "goal": "one-sentence goal",
+  "agents": [ {"id":"atlas","name":"Atlas","role":"Orchestrator","icon":"🧭"} ],
+  "tasks":  [ {"id":"t1","title":"Research competitor pricing","owner":"scout"} ],
+  "steps": [
+    ${ex.join(',\n    ')}
+  ]
+}`;
+  return `You are scripting a SIMULATED multi-agent AI team for a live presentation. Nothing will be executed; the script is played back step by step in a web page. Make it feel realistic: agents plan, call tools, ask each other questions, answer, produce deliverables, get reviewed and revise.
+
+${shape}
+Allowed values: message.kind = ask | answer | handoff | review | say ; message.to = an agent id, "all" or "human" ; status = idle | thinking | working | waiting | writing | done ; task.status = todo | doing | review | done ; output.format = markdown | code.
+
+Scenario:
+- Goal: ${c.goal || '(invent a plausible business goal)'}
+- Team (use these ids, names, roles and icons exactly):
+${team.length ? team.map(a => `  - id "${a.id}", name "${a.name}", role "${a.role}", icon "${a.icon}"`).join('\n') : '  - (invent 4-6 agents: one orchestrator plus specialists)'}
+- Items that must each be mentioned at least once: ${parseItems(c.items).join('; ') || '(choose 3-4 relevant topics)'}
+
+Requirements:
+- 45 to 75 steps. Open with a "human" brief; close with a summary output from the lead${c.approval ? ' followed by an "approval" step' : ''}.
+- Agents must ask EACH OTHER questions directly (not only the lead) and get specific answers.
+- Every agent calls at least one tool with plausible, fictional tool names and concise outputs.
+- Every non-lead agent produces at least one output with realistic, specific content (tables, lists, or code where it fits).${c.review ? '\n- Include a review step where a reviewer challenges at least one output and the author revises it with an "append" output.' : ''}
+- Use "note" steps as phase captions. Move each task through doing → done.
+- Keep messages under 40 words, conversational and specific. No real company or product names.`;
+}
+$('#bRefreshPrompt').onclick = () => { $('#llmPrompt').value = buildLlmPrompt(); toast('Prompt refreshed'); };
+$('#bCopyPrompt').onclick = () => copy($('#llmPrompt').value || buildLlmPrompt(), 'Prompt copied — paste it into any model');
+function loadFromText(text, msgEl) {
+  try {
+    const sc = parseSource(text);
+    if (sc.appearance && settings.applyScriptLook) { mergeSettings(settings, pickLook(sc.appearance)); applySettings(); }
+    load(sc); msgEl.className = 'msg ok'; msgEl.textContent = `Loaded: ${sc.agents.length} agents, ${sc.steps.length} steps.`;
+    closeDrawer(); toast('Scenario loaded'); return true;
+  } catch (e) { msgEl.className = 'msg err'; msgEl.textContent = 'Could not load: ' + e.message; return false; }
+}
+$('#bLoadResp').onclick = () => loadFromText($('#llmResp').value, $('#respMsg'));
+$('#bApi').onclick = async () => {
+  const url = $('#apiUrl').value.trim(), model = $('#apiModel').value.trim(), key = $('#apiKey').value.trim(), m = $('#apiMsg');
+  if (!url) { m.className = 'msg err'; m.textContent = 'Enter an endpoint URL.'; return; }
+  store.set('api', { url, model });
+  m.className = 'msg'; m.innerHTML = '<span class="spin"></span>Generating… this can take a minute.';
+  try {
+    const headers = { 'Content-Type': 'application/json' }; if (key) headers.Authorization = 'Bearer ' + key;
+    const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model, temperature: 0.8, messages: [{ role: 'user', content: buildLlmPrompt() }] }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    const d = await r.json();
+    const text = (d.choices && d.choices[0] && (d.choices[0].message ? d.choices[0].message.content : d.choices[0].text)) || (d.message && d.message.content) || (Array.isArray(d.content) && d.content.map(c => c.text || '').join('')) || d.response || '';
+    if (!text) throw new Error('Empty response');
+    $('#llmResp').value = text;
+    loadFromText(text, m);
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Failed: ' + e.message + (e instanceof TypeError ? ' (network or CORS blocked; try the copy/paste route)' : ''); }
+};
+
+// Data pane (JSON / JSONL)
+function renderDataBox() {
+  if (!P.script) return;
+  const look = settings.includeLook ? currentLook() : null;
+  $('#jsonBox').value = settings.dataFmt === 'jsonl' ? toJsonl(P.script, look) : toJsonText(P.script, look);
+  syncFmt();
+}
+function syncFmt() {
+  document.querySelectorAll('#dataFmt button').forEach(b => b.classList.toggle('sel', b.dataset.f === settings.dataFmt));
+  document.querySelectorAll('#promptFmt button').forEach(b => b.classList.toggle('sel', b.dataset.f === settings.promptFmt));
+}
+document.querySelectorAll('#dataFmt button').forEach(b => b.onclick = () => {
+  // keep the user's edits when switching format, if they parse
+  let sc = null; try { sc = parseSource($('#jsonBox').value); } catch (e) { $('#jsonMsg').className = 'msg err'; $('#jsonMsg').textContent = 'Fix the data before switching: ' + e.message; return; }
+  settings.dataFmt = b.dataset.f; store.set('settings', settings);
+  const look = settings.includeLook ? currentLook() : null;
+  $('#jsonBox').value = settings.dataFmt === 'jsonl' ? toJsonl(sc, look) : toJsonText(sc, look);
+  $('#jsonMsg').textContent = ''; syncFmt();
+});
+document.querySelectorAll('#promptFmt button').forEach(b => b.onclick = () => { settings.promptFmt = b.dataset.f; store.set('settings', settings); syncFmt(); $('#llmPrompt').value = buildLlmPrompt(); });
+$('#bApply').onclick = () => loadFromText($('#jsonBox').value, $('#jsonMsg'));
+$('#bCopyJson').onclick = () => copy($('#jsonBox').value, 'Data copied');
+function download(name, text, type) {
+  const blob = new Blob([text], { type });
+  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('#bDownload').onclick = () => {
+  const t = $('#jsonBox').value, isL = settings.dataFmt === 'jsonl';
+  download(slug(P.script ? P.script.title : 'scenario') + (isL ? '.jsonl' : '.json'), t, isL ? 'application/x-ndjson' : 'application/json');
+};
+function standaloneHtml() {
+  const look = settings.includeLook ? currentLook() : null;
+  const data = toJsonText(P.script, look).replace(/</g, '\\u003c');
+  const re = new RegExp('(<script type="application/json" id="embedded-scenario">)[\\s\\S]*?(<\\/script>)');
+  return ORIGINAL_HTML.replace(re, (m, open, close) => open + '\n' + data + '\n' + close);
+}
+$('#bStandalone').onclick = () => { if (!P.script) return; download(slug(P.script.title) + '.html', standaloneHtml(), 'text/html'); toast('Standalone HTML downloaded'); };
+$('#fileIn').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(t => { if (!loadFromText(t, $('#jsonMsg'))) $('#jsonBox').value = t; }); e.target.value = ''; };
+// drag & drop a data file anywhere
+let dragDepth = 0;
+const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+addEventListener('dragenter', e => { if (!hasFiles(e)) return; dragDepth++; $('#dropzone').classList.add('on'); });
+addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; $('#dropzone').classList.remove('on'); } });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => {
+  if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('#dropzone').classList.remove('on');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  f.text().then(t => { if (!loadFromText(t, $('#jsonMsg'))) { $('#jsonBox').value = t; toast($('#jsonMsg').textContent); } });
+});
+function copy(text, msg) {
+  const done = () => toast(msg);
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+  function fallback() { const t = el('textarea'); t.value = text; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed; select and copy manually'); } t.remove(); }
+}
+
+/* =====================================================================
+   Appearance & recording
+   ===================================================================== */
+function frameSize() {
+  if (settings.frame === 'fit') return null;
+  if (settings.frame === 'custom') return [Math.min(7680, Math.max(320, settings.fw || 1920)), Math.min(4320, Math.max(240, settings.fh || 1080))];
+  return settings.frame.split('x').map(Number);
+}
+function layoutFrame() {
+  const app = $('#app'), f = frameSize();
+  if (!f) {
+    document.body.classList.remove('framed');
+    ['width', 'height', 'left', 'top', 'transform'].forEach(k => { app.style[k] = ''; });
+    $('#frameInfo').textContent = `Frame follows the window (${innerWidth} × ${innerHeight})`;
+    return;
+  }
+  const [w, h] = f, sc = Math.min(innerWidth / w, innerHeight / h);
+  document.body.classList.add('framed');
+  app.style.width = w + 'px'; app.style.height = h + 'px';
+  app.style.left = ((innerWidth - w * sc) / 2) + 'px'; app.style.top = ((innerHeight - h * sc) / 2) + 'px';
+  app.style.transform = `scale(${sc})`;
+  $('#frameInfo').textContent = `Frame ${w} × ${h}, shown at ${Math.round(sc * 100)}% to fit this window`;
+}
+addEventListener('resize', layoutFrame);
+function applySettings() {
+  const r = document.documentElement, app = $('#app'), st = settings;
+  r.dataset.theme = THEMES.includes(st.theme) ? st.theme : 'dark';
+  if (/^#[0-9a-f]{6}$/i.test(st.accent)) r.style.setProperty('--accent', st.accent); else r.style.removeProperty('--accent');
+  r.style.setProperty('--fs', st.fs + 'px'); r.style.setProperty('--gap', st.gap + 'px'); r.style.setProperty('--r', st.radius + 'px');
+  r.style.setProperty('--lw', st.lw + 'px'); r.style.setProperty('--rw', st.rw + 'px'); r.style.setProperty('--font', FONTS[st.font] || FONTS.system);
+  app.classList.remove('bg-gradient', 'bg-dots'); if (st.bg === 'gradient' || st.bg === 'dots') app.classList.add('bg-' + st.bg);
+  Object.keys(st.show).forEach(k => app.classList.toggle('hide-' + k, !st.show[k]));
+  app.classList.toggle('no-left', !st.show.graph && !st.show.agents);
+  app.classList.toggle('no-right', !st.show.tasks && !st.show.outputs);
+  app.classList.toggle('rec', st.rec);
+  if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
+  $('#simBadge').style.display = st.badge ? '' : 'none';
+  $('#bRec').classList.toggle('primary', st.rec);
+  applyCanvas(); layoutFrame(); syncControls(); store.set('settings', st);
+}
+const getK = k => k.split('.').reduce((o, p) => o && o[p], settings);
+const setK = (k, v) => { const ps = k.split('.'), last = ps.pop(); ps.reduce((o, p) => o[p], settings)[last] = v; };
+function themeAccentHex() { const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); return /^#[0-9a-f]{6}$/i.test(v) ? v : '#7c9cff'; }
+function syncControls() {
+  document.querySelectorAll('[data-k]').forEach(inp => {
+    const v = getK(inp.dataset.k);
+    if (inp === document.activeElement && (inp.type === 'number' || inp.type === 'text' || inp.tagName === 'INPUT' && !inp.type)) return;
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else if (inp.type === 'color') inp.value = /^#[0-9a-f]{6}$/i.test(v) ? v : themeAccentHex();
+    else inp.value = v;
+  });
+  document.querySelectorAll('[data-o]').forEach(o => { const k = o.dataset.o, v = settings[k]; o.textContent = k === 'typeSpeed' ? Number(v).toFixed(1) + '×' : v + 'px'; });
+  $('#customWrap').style.visibility = settings.frame === 'custom' ? '' : 'hidden';
+  document.querySelectorAll('#layoutMode button').forEach(b => b.classList.toggle('sel', b.dataset.m === settings.layout));
+  document.querySelectorAll('.lthumb').forEach(b => b.classList.toggle('sel', settings.layout === 'canvas' && JSON.stringify(LAYOUTS[b.dataset.l].r) === JSON.stringify(pickRects(settings.canvas, LAYOUTS[b.dataset.l].r))));
+}
+document.querySelectorAll('[data-k]').forEach(inp => {
+  const k = inp.dataset.k;
+  const evt = (inp.type === 'range' || inp.type === 'color') ? 'input' : 'change';
+  inp.addEventListener(evt, () => {
+    let v = inp.type === 'checkbox' ? inp.checked : (inp.type === 'range' || inp.type === 'number') ? Number(inp.value) : inp.value;
+    if (k === 'human') v = String(v).trim() || 'You';
+    setK(k, v); applySettings();
+    if (k === 'human' && P.script) renderGraph();
+    if (k === 'includeLook') renderDataBox();
+  });
+});
+$('#bAccentReset').onclick = () => { settings.accent = ''; applySettings(); };
+$('#bResetLook').onclick = () => { LOOK_KEYS.forEach(k => { settings[k] = clone(DEFAULTS[k]); }); applySettings(); toast('Appearance reset'); };
+function toggleRec() {
+  if (editing) setEditing(false);
+  settings.rec = !settings.rec; applySettings();
+  toast(settings.rec ? 'Recording mode on. Press H to show the controls again' : 'Controls shown');
+}
+$('#bRec').onclick = toggleRec;
+
+/* ---------- free canvas layout editor ---------- */
+let editing = false, selPanel = null;
+const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+const MIN_W = 10, MIN_H = 10;
+const pickRects = (c, ref) => { const o = {}; Object.keys(ref).forEach(id => { o[id] = c[id]; }); return o; };
+function applyCanvas() {
+  const on = settings.layout === 'canvas';
+  $('#app').classList.toggle('canvas', on);
+  PANELS.forEach(([id]) => {
+    const p = document.getElementById(id), r = settings.canvas[id] || LAYOUTS.classic.r[id];
+    p.classList.toggle('cv', on);
+    ['x', 'y', 'w', 'h'].forEach((k, i) => p.style.setProperty('--' + k, r[i]));
+    p.style.setProperty('--z', 1 + settings.canvasZ.indexOf(id));
+    const sz = p.querySelector('.edit-ov .size'); if (sz) sz.textContent = `${Math.round(r[2])} × ${Math.round(r[3])}%`;
+  });
+}
+// Convert whatever is on screen now (e.g. the column layout) into canvas rectangles
+function measureRects() {
+  const main = $('main'), m = main.getBoundingClientRect(), sc = m.width / main.offsetWidth || 1;
+  const gap = settings.gap, W = main.offsetWidth - gap, H = main.offsetHeight - gap;
+  const out = clone(settings.canvas);
+  PANELS.forEach(([id]) => {
+    const p = document.getElementById(id); if (!p.offsetParent) return;
+    const r = p.getBoundingClientRect();
+    const x = ((r.left - m.left) / sc - gap) / W * 100, y = ((r.top - m.top) / sc - gap) / H * 100;
+    const w = (r.width / sc + gap) / W * 100, h = (r.height / sc + gap) / H * 100;
+    const q = v => Math.round(v * 2) / 2;
+    out[id] = [clampN(q(x), 0, 90), clampN(q(y), 0, 90), clampN(q(w), MIN_W, 100), clampN(q(h), MIN_H, 100)];
+  });
+  return out;
+}
+function setEditing(on) {
+  if (on && $('#app').clientWidth <= 720) { toast('Widen the window or choose a fixed frame to edit the layout'); return; }
+  if (on && settings.rec) { settings.rec = false; }
+  if (on && settings.layout !== 'canvas') { settings.canvas = measureRects(); settings.layout = 'canvas'; }
+  editing = on; selPanel = null;
+  $('#app').classList.toggle('editing', on);
+  document.querySelectorAll('.edit-ov.sel').forEach(o => o.classList.remove('sel'));
+  $('#bLayout').classList.toggle('primary', on);
+  applySettings();
+  if (on) { closeDrawer(); $('#reader').classList.remove('open'); }
+}
+function bringFront(id) { settings.canvasZ = settings.canvasZ.filter(z => z !== id).concat(id); }
+function edgeCands(id) {
+  const xs = [0, 100], ys = [0, 100];
+  PANELS.forEach(([o]) => { if (o === id || !document.getElementById(o).offsetParent) return; const r = settings.canvas[o]; xs.push(r[0], r[0] + r[2]); ys.push(r[1], r[1] + r[3]); });
+  return { xs, ys };
+}
+function magnet(v, cands, t = 1.2) { let best = null, bd = t; cands.forEach(c => { const d = Math.abs(v - c); if (d < bd) { bd = d; best = c; } }); return best; }
+PANELS.forEach(([id, showKey, label]) => {
+  const p = document.getElementById(id);
+  const ov = el('div', 'edit-ov');
+  ov.innerHTML = `<div class="lbl">⠿ ${esc(label)} <span class="size"></span>${showKey ? '<button title="Hide this panel (re-enable under Appearance → Panels)">Hide</button>' : ''}</div>` +
+    ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].map(d => `<div class="h h-${d}" data-d="${d}"></div>`).join('');
+  p.appendChild(ov);
+  if (showKey) ov.querySelector('button').onclick = e => { e.stopPropagation(); settings.show[showKey] = false; applySettings(); toast(label + ' hidden'); };
+  ov.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    document.querySelectorAll('.edit-ov.sel').forEach(o => o.classList.remove('sel')); ov.classList.add('sel'); selPanel = id;
+    bringFront(id); applyCanvas();
+    const d = e.target.dataset.d || 'move';
+    const m = $('main').getBoundingClientRect(), px = m.width / 100, py = m.height / 100;
+    const start = settings.canvas[id].slice(), x0 = e.clientX, y0 = e.clientY, { xs, ys } = edgeCands(id);
+    ov.setPointerCapture(e.pointerId);
+    const snapV = v => settings.snap ? Math.round(v) : Math.round(v * 10) / 10;
+    const mv = ev => {
+      const dx = (ev.clientX - x0) / px, dy = (ev.clientY - y0) / py;
+      let [x, y, w, h] = start;
+      if (d === 'move') {
+        x = clampN(snapV(x + dx), 0, 100 - w); y = clampN(snapV(y + dy), 0, 100 - h);
+        if (settings.snap) {
+          let s1 = magnet(x, xs); if (s1 != null) x = s1; else if ((s1 = magnet(x + w, xs)) != null) x = s1 - w;
+          let s2 = magnet(y, ys); if (s2 != null) y = s2; else if ((s2 = magnet(y + h, ys)) != null) y = s2 - h;
+        }
+      } else {
+        let L = x, T = y, R = x + w, B = y + h;
+        if (d.includes('w')) L = clampN(snapV(x + dx), 0, R - MIN_W);
+        if (d.includes('e')) R = clampN(snapV(R + dx), L + MIN_W, 100);
+        if (d.includes('n')) T = clampN(snapV(y + dy), 0, B - MIN_H);
+        if (d.includes('s')) B = clampN(snapV(B + dy), T + MIN_H, 100);
+        if (settings.snap) {
+          const mg = (v, c) => { const s = magnet(v, c); return s == null ? v : s; };
+          if (d.includes('w')) L = Math.min(mg(L, xs), R - MIN_W); if (d.includes('e')) R = Math.max(mg(R, xs), L + MIN_W);
+          if (d.includes('n')) T = Math.min(mg(T, ys), B - MIN_H); if (d.includes('s')) B = Math.max(mg(B, ys), T + MIN_H);
+        }
+        x = L; y = T; w = R - L; h = B - T;
+      }
+      settings.canvas[id] = [x, y, w, h].map(v => Math.round(v * 10) / 10);
+      applyCanvas();
+    };
+    const up = () => { ov.removeEventListener('pointermove', mv); ov.removeEventListener('pointerup', up); ov.removeEventListener('pointercancel', up); applySettings(); };
+    ov.addEventListener('pointermove', mv); ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up);
+  });
+});
+// arrow keys nudge the selected panel while editing (Shift = resize)
+document.addEventListener('keydown', e => {
+  if (!editing || !selPanel || !e.key.startsWith('Arrow') || e.target.matches('input,textarea,select')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  const r = settings.canvas[selPanel], st = e.altKey ? 0.1 : 1, dx = e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0, dy = e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0;
+  if (e.shiftKey) { r[2] = clampN(r[2] + dx, MIN_W, 100 - r[0]); r[3] = clampN(r[3] + dy, MIN_H, 100 - r[1]); }
+  else { r[0] = clampN(r[0] + dx, 0, 100 - r[2]); r[1] = clampN(r[1] + dy, 0, 100 - r[3]); }
+  settings.canvas[selPanel] = r.map(v => Math.round(v * 10) / 10); applySettings();
+}, true);
+function applyLayoutPreset(key) {
+  const L = LAYOUTS[key]; if (!L) return;
+  settings.canvas = Object.assign(clone(settings.canvas), clone(L.r)); settings.layout = 'canvas';
+  applySettings(); toast('Layout: ' + L.name);
+}
+Object.entries(LAYOUTS).forEach(([key, L]) => {
+  const b = el('button', 'lthumb'); b.dataset.l = key;
+  const cols = { graphPanel: 'var(--accent2)', agentsPanel: 'var(--ok)', feedPanel: 'var(--accent)', tasksPanel: 'var(--warn)', outPanel: '#e879c6' };
+  b.innerHTML = `<div class="mini">${Object.entries(L.r).map(([id, r]) => `<i style="left:${r[0]}%;top:${r[1]}%;width:${r[2]}%;height:${r[3]}%;background:${cols[id]}"></i>`).join('')}</div>${esc(L.name)}`;
+  b.onclick = () => applyLayoutPreset(key);
+  $('#layoutThumbs').appendChild(b);
+  $('#layoutPreset').appendChild(Object.assign(el('option'), { value: key, textContent: L.name }));
+});
+$('#layoutPreset').onchange = e => { applyLayoutPreset(e.target.value); e.target.value = ''; e.target.blur(); };
+document.querySelectorAll('#layoutMode button').forEach(b => b.onclick = () => {
+  if (b.dataset.m === 'canvas' && settings.layout !== 'canvas') settings.canvas = measureRects();
+  settings.layout = b.dataset.m; if (settings.layout === 'columns' && editing) setEditing(false); applySettings();
+});
+$('#bEditLayout').onclick = () => setEditing(true);
+$('#bLayout').onclick = () => setEditing(!editing);
+$('#bEditDone').onclick = () => setEditing(false);
+$('#bShowAll').onclick = () => { Object.keys(settings.show).forEach(k => { if (['graph', 'agents', 'tasks', 'outputs'].includes(k)) settings.show[k] = true; }); applySettings(); };
+
+let cursorTimer;
+addEventListener('mousemove', () => {
+  document.body.classList.remove('nocursor'); clearTimeout(cursorTimer);
+  if (settings.rec && settings.hideCursor) cursorTimer = setTimeout(() => { if (settings.rec && settings.hideCursor && !$('#drawer').classList.contains('open')) document.body.classList.add('nocursor'); }, 1500);
+});
+
+/* ---------- header controls & keys ---------- */
+$('#bPlay').onclick = togglePlay;
+$('#bStep').onclick = step;
+$('#bEnd').onclick = jumpEnd;
+$('#bRestart').onclick = restart;
+$('#speed').onchange = e => { P.speed = Number(e.target.value); e.target.blur(); };
+$('#bLook').onclick = () => openDrawer('pLook');
+document.addEventListener('click', e => { const b = e.target.closest('header button, .outcard, .otab'); if (b) b.blur(); });
+$('#bFull').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); };
+$('#bExpand').onclick = () => openReader();
+$('#bReaderClose').onclick = () => $('#reader').classList.remove('open');
+$('#reader').addEventListener('click', e => { if (e.target.id === 'reader') $('#reader').classList.remove('open'); });
+document.addEventListener('keydown', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k !== 'Escape' && (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey)) return;
+  if (k === 'Escape') {
+    if (e.target.matches('input,textarea,select')) e.target.blur();
+    if ($('#drawer').classList.contains('open')) closeDrawer();
+    else if (editing) setEditing(false);
+    else if ($('#reader').classList.contains('open')) $('#reader').classList.remove('open');
+    else if (settings.rec) toggleRec();
+    return;
+  }
+  if ($('#drawer').classList.contains('open')) return;
+  if (k === ' ') { e.preventDefault(); togglePlay(); }
+  else if (k === 'ArrowRight') { e.preventDefault(); step(); }
+  else if (k === 'r') restart();
+  else if (k === 'e') jumpEnd();
+  else if (k === 's') openDrawer();
+  else if (k === 'v') openDrawer('pLook');
+  else if (k === 'h') toggleRec();
+  else if (k === 'l') setEditing(!editing);
+  else if (k === 'a') { if (P.approvalResolve) P.approvalResolve('approve'); }
+  else if (k === 'f') $('#bFull').click();
+  else if (k === 't') { settings.theme = THEMES[(THEMES.indexOf(settings.theme) + 1) % THEMES.length]; applySettings(); toast('Theme: ' + settings.theme); }
+  else if (k === '+' || k === '=') { settings.fs = Math.min(32, settings.fs + 1); applySettings(); }
+  else if (k === '-' || k === '_') { settings.fs = Math.max(11, settings.fs - 1); applySettings(); }
+});
+
+/* ---------- boot ---------- */
+(async function boot() {
+  // URL parameters (handy for a browser source in recording software) win over saved settings
+  const Q = new URLSearchParams(location.search);
+  const urlLook = () => {
+    const o = {};
+    if (Q.get('frame')) o.frame = Q.get('frame');
+    if (Q.get('theme')) o.theme = Q.get('theme');
+    if (Q.get('fs')) o.fs = Q.get('fs');
+    if (Q.get('rec')) o.rec = Q.get('rec') === '1';
+    mergeSettings(settings, o);
+  };
+  urlLook(); applySettings();
+  if (Q.get('speed')) { P.speed = Number(Q.get('speed')) || 1; $('#speed').value = String(P.speed); }
+  const api = store.get('api', null); if (api) { $('#apiUrl').value = api.url || ''; $('#apiModel').value = api.model || ''; }
+  const b = store.get('builder', null);
+  setBuilder(b || { title: PRESETS[0].name, goal: PRESETS[0].goal, team: PRESETS[0].team, items: PRESETS[0].items, seed: 42 });
+  if (!$('#fSeed').value) $('#fSeed').value = 42;
+
+  // Scenario source, in priority order: ?src= file, embedded block, last session, generated default
+  let sc = null, from = '';
+  const src = Q.get('src');
+  if (src) {
+    try { const r = await fetch(src); if (!r.ok) throw new Error('HTTP ' + r.status); sc = parseSource(await r.text()); from = 'url'; }
+    catch (e) { toast('Could not load ' + src + ': ' + e.message); }
+  }
+  if (!sc) {
+    const emb = $('#embedded-scenario').textContent.trim();
+    if (emb) { try { sc = parseSource(emb); from = 'embedded'; } catch (e) { toast('Embedded scenario is invalid: ' + e.message); } }
+  }
+  if (!sc) { try { const saved = store.get('script', null); if (saved) sc = normalise(saved); } catch (e) { sc = null; } }
+  if (!sc) sc = generate(builderCfg());
+  if (from && sc.appearance && settings.applyScriptLook) { mergeSettings(settings, pickLook(sc.appearance)); urlLook(); applySettings(); }
+  syncFmt();
+  load(sc, { noAutoplay: !from, noSave: !!from, forcePlay: Q.get('autoplay') === '1' });
+})();
+</script>
+</body>
+</html>

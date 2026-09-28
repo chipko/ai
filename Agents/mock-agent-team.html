@@ -17,7 +17,7 @@
     3. Data         — JSON or JSONL: paste, import, drag-drop, ?src=file.jsonl, or embedded below
 
   Keys: Space play/pause · → step / skip typing · R restart · E jump to end · A approve
-        S scenario · V appearance · L layout editor · H recording mode · F fullscreen · T theme · +/- text size
+        S scenario · V appearance · L layout editor · H clean mode · C record clip · F fullscreen · T theme · +/- text size
 -->
 <style>
 /* ---------- theme tokens (recording surface) ---------- */
@@ -135,8 +135,8 @@ footer b{color:var(--text);font-variant-numeric:tabular-nums}
 .lthumb .mini{position:relative;aspect-ratio:16/9;background:var(--bg);border-radius:6px;margin-bottom:6px;overflow:hidden}
 .lthumb .mini i{position:absolute;border-radius:3px;border:1px solid var(--bg);opacity:.85}
 
-/* ---------- recording mode ---------- */
-/* recording mode: controls fade out, and fade back in while the mouse is over the header */
+/* ---------- clean mode ---------- */
+/* clean mode: controls fade out, and fade back in while the mouse is over the header */
 #app.rec .hint-keys{display:none}
 #app.rec .controls{opacity:0;pointer-events:none;transition:opacity .25s}
 #app.rec header:hover .controls,#app.rec .controls:focus-within{opacity:1;pointer-events:auto}
@@ -327,6 +327,13 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
 .panelchecks label{display:flex;gap:6px;align-items:center}
 #dropzone{position:fixed;inset:0;z-index:95;display:none;place-items:center;background:rgba(10,15,30,.7);color:#fff;font:600 22px system-ui,sans-serif;border:3px dashed #7c9cff}
 #dropzone.on{display:grid}
+.btn.recbtn::before{content:"";width:.62em;height:.62em;border-radius:50%;background:var(--bad);box-shadow:0 0 0 2px color-mix(in srgb,var(--bad) 30%,transparent)}
+#clipReady{position:fixed;right:16px;bottom:46px;z-index:92;width:min(400px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--accent);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.45);padding:12px 14px;display:none;font:14px/1.45 system-ui,sans-serif;color:var(--text)}
+#clipReady.on{display:block}
+#clipReady .ch{display:flex;align-items:center;gap:8px}#clipReady .ch b{flex:1}
+#clipReady video{width:100%;border-radius:8px;background:#000;margin:8px 0;display:block;max-height:240px}
+#clipReady .cm{font-size:.85em;color:var(--dim);margin-bottom:10px}
+#clipReady a.btn{text-decoration:none}
 
 /* ---------- responsive (container queries: follow the frame, not the window) ---------- */
 @container app (max-width:1100px){
@@ -371,7 +378,8 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
     <button class="btn icon" id="bTheme" title="Light / dark (T cycles all themes)">◐</button>
     <button class="btn" id="bLook" title="Appearance &amp; recording (V)"><span class="uic"><svg class="u" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span> Look</button>
     <button class="btn icon hide-sm" id="bLayout" title="Edit layout: drag &amp; resize panels (L)">✥</button>
-    <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
+    <button class="btn recbtn" id="bRecClip" title="Record a video clip of the run for slides (C)">Rec</button>
+    <button class="btn icon" id="bClean" title="Clean mode: hide the controls for presenting or screen capture (H)"><span class="uic"><svg class="u" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 8.5 4.5 9.5 7a13 13 0 0 1-2.4 3.4M6.6 6.6C4.5 8 3.1 10 2.5 12c1 2.5 4.5 7 9.5 7 1.6 0 3.1-.5 4.4-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></span></button>
     <button class="btn icon hide-sm" id="bFull" title="Fullscreen (F)">⛶</button>
   </div>
 </header>
@@ -607,18 +615,19 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
 
       <h3 class="sec">Recording</h3>
       <div class="field checks" style="flex-direction:column">
-        <label><input type="checkbox" data-k="rec"> Recording mode: hide the header controls and key hints. Hover the header to use them, or press <b>H</b> / <b>Esc</b> to exit</label>
-        <label><input type="checkbox" data-k="hideCursor"> Hide the mouse cursor after 1.5 s of stillness in recording mode</label>
+        <label><input type="checkbox" data-k="rec"> Clean mode: hide the header controls and key hints (does <i>not</i> record; use <b>Rec</b> for that). Hover the header to use the controls, or press <b>H</b> / <b>Esc</b> to exit</label>
+        <label><input type="checkbox" data-k="hideCursor"> Hide the mouse cursor after 1.5 s of stillness in clean mode</label>
         <label><input type="checkbox" data-k="countdown"> 3-2-1 countdown when playing from the start</label>
         <label><input type="checkbox" data-k="autoApprove"> Auto-approve human checkpoints after 3 seconds (hands-free runs)</label>
         <label><input type="checkbox" data-k="autoOpen"> Switch the Outputs panel to each new deliverable</label>
         <label><input type="checkbox" data-k="autoplay"> Start playing as soon as a scenario loads</label>
       </div>
       <h3 class="sec">Record a clip for slides</h3>
-      <p class="msg" style="margin-top:0">Records just the stage (no browser bars) straight to a small video file, ready for PowerPoint or Keynote. When the browser asks what to share, pick <b>this tab</b>. The run restarts from the beginning, with controls and cursor hidden and checkpoints auto-approved. Recording stops two seconds after the run completes, or press <b>Esc</b> to stop early. For a full 1920 × 1080 clip, choose that frame above and make the browser window at least that size (full screen on a 1080p or larger display).</p>
+      <p class="msg" style="margin-top:0">Records just the stage (no browser bars) straight to a small video file, ready for PowerPoint or Keynote. When the browser asks what to share, pick <b>this tab</b>. The run restarts from the beginning, with controls and cursor hidden and checkpoints auto-approved. Recording holds on the final screen for the end-hold time after the run completes, then stops by itself. Press <b>Esc</b> to stop early. For a full 1920 × 1080 clip, choose that frame above and make the browser window at least that size (full screen on a 1080p or larger display).</p>
       <div class="grid3">
         <div class="field"><label>Quality</label><select class="inp" data-k="clipQuality"><option value="800000">Small · 0.8 Mbps</option><option value="1500000">Balanced · 1.5 Mbps</option><option value="3000000">High · 3 Mbps</option></select></div>
         <div class="field"><label>Frame rate</label><select class="inp" data-k="clipFps"><option value="24">24 fps</option><option value="30">30 fps</option></select></div>
+        <div class="field"><label>End hold</label><select class="inp" data-k="clipTail"><option value="2">2 s on the final screen</option><option value="5">5 s on the final screen</option><option value="10">10 s on the final screen</option></select></div>
         <div class="field"><label>&nbsp;</label><button class="btn primary" id="bClip" style="width:100%;justify-content:center">● Record clip</button></div>
       </div>
       <p class="msg" id="clipFormat" style="margin:0 0 4px"></p>
@@ -629,12 +638,18 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
       </div>
       <div class="actions"><button class="btn" id="bResetLook">↺ Reset appearance</button><span class="msg" id="frameInfo"></span></div>
       <h3 class="sec">Keyboard</h3>
-      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · + / − text size · Esc close</div>
+      <div class="msg mono" style="line-height:1.9">Space play/pause · → step or finish typing · R restart · E jump to end · A approve<br>S scenario · V appearance · L edit layout · H clean mode · C record clip · F fullscreen · T next theme · + / − text size · Esc close</div>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="clipReady" role="dialog" aria-label="Recorded clip">
+  <div class="ch"><b>Clip ready</b><button class="btn icon" id="bClipClose" title="Dismiss">✕</button></div>
+  <video id="clipVideo" controls muted playsinline></video>
+  <div class="cm" id="clipMeta"></div>
+  <div class="actions"><a class="btn primary" id="clipSave" download>⬇ Save clip</a><span class="msg">Goes to your browser's download folder (usually Downloads)</span></div>
+</div>
 <div id="dropzone">Drop a .json or .jsonl scenario</div>
 
 <script>
@@ -651,7 +666,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('ats:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('ats:' + k, JSON.stringify(v)); } catch (e) {} }
 };
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800); }
+function toast(msg, ms = 1800) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms); }
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'item';
@@ -1578,7 +1593,7 @@ const DEFAULTS = {
   show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
   rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
   includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
-  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true, iconStyle: 'line', clipQuality: 1500000, clipFps: 30
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true, iconStyle: 'line', clipQuality: 1500000, clipFps: 30, clipTail: 5
 };
 // Keys that travel with a scenario file as its "appearance"
 const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ', 'hideScrollbars', 'iconStyle'];
@@ -1973,7 +1988,7 @@ function finish() {
   const d = el('div', 'done-banner', `✓ Run complete: ${P.stats.msg} messages · ${P.stats.tool} tool calls · ${P.stats.out} outputs · ${fmtTime(P.elapsed)}`);
   feedAdd(d); updateProgress(); refreshStats();
   $('#bPlay').innerHTML = '⟲ Replay';
-  if (CLIP.active) CLIP.stopTimer = setTimeout(stopClip, 2000);   // hold the final frame, then end the clip
+  if (CLIP.active) CLIP.stopTimer = setTimeout(stopClip, (Number(settings.clipTail) || 5) * 1000);   // hold the final screen, then end the clip
 }
 
 function load(script, opts = {}) {
@@ -2184,7 +2199,7 @@ function clipMime() {
   const c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
   return (window.MediaRecorder && c.find(t => MediaRecorder.isTypeSupported(t))) || '';
 }
-function clipMsg(text, cls) { const m = $('#clipMsg'); m.className = 'msg' + (cls ? ' ' + cls : ''); m.textContent = text; }
+function clipMsg(text, cls, loud) { const m = $('#clipMsg'); m.className = 'msg' + (cls ? ' ' + cls : ''); m.textContent = text; if (loud) toast(text, 6000); }
 function syncClipInfo() {
   const mime = clipMime(), f = frameSize(), mbps = (Number(settings.clipQuality) || 1500000) / 1e6;
   $('#clipFormat').textContent = !mime ? 'This browser can’t record clips; use a recent Chrome or Edge.'
@@ -2193,7 +2208,10 @@ function syncClipInfo() {
 async function startClip() {
   if (CLIP.active) { stopClip(); return; }
   if (!P.script) return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { clipMsg('This browser can’t record the page. Use a recent Chrome or Edge.', 'err'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { clipMsg('This browser can’t record the page. Open the HTML file in a recent Chrome or Edge.', 'err', true); return; }
+  let embedded = false; try { embedded = window.top !== window.self; } catch (e) { embedded = true; }
+  const pol = document.permissionsPolicy || document.featurePolicy;
+  if (pol && pol.allowsFeature && !pol.allowsFeature('display-capture')) { clipMsg('Recording is blocked here because this page is running inside a preview or frame. Open the HTML file directly in Chrome or Edge, then press Rec.', 'err', true); return; }
   const fps = Number(settings.clipFps) || 30;
   let stream;
   try {
@@ -2201,7 +2219,13 @@ async function startClip() {
       video: { frameRate: fps, displaySurface: 'browser', cursor: 'never' }, audio: false,
       preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude'
     });
-  } catch (e) { clipMsg('Recording cancelled.'); return; }
+  } catch (e) {
+    clipMsg(e && e.name === 'NotAllowedError'
+      ? 'Recording was cancelled or blocked. If no “choose what to share” prompt appeared, open the HTML file directly in Chrome or Edge (not inside a preview) and try again.'
+      : 'Could not start capture: ' + (e && e.message || e), 'err', true);
+    return;
+  }
+  CLIP.embedded = embedded;
   const track = stream.getVideoTracks()[0];
   // Crop the capture to the stage so the browser UI and letterboxing never appear (Chrome / Edge)
   let cropped = false;
@@ -2248,15 +2272,24 @@ function saveClip(type) {
   if (!CLIP.chunks.length) { clipMsg('Nothing was recorded.', 'err'); return; }
   const blob = new Blob(CLIP.chunks, { type: type || 'video/webm' }); CLIP.chunks = [];
   const isMp4 = /mp4/.test(blob.type), name = slug(P.script ? P.script.title : 'agent-team') + (isMp4 ? '.mp4' : '.webm');
-  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (CLIP.url) URL.revokeObjectURL(CLIP.url);
+  CLIP.url = URL.createObjectURL(blob);
+  // Automatic download (may be blocked inside previews); the card's Save button is the reliable path
+  try { const a = el('a'); a.href = CLIP.url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
   const s = CLIP.size || {}, dur = fmtTime(performance.now() - CLIP.t0);
+  const save = $('#clipSave'); save.href = CLIP.url; save.download = name;
+  $('#clipVideo').src = CLIP.url;
+  $('#clipMeta').textContent = `${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${s.width ? s.width + ' × ' + s.height : 'unknown size'} · ${dur}` +
+    (CLIP.embedded ? ' · If nothing downloaded, this page is inside a preview: use Save, or open the file directly.' : '');
+  $('#clipReady').classList.add('on');
   const res = s.width ? `${s.width} × ${s.height}` : 'unknown size';
   clipMsg(`Saved ${name}: ${(blob.size / 1048576).toFixed(1)} MB · ${res} · ${dur}${CLIP.cropped ? '' : ' · whole tab (this browser can’t crop to the stage)'}` +
     (isMp4 ? '' : ' · WebM: PowerPoint prefers MP4, so convert it or record in a recent Chrome or Edge'), 'ok');
-  toast('Clip saved: ' + name);
+  toast('Clip recorded: ' + name, 4000);
 }
 $('#bClip').onclick = startClip;
+$('#bRecClip').onclick = startClip;
+$('#bClipClose').onclick = () => { $('#clipReady').classList.remove('on'); $('#clipVideo').removeAttribute('src'); $('#clipVideo').load(); };
 function download(name, text, type) {
   const blob = new Blob([text], { type });
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -2330,7 +2363,7 @@ function applySettings() {
   app.classList.toggle('noscrollbars', st.hideScrollbars);
   if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
   $('#simBadge').style.display = st.badge ? '' : 'none';
-  $('#bRec').classList.toggle('primary', st.rec);
+  $('#bClean').classList.toggle('primary', st.rec);
   if (st.iconStyle !== applySettings.icons) { const first = applySettings.icons === undefined; applySettings.icons = st.iconStyle; if (!first) refreshIcons(); }
   applyCanvas(); layoutFrame(); syncControls(); store.set('settings', st);
 }
@@ -2367,9 +2400,9 @@ $('#bResetLook').onclick = () => { LOOK_KEYS.forEach(k => { settings[k] = clone(
 function toggleRec() {
   if (editing) setEditing(false);
   settings.rec = !settings.rec; applySettings();
-  toast(settings.rec ? 'Recording mode on. Hover the header for controls; press H or Esc to exit' : 'Controls shown');
+  toast(settings.rec ? 'Clean mode on (not recording). Hover the header for controls; press H or Esc to exit' : 'Controls shown');
 }
-$('#bRec').onclick = toggleRec;
+$('#bClean').onclick = toggleRec;
 
 /* ---------- free canvas layout editor ---------- */
 let editing = false, selPanel = null;
@@ -2538,6 +2571,7 @@ document.addEventListener('keydown', e => {
   else if (k === 's') openDrawer();
   else if (k === 'v') openDrawer('pLook');
   else if (k === 'h') toggleRec();
+  else if (k === 'c') startClip();
   else if (k === 'l') setEditing(!editing);
   else if (k === 'a') { if (P.approvalResolve) P.approvalResolve('approve'); }
   else if (k === 'f') $('#bFull').click();

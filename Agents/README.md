@@ -53,10 +53,15 @@ Ways to load data:
 - **Panels**: you can show or hide the header, progress bar, team network, agent cards, counters, tasks, outputs, footer and the "Simulated" badge.
 - **Recording mode** (**H**): hides the controls and key hints. Hover over the header to use the controls, or press **H** or **Esc** to exit. The cursor also hides when idle.
 - **No scrollbars**: the stage never shows scrollbars (you can switch this off in Appearance). Panels still scroll with the wheel, trackpad or touch. They fade at the edges where there's more content, and the activity feed follows live output. Scroll up to read back, and a **↓ Latest** button takes you back to live.
+- **Agent icons**: *Line icons* (the default) gives each role a matching outline icon, such as a compass for the lead, a blueprint for the architect, layers for full-stack, a database for backend, a cloud for DevOps and a flask for QA, drawn in the agent's colour. *Monograms* shows the agent's initials, and *Emoji* uses each agent's emoji. Tool, document and counter glyphs follow the same style. A scenario can pin an agent's line icon with `"glyph": "backend"` (any role name, or `human`, `team`).
 - **Light/dark**: the ◐ button in the header toggles light and dark; **T** cycles through all 7 themes.
 - **Countdown**: an optional 3-2-1 countdown when playing from the start.
 - **Auto-approve**: optional, for hands-free runs.
 - **URL parameters** for a browser source in recording software: `?src=demo.jsonl&frame=1920x1080&theme=midnight&fs=18&speed=1.5&rec=1&autoplay=1`.
+
+## Using it in PowerPoint
+- **Record clip** (Look → Record a clip for slides) records just the stage, with no browser bars, to MP4 (H.264) in recent Chrome or Edge. Other browsers fall back to WebM. The clip is sized to your frame, for example 1920 × 1080. Choose **this tab** when the browser asks. The run restarts hands-free with controls and cursor hidden and checkpoints auto-approved, then stops two seconds after it completes (**Esc** stops early). Quality presets: Small 0.8 Mbps (≈ 6 MB/min), Balanced 1.5 Mbps (≈ 11 MB/min), High 3 Mbps (≈ 22 MB/min). Insert the file with Insert → Video.
+- **Live on the slide (0 MB)**: host the page over https (for example GitHub Pages) and show it with a web-viewer add-in (Insert → Get Add-ins). Use a URL such as `mock-agent-team.html?frame=1920x1080&rec=1&autoplay=1`. It needs internet at the venue, so keep a recorded clip on a hidden backup slide.
 
 ## Keys
 Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · +/− text size · Esc close

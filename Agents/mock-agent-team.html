@@ -164,6 +164,8 @@ body.nocursor,body.nocursor *{cursor:none!important}
 #graph .edge.hot{stroke:var(--accent);stroke-width:2.5}
 #graph .node circle.ring{fill:var(--panel2);stroke-width:2.5}
 #graph .node text.ic{font-size:17px;text-anchor:middle;dominant-baseline:central}
+#graph .node text.ic.mgt{font-size:12px;font-weight:700;font-family:var(--font)}
+#graph .gg{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #graph .node text.lb{font-size:10.5px;text-anchor:middle;fill:var(--dim)}
 #graph .node.active circle.halo{opacity:.35}
 #graph circle.halo{opacity:0;transition:opacity .3s}
@@ -173,6 +175,15 @@ body.nocursor,body.nocursor *{cursor:none!important}
 #agents{padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;align-content:start;position:relative}
 .agent{border:1px solid var(--line);border-radius:calc(var(--r) * .8);padding:9px 10px;background:var(--panel2);display:grid;grid-template-columns:var(--av) 1fr;gap:4px 10px;transition:box-shadow .3s,border-color .3s}
 .agent.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 18px -4px var(--c)}
+/* agent avatars: emoji, line icon or monogram */
+.av svg.gi,.mini svg.gi{width:56%;height:56%;fill:none;stroke:color-mix(in srgb,var(--c) 72%,var(--text));stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mg{font-weight:700;font-size:.72em;letter-spacing:.02em;color:color-mix(in srgb,var(--c) 70%,var(--text));font-family:var(--font)}
+.mini{display:inline-grid;place-items:center;width:1.55em;height:1.55em;border-radius:calc(var(--r) * .4);background:color-mix(in srgb,var(--c) 20%,transparent);vertical-align:middle;font-size:1em;flex:none}
+.mini .mg{font-size:.62em}.mini svg.gi{width:70%;height:70%}
+.uic{display:inline-flex;align-items:center;justify-content:center;vertical-align:-.15em}
+.uic svg{width:1.05em;height:1.05em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.outcard .uic svg{width:1.35em;height:1.35em;color:var(--c)}
+.task .st .uic svg{color:var(--ok)}
 .av{width:var(--av);height:var(--av);border-radius:calc(var(--r) * .7);display:grid;place-items:center;font-size:calc(var(--fs) * 1.2);background:color-mix(in srgb,var(--c) 22%,transparent);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);flex:none}
 .agent .nm{display:flex;align-items:center;gap:6px;min-width:0}
 .agent .nm b{white-space:nowrap}
@@ -358,7 +369,7 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
     </select>
     <button class="btn" id="bScenario" title="Scenario (S)">⚙ Scenario</button>
     <button class="btn icon" id="bTheme" title="Light / dark (T cycles all themes)">◐</button>
-    <button class="btn" id="bLook" title="Appearance &amp; recording (V)">🎨 Look</button>
+    <button class="btn" id="bLook" title="Appearance &amp; recording (V)"><span class="uic"><svg class="u" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span> Look</button>
     <button class="btn icon hide-sm" id="bLayout" title="Edit layout: drag &amp; resize panels (L)">✥</button>
     <button class="btn icon" id="bRec" title="Recording mode: hide controls (H)">⏺</button>
     <button class="btn icon hide-sm" id="bFull" title="Fullscreen (F)">⛶</button>
@@ -566,6 +577,8 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
             <option value="system">System sans</option><option value="humanist">Humanist sans</option><option value="rounded">Rounded</option>
             <option value="serif">Serif</option><option value="mono">Monospace</option>
           </select></div>
+        <div class="field"><label>Agent icons</label>
+          <select class="inp" data-k="iconStyle"><option value="line">Line icons</option><option value="mono">Monograms</option><option value="emoji">Emoji</option></select></div>
         <div class="field"><label>Background</label>
           <select class="inp" data-k="bg"><option value="solid">Solid</option><option value="gradient">Soft gradient</option><option value="dots">Dot grid</option></select></div>
         <div class="field"><label>Accent colour</label>
@@ -1476,6 +1489,63 @@ function toJsonl(sc, look) {
 }
 
 /* =====================================================================
+   Icons: a small outline set (24×24, stroke = currentColor) keyed by role
+   ===================================================================== */
+const GLYPHS = {
+  lead: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  researcher: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  data: '<path d="M4 20h16M7 16v-4M12 16V7M17 16v-7"/>',
+  engineer: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  writer: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  reviewer: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>',
+  designer: '<circle cx="8" cy="8" r="3.5"/><rect x="12.5" y="12.5" width="7" height="7" rx="1"/><path d="M16 3.5l3.5 5.5h-7z"/><path d="M5 19.5l4-4"/>',
+  compliance: '<path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  support: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-5 4v-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/>',
+  finance: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  architect: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M9 9v11M14 13h4M14 16.5h4"/>',
+  fullstack: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 16.5l9 5 9-5"/>',
+  frontend: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4M9.5 8.5L7.5 10l2 1.5M14.5 8.5l2 1.5-2 1.5"/>',
+  backend: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>',
+  devops: '<path d="M7 18a4.5 4.5 0 0 1-.5-9 6 6 0 0 1 11.3 1.5A3.8 3.8 0 0 1 17.5 18z"/><path d="M12 16v-5M9.5 13.5L12 11l2.5 2.5"/>',
+  tester: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.3 15h9.4"/>',
+  specialist: '<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/>',
+  human: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  team: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .6 3.2 2.3 3.8 5"/>',
+  // interface glyphs
+  tool: '<path d="M14.5 4.5a4.5 4.5 0 0 0-4.3 5.8L4 16.5 7.5 20l6.2-6.2a4.5 4.5 0 0 0 5.8-4.3l-2.8 2.8-3-.5-.5-3z"/>',
+  msg: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-5 4v-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  doc: '<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  code: '<path d="M9 8l-4 4 4 4M15 8l4 4-4 4"/>',
+  edit: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+};
+const glyphSvg = (k, cls = 'gi') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[k] || GLYPHS.specialist}</svg>`;
+const initials = n => { const w = String(n || '?').trim().split(/[\s._-]+/).filter(Boolean); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?')[0]).toUpperCase(); };
+function glyphKey(a) {
+  if (a.id === 'human' || a.role === 'Human') return 'human';
+  if (a.id === 'all') return 'team';
+  if (a.glyph && GLYPHS[a.glyph]) return a.glyph;
+  const k = archFor(a.role || '');
+  return GLYPHS[k] ? k : 'specialist';
+}
+// Inner HTML for an agent's avatar in the current icon style
+function avatarInner(a) {
+  const st = settings.iconStyle;
+  if (st === 'emoji') return esc(a.icon || (a.id === 'human' ? '🧑' : '🤖'));
+  if (st === 'mono') return `<span class="mg">${esc(initials(a.name))}</span>`;
+  return glyphSvg(glyphKey(a));
+}
+// Avatar containers carry data-a so a style change can re-render them in place
+const avatarTag = (a, cls = 'av') => `<div class="${cls}" data-a="${esc(a.id || '')}" style="--c:${a.color}">${avatarInner(a)}</div>`;
+const miniAvatar = a => `<span class="mini" data-a="${esc(a.id || '')}" style="--c:${a.color}">${avatarInner(a)}</span>`;
+const uiIcon = (name, emoji) => `<span class="uic" data-ui="${name}" data-e="${emoji}">${settings.iconStyle === 'emoji' ? emoji : glyphSvg(name, 'u')}</span>`;
+function refreshIcons() {
+  document.querySelectorAll('[data-a]').forEach(n => { n.innerHTML = avatarInner(agentOf(n.dataset.a)); });
+  document.querySelectorAll('.uic').forEach(n => { n.innerHTML = settings.iconStyle === 'emoji' ? n.dataset.e : glyphSvg(n.dataset.ui, 'u'); });
+  if (P.script) renderGraph(true);
+}
+
+/* =====================================================================
    Playback engine
    ===================================================================== */
 const CANCEL = { cancelled: true };
@@ -1499,10 +1569,10 @@ const DEFAULTS = {
   show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
   rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
   includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
-  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true, iconStyle: 'line'
 };
 // Keys that travel with a scenario file as its "appearance"
-const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ', 'hideScrollbars'];
+const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ', 'hideScrollbars', 'iconStyle'];
 const THEMES = ['dark', 'midnight', 'slate', 'light', 'paper', 'contrast', 'terminal'];
 const FRAMES = ['fit', '1920x1080', '1280x720', '1440x1080', '1080x1080', '1080x1350', '1080x1920', 'custom'];
 const FONTS = {
@@ -1529,6 +1599,7 @@ function mergeSettings(base, o) {
     else base[k] = String(o[k]);
   });
   if (base.layout !== 'canvas') base.layout = 'columns';
+  if (!['line', 'mono', 'emoji'].includes(base.iconStyle)) base.iconStyle = 'line';
   // "1920x1080"-style frames that aren't presets become custom sizes
   const m = String(base.frame).match(/^(\d{3,4})x(\d{3,4})$/);
   if (m && !FRAMES.includes(base.frame)) { base.fw = +m[1]; base.fh = +m[2]; base.frame = 'custom'; }
@@ -1585,14 +1656,14 @@ async function runLoop() {
   } catch (e) { if (e !== CANCEL) { console.error(e); toast('Playback error: ' + e.message); } }
 }
 
-function agentOf(id) { return P.agents[id] || { id, name: id === 'human' ? settings.human : id === 'all' ? 'Team' : id, role: '', icon: id === 'human' ? '🧑' : '👥', color: id === 'human' ? 'var(--text)' : 'var(--dim)' }; }
+function agentOf(id) { return P.agents[id] || { id, name: id === 'human' ? settings.human : id === 'all' ? 'Team' : id, role: id === 'human' ? 'Human' : '', icon: id === 'human' ? '🧑' : '👥', color: id === 'human' ? 'var(--text)' : 'var(--dim)' }; }
 
 async function exec(s) {
   switch (s.type) {
     case 'note': { const n = el('div', 'ev ev-note'); n.textContent = s.text || ''; feedAdd(n); break; }
     case 'pause': { if (s.text) { const n = el('div', 'ev ev-note'); n.textContent = s.text; feedAdd(n); } if (!P.instant) setPlaying(false); break; }
     case 'human': {
-      const n = evMsg({ icon: '🧑', name: settings.human, role: 'Human', color: 'var(--text)' }, null, null, 'ev-human');
+      const n = evMsg(agentOf('human'), null, null, 'ev-human');
       feedAdd(n.root); const ld = leadId(); if (ld) pulse('human', ld); await typeText(n.txt, s.text || '', 90); countTokens(s.text, 1); P.stats.msg++; break;
     }
     case 'message': {
@@ -1624,7 +1695,7 @@ async function exec(s) {
     case 'tool': {
       const a = agentOf(s.agent); setActive(a.id); setStatus(a.id, 'working', 'Using ' + (s.tool || 'tool'));
       const n = el('div', 'ev ev-tool'); n.style.setProperty('--c', a.color);
-      n.innerHTML = `<div class="tool"><div class="th">🔧 <b>${esc(a.name)}</b> <code>${esc(s.tool || 'tool')}</code><span class="mono" style="color:var(--dim)">(${esc(s.input || '')})</span></div><div class="to"><span class="spin"></span>running…</div></div>`;
+      n.innerHTML = `<div class="tool"><div class="th">${uiIcon('tool', '🔧')} <b>${esc(a.name)}</b> <code>${esc(s.tool || 'tool')}</code><span class="mono" style="color:var(--dim)">(${esc(s.input || '')})</span></div><div class="to"><span class="spin"></span>running…</div></div>`;
       feedAdd(n);
       await wait(s.duration || 1200);
       const o = n.querySelector('.to'); o.className = 'to ok'; o.textContent = s.output || 'done';
@@ -1656,7 +1727,7 @@ async function doOutput(s) {
   } else if (!s.append) { o.content = ''; if (s.title) o.title = s.title; if (s.format) o.format = s.format; }
   setStatus(a.id, 'writing', (s.append ? 'Revising ' : 'Writing ') + o.title);
   const card = el('div', 'ev ev-out'); card.style.setProperty('--c', a.color);
-  card.innerHTML = `<button class="outcard"><span style="font-size:1.3em">${s.append ? '✏️' : o.format === 'code' ? '🧩' : '📄'}</span><span class="ot"><b>${esc(o.title)}</b><div>${esc(a.name)} ${s.append ? 'revised a deliverable' : 'is producing a deliverable'}</div></span><span style="color:var(--dim)">open ›</span></button>`;
+  card.innerHTML = `<button class="outcard"><span style="font-size:1.3em">${s.append ? uiIcon('edit', '✏️') : o.format === 'code' ? uiIcon('code', '🧩') : uiIcon('doc', '📄')}</span><span class="ot"><b>${esc(o.title)}</b><div>${esc(a.name)} ${s.append ? 'revised a deliverable' : 'is producing a deliverable'}</div></span><span style="color:var(--dim)">open ›</span></button>`;
   card.querySelector('button').onclick = () => { selectOut(o.id); openReader(o.id); };
   feedAdd(card);
   if (settings.autoOpen || !P.selOut) selectOut(o.id);
@@ -1672,7 +1743,7 @@ async function doApproval(s) {
   const a = agentOf(s.from); setActive(a.id); setStatus(a.id, 'waiting', 'Waiting for human approval');
   pulse(a.id, 'human');
   const n = el('div', 'ev'); n.style.setProperty('--c', a.color);
-  n.innerHTML = `<div class="av" style="--c:${a.color}">${esc(a.icon)}</div><div class="body"><div class="meta"><b>${esc(a.name)}</b><span>→</span><b>${esc(settings.human)}</b><span class="kind ask">approval</span></div><div class="approval"><div class="t"></div><div class="row"><button class="btn ok">✓ Approve</button><button class="btn">✎ Request changes</button><span class="msg" style="align-self:center">or press A</span></div></div></div>`;
+  n.innerHTML = `${avatarTag(a)}<div class="body"><div class="meta"><b>${esc(a.name)}</b><span>→</span><b>${esc(settings.human)}</b><span class="kind ask">approval</span></div><div class="approval"><div class="t"></div><div class="row"><button class="btn ok">✓ Approve</button><button class="btn">✎ Request changes</button><span class="msg" style="align-self:center">or press A</span></div></div></div>`;
   feedAdd(n);
   await typeText(n.querySelector('.t'), s.text || 'Approve?', 80);
   let decision = 'approve';
@@ -1689,7 +1760,7 @@ async function doApproval(s) {
   }
   const row = n.querySelector('.row');
   row.innerHTML = decision === 'approve' ? '<span style="color:var(--ok)">✓ Approved by ' + esc(settings.human) + '</span>' : '<span style="color:var(--warn)">✎ Changes requested by ' + esc(settings.human) + '</span>';
-  const reply = evMsg({ icon: '🧑', name: settings.human, role: 'Human', color: 'var(--text)' }, a, decision === 'approve' ? 'answer' : 'review', 'ev-human');
+  const reply = evMsg(agentOf('human'), a, decision === 'approve' ? 'answer' : 'review', 'ev-human');
   feedAdd(reply.root);
   await typeText(reply.txt, decision === 'approve' ? 'Approved — ship it. 👍' : 'Close — tighten the next steps and add owners, then publish.', 90);
   if (decision === 'changes') {
@@ -1707,7 +1778,7 @@ function evMsg(a, to, kind, extra) {
   const root = el('div', 'ev ev-msg' + (extra ? ' ' + extra : ''));
   root.style.setProperty('--c', a.color);
   const kinds = { ask: 'asks', answer: 'answers', handoff: 'hands off', review: 'review', say: 'update' };
-  root.innerHTML = `<div class="av" style="--c:${a.color}">${esc(a.icon)}</div><div class="body"><div class="meta"><b>${esc(a.name)}</b>${a.role ? `<span>${esc(a.role)}</span>` : ''}${to ? `<span>→</span><b style="color:${to.color}">${esc(to.name)}</b>` : ''}${kind ? `<span class="kind ${kind}">${kinds[kind] || esc(kind)}</span>` : ''}</div><div class="bubble"></div></div>`;
+  root.innerHTML = `${avatarTag(a)}<div class="body"><div class="meta"><b>${esc(a.name)}</b>${a.role ? `<span>${esc(a.role)}</span>` : ''}${to ? `<span>→</span><b style="color:${to.color}">${esc(to.name)}</b>` : ''}${kind ? `<span class="kind ${kind}">${kinds[kind] || esc(kind)}</span>` : ''}</div><div class="bubble"></div></div>`;
   return { root, txt: root.querySelector('.bubble') };
 }
 function mentionify(text) {
@@ -1747,7 +1818,7 @@ function renderAgents() {
   const box = $('#agents'); box.innerHTML = '';
   P.script.agents.forEach(a => {
     const c = el('div', 'agent'); c.id = 'ag_' + a.id; c.style.setProperty('--c', a.color);
-    c.innerHTML = `<div class="av">${esc(a.icon)}</div><div style="min-width:0"><div class="nm"><b>${esc(a.name)}</b><span class="pill">idle</span></div><div class="role">${esc(a.role)}</div></div><div class="act"></div><div class="ctr"><span>💬 <b class="c-msg">0</b></span><span>🔧 <b class="c-tool">0</b></span><span>📄 <b class="c-out">0</b></span><span>◇ <b class="c-tok">0</b> tok</span></div>`;
+    c.innerHTML = `${avatarTag(a)}<div style="min-width:0"><div class="nm"><b>${esc(a.name)}</b><span class="pill">idle</span></div><div class="role">${esc(a.role)}</div></div><div class="act"></div><div class="ctr"><span>${uiIcon('msg', '💬')} <b class="c-msg">0</b></span><span>${uiIcon('tool', '🔧')} <b class="c-tool">0</b></span><span>${uiIcon('doc', '📄')} <b class="c-out">0</b></span><span>◇ <b class="c-tok">0</b> tok</span></div>`;
     box.appendChild(c);
   });
   $('#teamCount').textContent = P.script.agents.length + ' agents';
@@ -1774,11 +1845,11 @@ function renderTasks(focusId) {
   const box = $('#tasks'); box.innerHTML = '';
   const list = Object.values(P.tasks);
   if (!list.length) { box.innerHTML = '<div class="msg" style="padding:6px">No tasks in this script.</div>'; $('#taskLbl').textContent = ''; return; }
-  const icons = { todo: '○', doing: '◐', review: '◑', done: '✅' };
+  const icons = { todo: '○', doing: '◐', review: '◑', done: uiIcon('check', '✅') };
   list.forEach(t => {
     const a = agentOf(t.owner);
     const r = el('div', 'task ' + t.status); r.dataset.id = t.id;
-    r.innerHTML = `<span class="st">${icons[t.status] || '○'}</span><span class="tt" title="${esc(t.title)}">${esc(t.title)}</span><span class="own">${t.owner ? esc(a.icon || '') + ' ' + esc(a.name) : ''}</span>`;
+    r.innerHTML = `<span class="st">${icons[t.status] || '○'}</span><span class="tt" title="${esc(t.title)}">${esc(t.title)}</span><span class="own">${t.owner ? miniAvatar(a) + ' ' + esc(a.name) : ''}</span>`;
     box.appendChild(r);
   });
   $('#taskLbl').textContent = list.filter(t => t.status === 'done').length + '/' + list.length + ' done';
@@ -1803,7 +1874,7 @@ function renderOutTabs() {
 function outHtml(o, live) {
   const a = agentOf(o.agent);
   const body = o.format === 'code' ? '<pre><code>' + highlight(o.content) + '</code></pre>' : md(o.content);
-  return `<div class="by"><span>${esc(a.icon)}</span><b style="color:${a.color}">${esc(a.name)}</b><span>· ${esc(a.role || '')}</span>${live ? '<span style="color:var(--bad)">· writing…</span>' : ''}</div>` + body;
+  return `<div class="by">${miniAvatar(a)}<b style="color:${a.color}">${esc(a.name)}</b><span>· ${esc(a.role || '')}</span>${live ? '<span style="color:var(--bad)">· writing…</span>' : ''}</div>` + body;
 }
 function renderOutView(live) {
   const v = $('#outView'); const o = P.outputs[P.selOut]; if (!o) return;
@@ -1819,7 +1890,8 @@ function openReader(id) {
 }
 
 /* ---------- network graph ---------- */
-function renderGraph() {
+function renderGraph(keepEdges) {
+  const oldEdges = keepEdges && P.edges ? Object.keys(P.edges) : [];
   const svg = $('#graph'); const W = 300, H = 230;
   const ags = P.script.agents; const cx = W / 2, cy = H / 2 - 2;
   const R = Math.min(88, 40 + ags.length * 8);
@@ -1834,10 +1906,15 @@ function renderGraph() {
   pos.human = [22, 22];
   P.gpos = pos; P.edges = {};
   let h = '<g id="edges"></g><g id="pulses"></g>';
-  const node = (id, icon, name, color) => { const [x, y] = pos[id]; return `<g class="node" id="gn_${esc(id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle class="halo" r="24" fill="${color}"/><circle class="ring" r="17" stroke="${color}"/><text class="ic">${esc(icon)}</text><text class="lb" y="30">${esc(name)}</text></g>`; };
-  h += node('human', '🧑', settings.human, 'var(--dim)');
-  ags.forEach(a => { h += node(a.id, a.icon, a.name, a.color); });
+  // inline styles (not presentation attributes) so CSS variables like var(--dim) resolve
+  const face = (a, color) => settings.iconStyle === 'emoji' ? `<text class="ic">${esc(a.icon || '🧑')}</text>`
+    : settings.iconStyle === 'mono' ? `<text class="ic mgt" style="fill:${color}">${esc(initials(a.name))}</text>`
+    : `<g class="gg" style="stroke:${color}" transform="translate(-9,-9) scale(.75)">${GLYPHS[glyphKey(a)]}</g>`;
+  const node = (a, color) => { const [x, y] = pos[a.id]; return `<g class="node" id="gn_${esc(a.id)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle class="halo" r="24" style="fill:${color}"/><circle class="ring" r="17" style="stroke:${color}"/>${face(a, color)}<text class="lb" y="30">${esc(a.name)}</text></g>`; };
+  h += node(agentOf('human'), 'var(--dim)');
+  ags.forEach(a => { h += node(a, a.color); });
   svg.innerHTML = h;
+  oldEdges.forEach(k => { const [a, b] = k.split('|'); edgeFor(a, b); });
 }
 function leadId() {
   const ags = P.script ? P.script.agents : [];
@@ -1899,7 +1976,7 @@ function load(script, opts = {}) {
   $('#goalLine').textContent = script.goal || '';
   document.title = (script.title || 'Agent Team') + ' · Agent Team Simulator';
   renderAgents(); renderGraph(); renderTasks(); renderOutTabs();
-  $('#outView').innerHTML = '<div class="empty" style="padding:20px"><div class="big">📄</div>Deliverables appear here as agents produce them.</div>';
+  $('#outView').innerHTML = '<div class="empty" style="padding:20px"><div class="big">' + uiIcon('doc', '📄') + '</div>Deliverables appear here as agents produce them.</div>';
   $('#feed').innerHTML = `<div class="empty"><div class="big">▶</div><p><b>${esc(script.title || 'Ready')}</b></p><p>${script.agents.length} agents · ${script.steps.length} steps. Press <b>Play</b> or <b>Space</b> to start, <b>→</b> to step through.</p></div>`;
   stickBottom = true; $('#jumpLatest').classList.remove('on');
   updateProgress(); refreshStats(); setPlaying(false);
@@ -2163,6 +2240,7 @@ function applySettings() {
   if (!st.rec || !st.hideCursor) document.body.classList.remove('nocursor');
   $('#simBadge').style.display = st.badge ? '' : 'none';
   $('#bRec').classList.toggle('primary', st.rec);
+  if (st.iconStyle !== applySettings.icons) { const first = applySettings.icons === undefined; applySettings.icons = st.iconStyle; if (!first) refreshIcons(); }
   applyCanvas(); layoutFrame(); syncControls(); store.set('settings', st);
 }
 const getK = k => k.split('.').reduce((o, p) => o && o[p], settings);

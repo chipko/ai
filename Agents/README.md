@@ -53,6 +53,7 @@ Ways to load data:
 - **Panels**: you can show or hide the header, progress bar, team network, agent cards, counters, tasks, outputs, footer and the "Simulated" badge.
 - **Recording mode** (**H**): hides the controls and key hints. Hover over the header to use the controls, or press **H** or **Esc** to exit. The cursor also hides when idle.
 - **No scrollbars**: the stage never shows scrollbars (you can switch this off in Appearance). Panels still scroll with the wheel, trackpad or touch. They fade at the edges where there's more content, and the activity feed follows live output. Scroll up to read back, and a **↓ Latest** button takes you back to live.
+- **Agent icons**: *Line icons* (the default) gives each role a matching outline icon, such as a compass for the lead, a blueprint for the architect, layers for full-stack, a database for backend, a cloud for DevOps and a flask for QA, drawn in the agent's colour. *Monograms* shows the agent's initials, and *Emoji* uses each agent's emoji. Tool, document and counter glyphs follow the same style. A scenario can pin an agent's line icon with `"glyph": "backend"` (any role name, or `human`, `team`).
 - **Light/dark**: the ◐ button in the header toggles light and dark; **T** cycles through all 7 themes.
 - **Countdown**: an optional 3-2-1 countdown when playing from the start.
 - **Auto-approve**: optional, for hands-free runs.

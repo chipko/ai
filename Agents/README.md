@@ -59,5 +59,9 @@ Ways to load data:
 - **Auto-approve**: optional, for hands-free runs.
 - **URL parameters** for a browser source in recording software: `?src=demo.jsonl&frame=1920x1080&theme=midnight&fs=18&speed=1.5&rec=1&autoplay=1`.
 
+## Using it in PowerPoint
+- **Record clip** (Look → Record a clip for slides) records just the stage, with no browser bars, to MP4 (H.264) in recent Chrome or Edge. Other browsers fall back to WebM. The clip is sized to your frame, for example 1920 × 1080. Choose **this tab** when the browser asks. The run restarts hands-free with controls and cursor hidden and checkpoints auto-approved, then stops two seconds after it completes (**Esc** stops early). Quality presets: Small 0.8 Mbps (≈ 6 MB/min), Balanced 1.5 Mbps (≈ 11 MB/min), High 3 Mbps (≈ 22 MB/min). Insert the file with Insert → Video.
+- **Live on the slide (0 MB)**: host the page over https (for example GitHub Pages) and show it with a web-viewer add-in (Insert → Get Add-ins). Use a URL such as `mock-agent-team.html?frame=1920x1080&rec=1&autoplay=1`. It needs internet at the venue, so keep a recorded clip on a hidden backup slide.
+
 ## Keys
 Space play/pause · → step or finish typing · R restart · E jump to end · A approve · S scenario · V appearance · L edit layout · H recording mode · F fullscreen · T next theme · +/− text size · Esc close

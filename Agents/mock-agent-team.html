@@ -614,6 +614,15 @@ h3.sec{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--
         <label><input type="checkbox" data-k="autoOpen"> Switch the Outputs panel to each new deliverable</label>
         <label><input type="checkbox" data-k="autoplay"> Start playing as soon as a scenario loads</label>
       </div>
+      <h3 class="sec">Record a clip for slides</h3>
+      <p class="msg" style="margin-top:0">Records just the stage (no browser bars) straight to a small video file, ready for PowerPoint or Keynote. When the browser asks what to share, pick <b>this tab</b>. The run restarts from the beginning, with controls and cursor hidden and checkpoints auto-approved. Recording stops two seconds after the run completes, or press <b>Esc</b> to stop early. For a full 1920 × 1080 clip, choose that frame above and make the browser window at least that size (full screen on a 1080p or larger display).</p>
+      <div class="grid3">
+        <div class="field"><label>Quality</label><select class="inp" data-k="clipQuality"><option value="800000">Small · 0.8 Mbps</option><option value="1500000">Balanced · 1.5 Mbps</option><option value="3000000">High · 3 Mbps</option></select></div>
+        <div class="field"><label>Frame rate</label><select class="inp" data-k="clipFps"><option value="24">24 fps</option><option value="30">30 fps</option></select></div>
+        <div class="field"><label>&nbsp;</label><button class="btn primary" id="bClip" style="width:100%;justify-content:center">● Record clip</button></div>
+      </div>
+      <p class="msg" id="clipFormat" style="margin:0 0 4px"></p>
+      <p class="msg" id="clipMsg"></p>
       <div class="field" style="max-width:260px">
         <label>Name shown for the human</label>
         <input class="inp" data-k="human">
@@ -1569,7 +1578,7 @@ const DEFAULTS = {
   show: { header: true, progress: true, graph: true, agents: true, counters: true, tasks: true, outputs: true, footer: true },
   rec: false, hideCursor: true, countdown: false, autoApprove: false, autoOpen: true, autoplay: false, human: 'You',
   includeLook: true, applyScriptLook: true, dataFmt: 'json', promptFmt: 'json',
-  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true, iconStyle: 'line'
+  layout: 'columns', canvas: clone(LAYOUTS.classic.r), canvasZ: PANEL_IDS.slice(), snap: true, hideScrollbars: true, iconStyle: 'line', clipQuality: 1500000, clipFps: 30
 };
 // Keys that travel with a scenario file as its "appearance"
 const LOOK_KEYS = ['theme', 'accent', 'bg', 'font', 'fs', 'gap', 'radius', 'lw', 'rw', 'frame', 'fw', 'fh', 'typeSpeed', 'show', 'badge', 'layout', 'canvas', 'canvasZ', 'hideScrollbars', 'iconStyle'];
@@ -1964,6 +1973,7 @@ function finish() {
   const d = el('div', 'done-banner', `✓ Run complete: ${P.stats.msg} messages · ${P.stats.tool} tool calls · ${P.stats.out} outputs · ${fmtTime(P.elapsed)}`);
   feedAdd(d); updateProgress(); refreshStats();
   $('#bPlay').innerHTML = '⟲ Replay';
+  if (CLIP.active) CLIP.stopTimer = setTimeout(stopClip, 2000);   // hold the final frame, then end the clip
 }
 
 function load(script, opts = {}) {
@@ -2166,6 +2176,87 @@ document.querySelectorAll('#dataFmt button').forEach(b => b.onclick = () => {
 document.querySelectorAll('#promptFmt button').forEach(b => b.onclick = () => { settings.promptFmt = b.dataset.f; store.set('settings', settings); syncFmt(); $('#llmPrompt').value = buildLlmPrompt(); });
 $('#bApply').onclick = () => loadFromText($('#jsonBox').value, $('#jsonMsg'));
 $('#bCopyJson').onclick = () => copy($('#jsonBox').value, 'Data copied');
+
+/* ---------- Record clip: capture just the stage to a small video file ---------- */
+const CLIP = { active: false, rec: null, stream: null, chunks: [], prev: null, t0: 0, size: null, stopTimer: null };
+const realSleep = ms => new Promise(r => setTimeout(r, ms));
+function clipMime() {
+  const c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  return (window.MediaRecorder && c.find(t => MediaRecorder.isTypeSupported(t))) || '';
+}
+function clipMsg(text, cls) { const m = $('#clipMsg'); m.className = 'msg' + (cls ? ' ' + cls : ''); m.textContent = text; }
+function syncClipInfo() {
+  const mime = clipMime(), f = frameSize(), mbps = (Number(settings.clipQuality) || 1500000) / 1e6;
+  $('#clipFormat').textContent = !mime ? 'This browser can’t record clips; use a recent Chrome or Edge.'
+    : `Output: ${mime.startsWith('video/mp4') ? 'MP4 (H.264)' : 'WebM'} · ${f ? f[0] + ' × ' + f[1] : 'window size'} · ≈ ${(mbps * 60 / 8).toFixed(0)} MB per minute`;
+}
+async function startClip() {
+  if (CLIP.active) { stopClip(); return; }
+  if (!P.script) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { clipMsg('This browser can’t record the page. Use a recent Chrome or Edge.', 'err'); return; }
+  const fps = Number(settings.clipFps) || 30;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: fps, displaySurface: 'browser', cursor: 'never' }, audio: false,
+      preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude'
+    });
+  } catch (e) { clipMsg('Recording cancelled.'); return; }
+  const track = stream.getVideoTracks()[0];
+  // Crop the capture to the stage so the browser UI and letterboxing never appear (Chrome / Edge)
+  let cropped = false;
+  try { if (window.CropTarget && track.cropTo) { await track.cropTo(await CropTarget.fromElement($('#app'))); cropped = true; } } catch (e) { cropped = false; }
+  const f = frameSize();
+  if (f) { try { await track.applyConstraints({ width: f[0], height: f[1], frameRate: fps }); } catch (e) {} }
+  // Hands-free run: controls and cursor hidden, checkpoints auto-approve, no countdown
+  CLIP.prev = { rec: settings.rec, autoApprove: settings.autoApprove };
+  closeDrawer(); $('#reader').classList.remove('open'); if (editing) setEditing(false);
+  settings.rec = true; settings.autoApprove = true; applySettings();
+  document.body.classList.add('nocursor');
+  restart();
+  CLIP.title = document.title; document.title = '● REC · ' + document.title;
+  const mime = clipMime();
+  let rec;
+  try { rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Number(settings.clipQuality) || 1500000 }); }
+  catch (e) { stream.getTracks().forEach(t => t.stop()); restoreAfterClip(); clipMsg('Could not start the recorder: ' + e.message, 'err'); return; }
+  Object.assign(CLIP, { active: true, rec, stream, chunks: [], cropped });
+  rec.ondataavailable = e => { if (e.data && e.data.size) CLIP.chunks.push(e.data); };
+  rec.onstop = () => saveClip(rec.mimeType || mime);
+  track.addEventListener('ended', () => stopClip());
+  await realSleep(900);                       // let the "sharing this tab" bar appear and the layout settle
+  if (!CLIP.active) return;
+  CLIP.size = track.getSettings();
+  CLIP.t0 = performance.now();
+  rec.start(1000);
+  await realSleep(600);                       // a beat of stillness before the action starts
+  if (CLIP.active) setPlaying(true);
+}
+function stopClip() {
+  if (!CLIP.active) return;
+  CLIP.active = false; clearTimeout(CLIP.stopTimer);
+  try { if (CLIP.rec && CLIP.rec.state !== 'inactive') CLIP.rec.stop(); else saveClip(''); } catch (e) {}
+  if (CLIP.stream) CLIP.stream.getTracks().forEach(t => t.stop());
+  setPlaying(false);
+}
+function restoreAfterClip() {
+  if (CLIP.prev) { settings.rec = CLIP.prev.rec; settings.autoApprove = CLIP.prev.autoApprove; CLIP.prev = null; applySettings(); }
+  document.body.classList.remove('nocursor');
+  if (CLIP.title) { document.title = CLIP.title; CLIP.title = null; }
+}
+function saveClip(type) {
+  restoreAfterClip();
+  if (!CLIP.chunks.length) { clipMsg('Nothing was recorded.', 'err'); return; }
+  const blob = new Blob(CLIP.chunks, { type: type || 'video/webm' }); CLIP.chunks = [];
+  const isMp4 = /mp4/.test(blob.type), name = slug(P.script ? P.script.title : 'agent-team') + (isMp4 ? '.mp4' : '.webm');
+  const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  const s = CLIP.size || {}, dur = fmtTime(performance.now() - CLIP.t0);
+  const res = s.width ? `${s.width} × ${s.height}` : 'unknown size';
+  clipMsg(`Saved ${name}: ${(blob.size / 1048576).toFixed(1)} MB · ${res} · ${dur}${CLIP.cropped ? '' : ' · whole tab (this browser can’t crop to the stage)'}` +
+    (isMp4 ? '' : ' · WebM: PowerPoint prefers MP4, so convert it or record in a recent Chrome or Edge'), 'ok');
+  toast('Clip saved: ' + name);
+}
+$('#bClip').onclick = startClip;
 function download(name, text, type) {
   const blob = new Blob([text], { type });
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -2256,6 +2347,7 @@ function syncControls() {
   });
   document.querySelectorAll('[data-o]').forEach(o => { const k = o.dataset.o, v = settings[k]; o.textContent = k === 'typeSpeed' ? Number(v).toFixed(1) + '×' : v + 'px'; });
   $('#customWrap').style.visibility = settings.frame === 'custom' ? '' : 'hidden';
+  if ($('#clipFormat')) syncClipInfo();
   document.querySelectorAll('#layoutMode button').forEach(b => b.classList.toggle('sel', b.dataset.m === settings.layout));
   document.querySelectorAll('.lthumb').forEach(b => b.classList.toggle('sel', settings.layout === 'canvas' && JSON.stringify(LAYOUTS[b.dataset.l].r) === JSON.stringify(pickRects(settings.canvas, LAYOUTS[b.dataset.l].r))));
 }
@@ -2429,6 +2521,7 @@ $('#reader').addEventListener('click', e => { if (e.target.id === 'reader') $('#
 document.addEventListener('keydown', e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (k !== 'Escape' && (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey)) return;
+  if (k === 'Escape' && CLIP.active) { stopClip(); return; }
   if (k === 'Escape') {
     if (e.target.matches('input,textarea,select')) e.target.blur();
     if ($('#drawer').classList.contains('open')) closeDrawer();

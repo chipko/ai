@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Copilot Training Studio</title>
+<!--
+  Copilot Training Studio: a scripted, offline mock of Microsoft 365 Copilot for training sessions.
+  Nothing here talks to Microsoft 365. Every prompt, answer and document is fictional and scripted,
+  so a demo can never go wrong in front of a room. Scenes live in JSON (Data panel) so other trainers
+  can adapt them for their own audience.
+
+  Presenter keys: → next step · Space auto-play · ← / Shift+→ previous / next scene · R restart scene
+                  E finish scene · 1–9 jump to scene · T light/dark · H hide presenter bar · C record clip
+                  D data & setup · F fullscreen · + / − text size
+-->
+<style>
+/* ---------- theme tokens ---------- */
+:root{
+  --bg:#f5f5f5; --surface:#ffffff; --surface2:#fafafa; --sidebar:#f0f0f0; --hover:#e8e8e8; --line:#e0e0e0; --line2:#d1d1d1;
+  --text:#242424; --dim:#616161; --faint:#8a8a8a; --accent:#5b5fc7; --accent-soft:#e8ebfa; --userbubble:#e8ebfa;
+  --ok:#107c10; --warn:#bc4b09; --bad:#c50f1f; --code:#f5f5f5; --shadow:0 2px 8px rgba(0,0,0,.08),0 0 1px rgba(0,0,0,.12);
+  --grad:linear-gradient(135deg,#1a73e8 0%,#7b61ff 45%,#e0569b 80%,#f4a261 100%);
+  --fs:15px; --font:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,Menlo,monospace;
+  --outlook:#0f6cbd; --teams:#5b5fc7; --word:#185abd; --excel:#107c41; --ppt:#c43e1c;
+}
+:root[data-theme="dark"]{
+  --bg:#1b1b1b; --surface:#242424; --surface2:#2a2a2a; --sidebar:#1f1f1f; --hover:#2f2f2f; --line:#383838; --line2:#454545;
+  --text:#f0f0f0; --dim:#adadad; --faint:#858585; --accent:#8f95ff; --accent-soft:#2c2f55; --userbubble:#2f3264;
+  --ok:#54b054; --warn:#f0a35a; --bad:#f1707b; --code:#1c1c1c; --shadow:0 2px 10px rgba(0,0,0,.45),0 0 1px rgba(255,255,255,.08);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:#0e0e10;overflow:hidden;font:14px/1.45 system-ui,sans-serif;color:var(--text)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+svg.i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#app{position:relative;width:100vw;height:100vh;background:var(--bg);color:var(--text);font:var(--fs)/1.5 var(--font);display:flex;flex-direction:column;overflow:hidden}
+body.framed #app{position:absolute;left:0;top:0;transform-origin:0 0}
+#app *{scrollbar-width:none}#app ::-webkit-scrollbar{display:none}
+.scroll{overflow:auto;overscroll-behavior:contain}
+
+/* ---------- top bar ---------- */
+.topbar{height:3.2em;flex:none;display:flex;align-items:center;gap:.8em;padding:0 1em;background:var(--sidebar);border-bottom:1px solid var(--line)}
+.waffle{width:2.2em;height:2.2em;border-radius:.4em;display:grid;place-items:center;color:var(--dim)}
+.brand{display:flex;align-items:center;gap:.55em;font-weight:600}
+.cp-glyph{width:1.55em;height:1.55em;border-radius:.45em;background:var(--grad);display:grid;place-items:center;color:#fff;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.cp-glyph svg{width:62%;height:62%;fill:#fff;stroke:none}
+.search{flex:1;max-width:34em;margin:0 auto;display:flex;align-items:center;gap:.5em;background:var(--surface);border:1px solid var(--line);border-radius:.4em;padding:.35em .8em;color:var(--faint)}
+.me{display:flex;align-items:center;gap:.6em}
+.avatar{width:2em;height:2em;border-radius:50%;display:grid;place-items:center;font-size:.8em;font-weight:600;color:#fff;background:#8764b8;flex:none}
+.avatar.lg{width:2.3em;height:2.3em;font-size:.85em}
+
+/* ---------- shell ---------- */
+.shell{flex:1;display:flex;min-height:0}
+.rail{width:4.2em;flex:none;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:.6em 0;gap:.2em}
+.rbtn{width:3.4em;padding:.45em 0;border:0;background:none;border-radius:.5em;display:flex;flex-direction:column;align-items:center;gap:.15em;font-size:.68em;color:var(--dim)}
+.rbtn svg.i{width:1.9em;height:1.9em}
+.rbtn:hover{background:var(--hover)}
+.rbtn.on{color:var(--accent);background:var(--surface)}
+.rbtn .tile{width:2.3em;height:2.3em;font-size:1.05em}
+.rail .sep{width:60%;height:1px;background:var(--line);margin:.4em 0}
+.side{width:17em;flex:none;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:.8em .7em;gap:.2em;min-height:0}
+.side .newchat{display:flex;align-items:center;gap:.6em;border:1px solid var(--line2);background:var(--surface);border-radius:.5em;padding:.5em .8em;font-weight:600;margin-bottom:.6em}
+.side h4{margin:.8em .5em .3em;font-size:.78em;font-weight:600;color:var(--dim)}
+.sitem{display:flex;align-items:center;gap:.6em;padding:.42em .6em;border-radius:.4em;color:var(--text);border:0;background:none;text-align:left;width:100%;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sitem:hover{background:var(--hover)}
+.sitem.on{background:var(--surface);box-shadow:var(--shadow);font-weight:600}
+.sitem .ag{width:1.5em;height:1.5em;border-radius:.35em;display:grid;place-items:center;color:#fff;font-size:.75em;flex:none}
+.sitem span{overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- chat ---------- */
+.chatwrap{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative;background:var(--surface)}
+.chathead{height:3.2em;flex:none;display:flex;align-items:center;justify-content:center;position:relative}
+.seg{display:inline-flex;background:var(--sidebar);border:1px solid var(--line);border-radius:999px;padding:.18em}
+.seg span{padding:.22em 1.1em;border-radius:999px;font-size:.88em;color:var(--dim);display:flex;align-items:center;gap:.4em}
+.seg span.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-weight:600}
+.chathead .title{position:absolute;left:1.2em;font-weight:600;font-size:.95em;color:var(--dim);max-width:30%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv{flex:1;min-height:0;padding:0 1.2em}
+.inner{max-width:48em;margin:0 auto;padding:1em 0 2em}
+.welcome{padding:10vh 0 1em;text-align:center}
+.welcome .big-glyph{width:3.4em;height:3.4em;border-radius:1em;margin:0 auto 1em;font-size:1.2em}
+.welcome h1{font-size:1.9em;font-weight:600;margin:0 0 .2em}
+.welcome p{color:var(--dim);margin:0 0 1.8em;font-size:1.1em}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:.7em;text-align:left;max-width:40em;margin:0 auto}
+.card{border:1px solid var(--line);background:var(--surface2);border-radius:.8em;padding:.8em 1em;display:flex;gap:.7em;align-items:flex-start;font-size:.92em;color:var(--text)}
+.card svg.i{color:var(--accent);margin-top:.15em}
+.card.hot{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.thread{display:flex;flex-direction:column;gap:1.4em}
+.umsg{align-self:flex-end;max-width:80%;display:flex;flex-direction:column;align-items:flex-end;gap:.4em;animation:rise .25s ease-out}
+.ububble{background:var(--userbubble);border-radius:1.1em 1.1em .3em 1.1em;padding:.65em 1em;white-space:pre-wrap;word-wrap:break-word}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bmsg{display:flex;gap:.8em;animation:rise .25s ease-out}
+.bmsg .cp-glyph{margin-top:.1em}
+.bbody{flex:1;min-width:0}
+.agentname{font-size:.82em;color:var(--dim);margin-bottom:.2em;font-weight:600}
+.steps{display:flex;flex-direction:column;gap:.3em;margin-bottom:.6em;font-size:.88em;color:var(--dim)}
+.steps .st{display:flex;align-items:center;gap:.5em}
+.steps .st .ic{width:1em;height:1em;display:grid;place-items:center;flex:none}
+.spin{width:.9em;height:.9em;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.steps .done-ic{color:var(--ok)}
+.shimmer{background:linear-gradient(90deg,var(--dim) 20%,var(--text) 40%,var(--dim) 60%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 1.6s linear infinite}
+@keyframes sh{from{background-position:100% 0}to{background-position:-100% 0}}
+.stepsum{display:inline-flex;align-items:center;gap:.4em;font-size:.85em;color:var(--dim);margin-bottom:.5em;border:1px solid var(--line);border-radius:999px;padding:.15em .7em}
+.label{display:inline-flex;align-items:center;gap:.35em;font-size:.75em;color:var(--dim);border:1px solid var(--line);border-radius:.3em;padding:0 .45em;margin-bottom:.5em}
+.answer{word-wrap:break-word}
+.md h2{font-size:1.2em;margin:.6em 0 .35em}.md h3{font-size:1.05em;margin:.9em 0 .3em}.md h4{font-size:.98em;margin:.8em 0 .25em}
+.md p{margin:.45em 0}.md ul,.md ol{margin:.35em 0;padding-left:1.4em}.md li{margin:.18em 0}
+.md table{border-collapse:collapse;margin:.6em 0;font-size:.92em;width:100%}
+.md th,.md td{border:1px solid var(--line);padding:.4em .65em;text-align:left;vertical-align:top}
+.md th{background:var(--surface2);font-weight:600}
+.md code{font-family:var(--mono);background:var(--code);padding:.05em .35em;border-radius:.3em;font-size:.9em}
+.md pre{background:var(--code);border:1px solid var(--line);border-radius:.6em;padding:.7em .9em;overflow:auto;font-size:.88em}
+.md blockquote>:first-child{margin-top:0}.md blockquote>:last-child{margin-bottom:0}
+.md blockquote{margin:.6em 0;padding:.7em 1em;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 .5em .5em 0}
+.md hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+.cite{display:inline-grid;place-items:center;min-width:1.35em;height:1.35em;padding:0 .3em;margin:0 .1em;border-radius:.4em;background:var(--hover);color:var(--dim);font-size:.7em;font-weight:600;vertical-align:.2em;border:1px solid var(--line)}
+.chart{border:1px solid var(--line);border-radius:.7em;padding:.8em;margin:.6em 0;background:var(--surface)}
+.chart .ct{font-weight:600;font-size:.92em;margin-bottom:.4em}
+.chart svg{width:100%;height:auto;display:block}
+.chart .lg{display:flex;gap:1em;font-size:.8em;color:var(--dim);margin-top:.3em}
+.chart .lg i{display:inline-block;width:.8em;height:.8em;border-radius:.2em;margin-right:.35em;vertical-align:-.05em}
+.chart-wait{border:1px dashed var(--line2);border-radius:.7em;padding:1.2em;text-align:center;color:var(--dim);font-size:.9em;margin:.6em 0}
+.refs{margin-top:.8em}
+.refs .rhead{display:inline-flex;align-items:center;gap:.4em;font-size:.85em;color:var(--dim);font-weight:600;margin-bottom:.4em}
+.reflist{display:flex;flex-wrap:wrap;gap:.45em}
+.ref{display:flex;align-items:center;gap:.5em;border:1px solid var(--line);border-radius:.5em;padding:.3em .6em .3em .35em;font-size:.84em;background:var(--surface2);max-width:30em}
+.ref .rt{min-width:0;flex:0 1 auto}
+.ref .n{color:var(--faint);font-size:.9em;min-width:1em;text-align:center}
+.ref .rt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ref .rm{color:var(--faint);font-size:.9em;white-space:nowrap}
+.tile{width:1.6em;height:1.6em;border-radius:.35em;display:grid;place-items:center;color:#fff;font-weight:700;font-size:.72em;flex:none;font-family:var(--font)}
+.tile svg.i{width:62%;height:62%;stroke:#fff}
+.acts{display:flex;align-items:center;gap:.2em;margin-top:.7em;color:var(--dim)}
+.acts .ab{border:0;background:none;padding:.3em .45em;border-radius:.4em;display:flex;align-items:center;gap:.35em;font-size:.85em;color:var(--dim)}
+.acts .ab:hover{background:var(--hover)}
+.acts .sp{flex:1}
+.sugs{display:flex;flex-wrap:wrap;gap:.5em;margin-top:.8em}
+.sug{border:1px solid var(--line2);border-radius:999px;padding:.35em .9em;font-size:.86em;background:var(--surface);color:var(--text)}
+.sug.hot{border-color:var(--accent);background:var(--accent-soft)}
+.composer-wrap{flex:none;padding:0 1.2em .5em}
+.composer{max-width:48em;margin:0 auto;border:1px solid var(--line2);border-radius:1.1em;background:var(--surface);box-shadow:var(--shadow);padding:.6em .7em .5em;transition:border-color .2s}
+.composer.focus{border-color:var(--accent)}
+.attachrow{display:flex;flex-wrap:wrap;gap:.4em;margin-bottom:.4em}
+.attachrow:empty{display:none}
+.chipfile{display:inline-flex;align-items:center;gap:.45em;border:1px solid var(--line);border-radius:.5em;padding:.25em .6em .25em .3em;font-size:.84em;background:var(--surface2)}
+.input{min-height:1.6em;padding:.2em .4em;white-space:pre-wrap;word-wrap:break-word;max-height:9em;overflow:auto}
+.input.ph{color:var(--faint)}
+.refchip{display:inline-flex;align-items:center;gap:.3em;background:var(--accent-soft);color:var(--accent);border-radius:.35em;padding:0 .35em;font-weight:600;white-space:nowrap}
+.refchip .tile{width:1.25em;height:1.25em;font-size:.6em}
+.ctools{display:flex;align-items:center;gap:.3em;margin-top:.3em;color:var(--dim)}
+.ctools .cb{border:0;background:none;padding:.35em;border-radius:.5em;display:grid;place-items:center;color:var(--dim)}
+.ctools .sp{flex:1}
+.send{width:2.2em;height:2.2em;border-radius:50%;border:0;display:grid;place-items:center;background:var(--hover);color:var(--faint);transition:background .2s,transform .15s}
+.send.ready{background:var(--accent);color:#fff}
+.send.press{transform:scale(.88)}
+.disclaimer{text-align:center;font-size:.74em;color:var(--faint);padding:.35em 0 .1em}
+.caret::after{content:"";display:inline-block;width:2px;height:1.05em;background:var(--accent);margin-left:1px;vertical-align:-.15em;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- apps ---------- */
+.appview{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.appbar{height:3em;flex:none;display:flex;align-items:center;gap:.7em;padding:0 1em;color:#fff;background:var(--appc)}
+.appbar .tile{width:1.9em;height:1.9em;background:rgba(255,255,255,.18);font-size:.85em}
+.appbar .an{font-weight:600}
+.appbar .doc{opacity:.85;font-size:.9em}
+.appbar .sp{flex:1}
+.ribbon{height:2.8em;flex:none;display:flex;align-items:center;gap:.4em;padding:0 1em;background:var(--surface);border-bottom:1px solid var(--line);font-size:.88em;color:var(--dim)}
+.ribbon .rb{padding:.3em .7em;border-radius:.35em;display:flex;align-items:center;gap:.4em}
+.ribbon .rb.cp{color:var(--text);font-weight:600;border:1px solid var(--line)}
+.ribbon .rb.cp .cp-glyph{width:1.25em;height:1.25em}
+.ribbon .rb.on{background:var(--accent-soft);border-color:var(--accent)}
+.appbody{flex:1;display:flex;min-height:0}
+.canvas{flex:1;min-width:0;background:var(--bg);position:relative}
+.pane{width:26em;flex:none;border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.pane .phead{height:2.9em;flex:none;display:flex;align-items:center;gap:.55em;padding:0 1em;font-weight:600;border-bottom:1px solid var(--line)}
+.pane .phead .cp-glyph{width:1.35em;height:1.35em}
+.pane .conv{padding:0 .9em}
+.pane .inner{padding:.9em 0 1.4em;max-width:none}
+.pane .welcome{padding:2em .5em 1em}
+.pane .welcome h1{font-size:1.3em}.pane .welcome p{font-size:.95em;margin-bottom:1em}
+.pane .cards{grid-template-columns:1fr}
+.pane .umsg{max-width:92%}
+.pane .composer-wrap{padding:0 .8em .4em}
+.pane .md table{font-size:.85em}
+/* email */
+.mail{max-width:52em;margin:0 auto;padding:1.2em 1.4em}
+.mail h2{font-size:1.25em;margin:0 0 .8em;display:flex;align-items:center;gap:.6em}
+.mail h2 .sp{flex:1}
+.hotbtn{display:inline-flex;align-items:center;gap:.45em;border:1px solid var(--line2);background:var(--surface);border-radius:.5em;padding:.35em .8em;font-size:.72em;font-weight:600;color:var(--text)}
+.hotbtn .cp-glyph{width:1.25em;height:1.25em}
+.msgcard{background:var(--surface);border:1px solid var(--line);border-radius:.7em;padding:.8em 1em;margin-bottom:.7em;box-shadow:var(--shadow)}
+.msgcard .mh{display:flex;align-items:center;gap:.7em;margin-bottom:.45em}
+.msgcard .mh b{font-size:.95em}.msgcard .mh .t{margin-left:auto;color:var(--faint);font-size:.82em}
+.msgcard .mb{white-space:pre-wrap;font-size:.93em;color:var(--text)}
+.cpcard{border-radius:.8em;padding:1px;background:var(--grad);margin-bottom:.9em;animation:rise .3s ease-out}
+.cpcard>div{background:var(--surface);border-radius:calc(.8em - 1px);padding:.8em 1em}
+.cpcard .ch{display:flex;align-items:center;gap:.5em;font-weight:600;font-size:.9em;margin-bottom:.3em}
+.cpcard .ch .cp-glyph{width:1.3em;height:1.3em}
+.draft{border:1px dashed var(--accent);border-radius:.7em;background:var(--surface);padding:.8em 1em;margin-top:.8em;animation:rise .3s ease-out}
+.draft .dh{font-size:.8em;color:var(--dim);margin-bottom:.3em;display:flex;gap:.5em;align-items:center}
+/* meeting */
+.meet{max-width:56em;margin:0 auto;padding:1.2em 1.4em}
+.meet h2{margin:0 0 .2em;font-size:1.3em}.meet .when{color:var(--dim);font-size:.9em;margin-bottom:.8em}
+.people{display:flex;gap:.3em;margin-bottom:1em}
+.tabs2{display:flex;gap:1.2em;border-bottom:1px solid var(--line);margin-bottom:.9em;font-size:.92em}
+.tabs2 span{padding:.4em 0;color:var(--dim)}.tabs2 span.on{color:var(--text);font-weight:600;border-bottom:2px solid var(--accent)}
+.tline{display:flex;gap:.7em;margin-bottom:.7em;font-size:.92em}
+.tline .ts{color:var(--faint);font-size:.82em;min-width:3.2em;padding-top:.15em}
+/* word */
+.page{max-width:48em;margin:1.4em auto;background:#fff;color:#222;box-shadow:0 1px 6px rgba(0,0,0,.15);min-height:calc(100% - 2.8em);padding:3em 3.6em;border-radius:2px}
+:root[data-theme="dark"] .page{background:#2b2b2b;color:#eee}
+.page h1{font-size:1.6em;margin:0 0 .5em;font-weight:600}
+.page .md{font-size:.98em}
+.page .ghost{color:#9a9a9a}
+.inlinecp{display:flex;align-items:center;gap:.6em;border:1px solid #d7d7ff;border-radius:.6em;padding:.5em .7em;color:#666;font-size:.92em;margin:.6em 0}
+:root[data-theme="dark"] .inlinecp{border-color:#44477a;color:#bbb}
+.inlinecp .cp-glyph{width:1.3em;height:1.3em}
+/* excel */
+.sheetwrap{padding:0;height:100%;display:flex;flex-direction:column}
+.fbar{display:flex;align-items:center;gap:.6em;padding:.35em .8em;border-bottom:1px solid var(--line);background:var(--surface);font-size:.85em;color:var(--dim)}
+.fbar .nm{border:1px solid var(--line);padding:0 .5em;border-radius:.2em;min-width:4em}
+.grid{flex:1;overflow:auto;background:var(--surface);position:relative}
+.grid table{border-collapse:collapse;font-size:.86em;min-width:100%}
+.grid th,.grid td{border:1px solid var(--line);padding:.28em .6em;white-space:nowrap;text-align:left}
+.grid th{background:var(--surface2);color:var(--dim);font-weight:500;text-align:center}
+.grid td.rh{background:var(--surface2);color:var(--dim);text-align:center;width:3em}
+.grid tr.hdr td{font-weight:600;background:color-mix(in srgb,var(--excel) 10%,var(--surface))}
+.grid tr.hl td{background:color-mix(in srgb,#f2c14e 30%,var(--surface))}
+.grid td.num{text-align:right;font-variant-numeric:tabular-nums}
+.floatchart{position:absolute;right:1.2em;top:1.2em;width:30em;background:var(--surface);border:1px solid var(--line2);box-shadow:0 6px 24px rgba(0,0,0,.18);border-radius:.4em;padding:.8em;animation:rise .35s ease-out}
+.sheettabs{display:flex;gap:.2em;padding:.25em .8em;border-top:1px solid var(--line);background:var(--surface2);font-size:.82em}
+.sheettabs span{padding:.2em .8em;border-radius:.2em}.sheettabs span.on{background:var(--surface);color:var(--excel);font-weight:600;border-bottom:2px solid var(--excel)}
+/* powerpoint */
+.deck{display:flex;height:100%}
+.thumbs{width:12em;flex:none;border-right:1px solid var(--line);background:var(--surface2);padding:.8em;display:flex;flex-direction:column;gap:.7em;overflow:auto}
+.thumb{display:flex;gap:.4em;font-size:.72em;color:var(--dim);animation:rise .3s ease-out}
+.thumb .sl{flex:1;aspect-ratio:16/9;background:#fff;border:1px solid var(--line2);border-radius:.2em;padding:.4em;color:#333;overflow:hidden;font-size:.8em}
+.thumb.on .sl{outline:2px solid var(--ppt)}
+.thumb .sl b{display:block;font-size:1.05em;margin-bottom:.2em;color:var(--ppt)}
+.stagearea{flex:1;display:grid;place-items:center;padding:1.5em;min-width:0}
+.slide{width:100%;max-width:52em;aspect-ratio:16/9;background:#fff;color:#222;box-shadow:0 2px 12px rgba(0,0,0,.18);border-radius:.3em;padding:2.2em 2.8em;display:flex;flex-direction:column;position:relative;overflow:hidden;animation:rise .35s ease-out}
+.slide::before{content:"";position:absolute;left:0;top:0;bottom:0;width:.6em;background:linear-gradient(var(--ppt),#e8834e)}
+.slide h2{margin:0 0 .6em;font-size:1.9em;color:#1f1f1f}
+.slide ul{margin:0;padding-left:1.2em;font-size:1.15em;line-height:1.6}
+.slide.title-slide{justify-content:center}.slide.title-slide h2{font-size:2.4em}.slide.title-slide p{font-size:1.2em;color:#666;margin:0}
+.slide .ghost{color:#aaa;margin:auto;text-align:center}
+.emptydeck{color:var(--faint);text-align:center}
+
+/* ---------- presenter overlays ---------- */
+#caption{position:absolute;left:50%;top:3.7em;transform:translateX(-50%) translateY(-10px);max-width:min(46em,80%);background:rgba(20,20,28,.92);color:#fff;border-radius:.8em;padding:.7em 1.2em;font-size:1.02em;box-shadow:0 8px 30px rgba(0,0,0,.35);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:40;text-align:center;border:1px solid rgba(255,255,255,.12)}
+#caption.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#caption b{color:#c7c9ff}
+#cursor{position:absolute;left:0;top:0;width:1.4em;height:1.4em;z-index:45;pointer-events:none;opacity:0;transition:left .55s cubic-bezier(.4,0,.2,1),top .55s cubic-bezier(.4,0,.2,1),opacity .2s}
+#cursor svg{width:100%;height:100%;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+#cursor.on{opacity:1}
+.pulse{animation:pulse .6s ease-out}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+#pbar{position:fixed;right:12px;bottom:12px;z-index:60;display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(24,24,30,.92);color:#eee;border:1px solid rgba(255,255,255,.14);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.4);font:13px/1.2 system-ui,sans-serif;transition:opacity .25s;backdrop-filter:blur(8px);max-width:calc(100vw - 24px);flex-wrap:nowrap}
+body.idle #pbar:not(:hover){opacity:.28}
+#pbar.hidden{opacity:0;pointer-events:none}
+#pbar:hover{opacity:1}
+body.clean #pbar{opacity:0}
+body.clean #pbar:hover{opacity:1}
+.pb{border:0;background:rgba(255,255,255,.08);color:#eee;border-radius:8px;padding:6px 9px;display:inline-flex;align-items:center;gap:5px;min-height:30px}
+.pb:hover{background:rgba(255,255,255,.18)}
+.pb.primary{background:#5b5fc7}
+.pb.rec::before{content:"";width:9px;height:9px;border-radius:50%;background:#ff5c5c}
+#pbar select{background:rgba(255,255,255,.08);border:0;border-radius:8px;padding:6px 8px;max-width:190px}
+#pSpeed{max-width:64px!important}
+#pbar select option,#pbar select optgroup{background:#222;color:#eee}
+#prog{min-width:70px;text-align:center;color:#bbb;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:rgba(24,24,30,.95);color:#fff;padding:8px 14px;border-radius:10px;font:13px system-ui,sans-serif;z-index:95;opacity:0;transition:opacity .25s;pointer-events:none;max-width:80vw;text-align:center}
+.toast.show{opacity:1}
+body.nocursor,body.nocursor *{cursor:none!important}
+
+/* ---------- drawer ---------- */
+#drawer{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:90;font:14px/1.45 system-ui,sans-serif}
+#drawer.open{display:block}
+#drawer .sheet{position:absolute;right:0;top:0;bottom:0;width:min(720px,100%);background:#1e1e24;color:#eee;display:flex;flex-direction:column;border-left:1px solid #333}
+#drawer .dh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid #333;gap:10px}
+#drawer .dh h2{margin:0;font-size:16px;flex:1}
+#drawer .tabsd{display:flex;gap:4px;padding:6px 16px 0;border-bottom:1px solid #333}
+#drawer .tabd{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:#aaa}
+#drawer .tabd.sel{color:#fff;border-bottom-color:#8f95ff}
+#drawer .pane2{display:none;padding:16px;overflow:auto;flex:1}
+#drawer .pane2.sel{display:block}
+#drawer label{display:block;font-size:12.5px;color:#aaa;margin-bottom:4px}
+#drawer .f{margin-bottom:14px}
+#drawer .inp{width:100%;background:#2a2a32;border:1px solid #3a3a44;border-radius:8px;padding:7px 10px;color:#eee}
+#drawer textarea.inp{min-height:420px;font:12.5px/1.5 var(--mono);white-space:pre}
+#drawer .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#drawer .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+#drawer .chk{display:flex;gap:8px;align-items:center;color:#ddd;font-size:13.5px;margin-bottom:8px}
+#drawer .btn{background:#2f2f3a;border:1px solid #444;border-radius:8px;padding:7px 12px;color:#eee}
+#drawer .btn.primary{background:#5b5fc7;border-color:#5b5fc7}
+#drawer .msg{font-size:12.5px;color:#aaa}
+#drawer .msg.err{color:#ff8a8a}#drawer .msg.ok{color:#7fd48a}
+#drawer h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#999;margin:18px 0 8px}
+#drawer .acts2{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#clipCard{position:fixed;right:16px;bottom:70px;z-index:92;width:min(380px,calc(100vw - 32px));background:#1e1e24;color:#eee;border:1px solid #5b5fc7;border-radius:12px;padding:12px;display:none;font:13.5px/1.45 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#clipCard.on{display:block}
+#clipCard video{width:100%;border-radius:8px;background:#000;margin:8px 0;max-height:220px}
+#clipCard a{display:inline-block;background:#5b5fc7;color:#fff;text-decoration:none;border-radius:8px;padding:7px 12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="waffle" title="App launcher"><svg class="i" viewBox="0 0 24 24"><path d="M5 5h.01M12 5h.01M19 5h.01M5 12h.01M12 12h.01M19 12h.01M5 19h.01M12 19h.01M19 19h.01" stroke-width="3.4"/></svg></div>
+    <div class="brand"><span class="cp-glyph"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.2 6.3 6.3 2.2-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-2.2z"/></svg></span><span id="brandName">Copilot</span></div>
+    <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><span>Search</span></div>
+    <div class="me"><span id="orgName" style="color:var(--dim);font-size:.85em"></span><span class="avatar" id="meAv">AM</span></div>
+  </div>
+  <div class="shell">
+    <nav class="rail" id="rail"></nav>
+    <aside class="side" id="side"></aside>
+    <main id="main" style="flex:1;display:flex;min-width:0;min-height:0"></main>
+  </div>
+  <div id="caption"></div>
+  <div id="cursor"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6.2 1.6L9.6 19z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+</div>
+
+<div id="pbar">
+  <select id="scenePick" title="Scene (1–9)"></select>
+  <button class="pb" id="pPrev" title="Previous scene (←)"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button class="pb" id="pRestart" title="Restart scene (R)"><svg class="i" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg></button>
+  <button class="pb primary" id="pNext" title="Next step (→)">Next <svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+  <button class="pb" id="pPlay" title="Auto-play (Space)">▶ Auto</button>
+  <span id="prog">1/1 · 0/0</span>
+  <select id="pSpeed" title="Speed"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+  <button class="pb" id="pTheme" title="Light / dark (T)">◐</button>
+  <button class="pb rec" id="pRec" title="Record a clip (C)">Rec</button>
+  <button class="pb" id="pData" title="Scenes, data &amp; setup (D)">⚙</button>
+  <button class="pb" id="pFull" title="Fullscreen (F)">⛶</button>
+</div>
+
+<div id="drawer"><div class="sheet">
+  <div class="dh"><h2>Copilot Training Studio</h2><button class="btn" id="dClose">✕</button></div>
+  <div class="tabsd"><button class="tabd sel" data-p="dSetup">Setup</button><button class="tabd" data-p="dRecord">Record</button><button class="tabd" data-p="dData">Scenes (JSON)</button><button class="tabd" data-p="dHelp">Help</button></div>
+  <div class="pane2 sel" id="dSetup">
+    <div class="row"><div class="f"><label>Presenter name (shown as the signed-in user)</label><input class="inp" id="sName"></div><div class="f"><label>Organisation (shown top right)</label><input class="inp" id="sOrg"></div></div>
+    <div class="row3">
+      <div class="f"><label>Theme</label><select class="inp" id="sTheme"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+      <div class="f"><label>Text size</label><select class="inp" id="sFs"><option>13</option><option>14</option><option selected>15</option><option>16</option><option>17</option><option>18</option><option>20</option></select></div>
+      <div class="f"><label>Frame</label><select class="inp" id="sFrame"><option value="fit">Fit window</option><option value="1920x1080">16:9 · 1920 × 1080</option><option value="1600x900">16:9 · 1600 × 900</option><option value="1280x720">16:9 · 1280 × 720</option></select></div>
+    </div>
+    <div class="row3">
+      <div class="f"><label>Typing speed</label><select class="inp" id="sType"><option value="0.6">Slow</option><option value="1" selected>Normal</option><option value="1.6">Fast</option></select></div>
+      <div class="f"><label>Answer speed</label><select class="inp" id="sStream"><option value="0.6">Slow</option><option value="1" selected>Normal</option><option value="1.8">Fast</option></select></div>
+      <div class="f"><label>&nbsp;</label><label class="chk" style="margin:6px 0 0"><input type="checkbox" id="sCaps" checked> Show trainer captions</label></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="sCursor" checked> Show a pointer moving to buttons that get "clicked"</label>
+    <p class="msg">Everything is scripted and offline. No Microsoft 365 account, tenant or real data is used, so it is safe to present anywhere.</p>
+  </div>
+  <div class="pane2" id="dRecord">
+    <p class="msg" style="margin-top:0">Records the stage as a small, PowerPoint-ready MP4 (in recent Chrome or Edge). When asked what to share, choose <b>this tab</b>. The presenter bar and pointer are hidden while recording.</p>
+    <div class="row3">
+      <div class="f"><label>What to record</label><select class="inp" id="rScope"><option value="scene">This scene</option><option value="all">All scenes, back to back</option></select></div>
+      <div class="f"><label>Quality</label><select class="inp" id="rQ"><option value="800000">Small · 0.8 Mbps</option><option value="1500000" selected>Balanced · 1.5 Mbps</option><option value="3000000">High · 3 Mbps</option></select></div>
+      <div class="f"><label>End hold</label><select class="inp" id="rTail"><option value="2">2 s</option><option value="5" selected>5 s</option><option value="8">8 s</option></select></div>
+    </div>
+    <div class="acts2"><button class="btn primary" id="rGo">● Record</button><span class="msg" id="rFmt"></span></div>
+    <p class="msg" id="rMsg"></p>
+  </div>
+  <div class="pane2" id="dData">
+    <p class="msg" style="margin-top:0">Every scene, prompt, answer, document and caption is in this JSON. Edit it for your audience, then Apply. Download it to share with other trainers; they can Import it or drop the .json on the page.</p>
+    <textarea class="inp" id="jBox" spellcheck="false"></textarea>
+    <div class="acts2" style="margin-top:8px"><button class="btn primary" id="jApply">Apply</button><button class="btn" id="jDown">⬇ Download .json</button><label class="btn" style="cursor:pointer">⬆ Import<input type="file" id="jFile" accept=".json,application/json" hidden></label><button class="btn" id="jReset">Reset to built-in scenes</button><span class="msg" id="jMsg"></span></div>
+  </div>
+  <div class="pane2" id="dHelp">
+    <h3 style="margin-top:0">Presenting</h3>
+    <p class="msg">→ or Next runs the next step (types a prompt, then shows Copilot's answer). Press → during typing to finish it instantly. Space toggles auto-play for the scene. ← and Shift+→ move between scenes; 1–9 jump straight to a scene. R restarts, E finishes the scene, T switches light/dark, H hides the presenter bar (hover the bottom edge to bring it back), F is fullscreen, + / − changes text size.</p>
+    <h3>Scene JSON in brief</h3>
+    <p class="msg" style="white-space:pre-wrap;font-family:var(--mono);font-size:12px">{ "user": {"name","org"}, "scenes": [ {
+  "id", "title", "app": "chat|outlook|teams|word|excel|powerpoint",
+  "agent": "Researcher" (optional), "welcome": { "cards": [...] },
+  "canvas": { "kind": "email|meeting|doc|sheet|slides", ... },
+  "steps": [
+    {"type":"caption","text":"…"},
+    {"type":"prompt","text":"… /File name …","refs":[{"kind":"docx","name":"File name"}],"attach":[…]},
+    {"type":"response","status":["Searching…"],"content":"markdown with [1] citations","citations":[{"kind","title","meta"}],"suggestions":[…]},
+    {"type":"click","target":"summarize"},
+    {"type":"canvas","action":"banner|reply|recap|append|chart|slides", …}
+  ] } ] }
+kinds: docx xlsx pptx pdf mail teams calendar folder web loop</p>
+  </div>
+</div></div>
+<div id="clipCard"><div style="display:flex;align-items:center"><b style="flex:1">Clip ready</b><button class="pb" id="clipX">✕</button></div><video id="clipVid" controls muted playsinline></video><div id="clipMeta" style="font-size:12.5px;color:#bbb;margin-bottom:8px"></div><a id="clipSave" download>⬇ Save clip</a></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Helpers
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const L = (...a) => a.join('\n');
+const store = { get(k, d) { try { const v = localStorage.getItem('m365t:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('m365t:' + k, JSON.stringify(v)); } catch (e) {} } };
+function toast(msg, ms = 2000) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms); }
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'copilot';
+const initials = n => { const w = String(n || '?').trim().split(/\s+/); return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase(); };
+
+/* ---------- icons (generic outline set; not product logos) ---------- */
+const IC = {
+  chat: '<path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-5 4v-4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+  create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  apps: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', newchat: '<path d="M5 5h9M5 5v14h14v-9"/><path d="M18 3l3 3-8 8H10v-3z"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  send: '<path d="M5 12h13M13 6l6 6-6 6"/>', copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  up: '<path d="M7 11v9H4v-9zM7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a1.5 1.5 0 0 1 1.5 1.8l-1.4 6.6A2 2 0 0 1 17.2 20H7"/>',
+  down: '<path d="M7 13V4H4v9zM7 13l4 7c1.5 0 2.5-1 2.2-2.6L12.6 14H19a1.5 1.5 0 0 0 1.5-1.8l-1.4-6.6A2 2 0 0 0 17.2 4H7"/>',
+  pages: '<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  export: '<path d="M12 4v11M7 9l5-5 5 5M5 20h14"/>', more: '<path d="M6 12h.01M12 12h.01M18 12h.01" stroke-width="3"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', work: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  research: '<circle cx="10" cy="10" r="6"/><path d="M20 20l-5.6-5.6M8 10h4M10 8v4"/>', analyst: '<path d="M4 20h16M7 16v-4M12 16V7M17 16v-7"/>',
+  agents: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .6 3.2 2.3 3.8 5"/>',
+  shield: '<path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/>', lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>', bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />', clip: '<path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10 17.5a2 2 0 0 1-3-3l7.5-7.5"/>',
+  loop: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12a3 3 0 1 0 3-3"/>'
+};
+const icon = (k, extra = '') => `<svg class="i" viewBox="0 0 24 24" ${extra}>${IC[k] || IC.spark}</svg>`;
+const GLYPH = '<span class="cp-glyph"><svg viewBox="0 0 24 24"><path d="M12 2.5l2.2 6.3 6.3 2.2-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-2.2z"/></svg></span>';
+// file / source tiles: letter tiles and simple glyphs, coloured like each app family
+const KIND = {
+  docx: ['W', 'var(--word)'], xlsx: ['X', 'var(--excel)'], pptx: ['P', 'var(--ppt)'], pdf: ['PDF', '#c50f1f'], mail: [null, 'var(--outlook)', 'mail'],
+  teams: ['T', 'var(--teams)'], calendar: [null, 'var(--outlook)', 'calendar'], folder: [null, '#c19c00', 'folder'], web: [null, '#0a7c86', 'globe'], loop: [null, '#7b61ff', 'loop']
+};
+function tile(kind) { const k = KIND[kind] || KIND.docx; return `<span class="tile" style="background:${k[1]}">${k[2] ? icon(k[2]) : esc(k[0])}</span>`; }
+const APPS = { outlook: ['Outlook', 'O', 'var(--outlook)'], teams: ['Teams', 'T', 'var(--teams)'], word: ['Word', 'W', 'var(--word)'], excel: ['Excel', 'X', 'var(--excel)'], powerpoint: ['PowerPoint', 'P', 'var(--ppt)'] };
+
+/* ---------- markdown (escapes first) with citations and charts ---------- */
+function inlineMd(s) {
+  return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<em>$2</em>').replace(/\[(\d{1,2})\]/g, '<sup class="cite">$1</sup>');
+}
+function mdTable(rows) {
+  const cells = r => { let c = r.trim(); if (c.startsWith('|')) c = c.slice(1); if (c.endsWith('|')) c = c.slice(0, -1); return c.split('|').map(x => x.trim()); };
+  const body = rows.filter(r => !/^\s*\|?[\s:|-]+\|?\s*$/.test(r)); if (!body.length) return '';
+  return '<table><thead><tr>' + cells(body[0]).map(c => '<th>' + inlineMd(c) + '</th>').join('') + '</tr></thead><tbody>' +
+    body.slice(1).map(r => '<tr>' + cells(r).map(c => '<td>' + inlineMd(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+}
+const SERIES_COL = ['#5b5fc7', '#e0569b', '#107c41', '#f4a261', '#0f6cbd'];
+function chartSvg(spec) {
+  const labels = spec.labels || [], series = spec.series || [];
+  const max = Math.max(1, ...series.flatMap(s => s.values || [])) * 1.12;
+  const W = 560, H = 220, pl = 34, pb = 38, pt = 10, cw = (W - pl - 8) / Math.max(1, labels.length), bw = Math.min(26, (cw - 10) / Math.max(1, series.length));
+  let g = '';
+  for (let t = 0; t <= 4; t++) { const y = pt + (H - pt - pb) * (1 - t / 4); g += `<line x1="${pl}" x2="${W - 4}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${pl - 6}" y="${y + 4}" font-size="10" text-anchor="end" fill="var(--faint)">${Math.round(max * t / 4 * 10) / 10}</text>`; }
+  labels.forEach((lab, i) => {
+    const x0 = pl + i * cw + (cw - bw * series.length) / 2;
+    series.forEach((s, j) => { const v = (s.values || [])[i] || 0, h = (H - pt - pb) * v / max; const hl = (spec.highlight || []).includes(i);
+      g += `<rect x="${x0 + j * bw}" y="${H - pb - h}" width="${bw - 3}" height="${h}" rx="3" fill="${SERIES_COL[j % 5]}" opacity="${spec.highlight && !hl ? .45 : 1}"/>`; });
+    g += `<text x="${pl + i * cw + cw / 2}" y="${H - pb + 15}" font-size="10.5" text-anchor="middle" fill="var(--dim)">${esc(lab)}</text>`;
+  });
+  return `<div class="chart">${spec.title ? `<div class="ct">${esc(spec.title)}</div>` : ''}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(spec.title || 'chart')}">${g}</svg><div class="lg">${series.map((s, j) => `<span><i style="background:${SERIES_COL[j % 5]}"></i>${esc(s.name)}</span>`).join('')}</div></div>`;
+}
+function md(src) {
+  const Ls = String(src).split('\n'), out = []; let i = 0, list = null;
+  const close = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+  const open = t => { if (list !== t) { close(); out.push('<' + t + '>'); list = t; } };
+  while (i < Ls.length) {
+    const l = Ls[i]; let m;
+    if ((m = l.match(/^\s*```(\w*)/))) {
+      close(); const lang = m[1], b = []; i++; let closed = false;
+      while (i < Ls.length) { if (/^\s*```/.test(Ls[i])) { closed = true; i++; break; } b.push(Ls[i++]); }
+      if (lang === 'chart') { if (!closed) out.push('<div class="chart-wait">Creating chart…</div>'); else { try { out.push(chartSvg(JSON.parse(b.join('\n')))); } catch (e) { out.push('<div class="chart-wait">Chart data could not be read</div>'); } } }
+      else out.push('<pre><code>' + esc(b.join('\n')) + '</code></pre>');
+      continue;
+    }
+    if (/^\s*\|/.test(l)) { close(); const rows = []; while (i < Ls.length && /^\s*\|/.test(Ls[i])) rows.push(Ls[i++]); out.push(mdTable(rows)); continue; }
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { close(); const n = Math.min(4, m[1].length + 1); out.push(`<h${n}>${inlineMd(m[2])}</h${n}>`); }
+    else if ((m = l.match(/^\s*[-*]\s+(.*)/))) { open('ul'); out.push('<li>' + inlineMd(m[1]) + '</li>'); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { open('ol'); out.push('<li>' + inlineMd(m[1]) + '</li>'); }
+    else if (/^>/.test(l)) { close(); const q = []; while (i < Ls.length && /^>/.test(Ls[i])) q.push(Ls[i++].replace(/^>\s?/, '')); out.push('<blockquote>' + md(q.join('\n')) + '</blockquote>'); continue; }
+    else if (/^\s*---+\s*$/.test(l)) { close(); out.push('<hr>'); }
+    else if (!l.trim()) close();
+    else { close(); out.push('<p>' + inlineMd(l) + '</p>'); }
+    i++;
+  }
+  close(); return out.join('');
+}
+
+/* =====================================================================
+   Built-in scenes: a fictional hospital. Edit freely in the Data panel.
+   ===================================================================== */
+const DEFAULT_DATA = {
+  user: { name: 'Alex Morgan', org: 'Hollybank Hospital' },
+  agents: ['Researcher', 'Analyst'],
+  scenes: [
+    { id: 'catchup', title: 'Catch up on my week', app: 'chat',
+      welcome: { cards: ['Catch me up on what I missed this week', 'Prepare me for my next meeting', 'Summarise the latest KPI pack', 'Draft a message to my team'] },
+      steps: [
+        { type: 'caption', text: '<b>Start here:</b> Copilot Chat works across your email, meetings, chats and files, and only sees what you already have access to.' },
+        { type: 'prompt', text: 'Catch me up on what I missed this week. Summarise the key emails, Teams chats and meetings about theatre utilisation, and list any actions for me.' },
+        { type: 'response', status: ['Searching your emails, chats and meetings', 'Reading 14 emails, 2 chats and 3 meeting recaps', 'Pulling out actions for you'],
+          content: L('Here is your catch-up for **Monday to Thursday**.', '', '### Theatre utilisation',
+            '- Utilisation dipped to **78%** on Tuesday after two late starts in Theatre 3 [1]',
+            '- Priya Shah (Theatres Manager) has proposed **08:00 starts** for the orthopaedic list from next month [2]',
+            '- The anaesthetics rota gap on 14 October is now covered [3]', '', '### Also worth knowing',
+            '- Agency spend is running **6% over plan** for Q3, mainly on two wards [4]',
+            '- The CQC engagement call has moved to **Friday 11:00** [5]', '', '### Actions for you',
+            '| Action | From | Due |', '|---|---|---|', '| Approve the 08:00 orthopaedic start pilot | Priya Shah | Friday |',
+            '| Reply to the agency spend query | Finance | Monday |', '| Confirm attendance at the CQC call | Quality team | Thursday |'),
+          citations: [{ kind: 'mail', title: 'RE: Theatre 3 late starts', meta: 'Priya Shah · Tue' }, { kind: 'teams', title: 'Theatres huddle', meta: 'Chat · Wed' },
+            { kind: 'mail', title: 'Anaesthetics rota – 14 Oct', meta: 'Rota team · Wed' }, { kind: 'xlsx', title: 'Q3 agency spend.xlsx', meta: 'Finance' },
+            { kind: 'calendar', title: 'CQC engagement call', meta: 'Fri 11:00' }],
+          suggestions: ['Draft a reply approving the pilot', 'Show agency spend by ward', "What's on my calendar tomorrow?"] },
+        { type: 'caption', text: 'Follow-up questions keep the context, so there is no need to repeat yourself.' },
+        { type: 'prompt', text: 'Draft a reply to Priya approving the 08:00 start pilot for one month, and ask for a utilisation report at the end of it.' },
+        { type: 'response', status: ['Using the email from Priya Shah'],
+          content: L('Here is a draft you can send from Outlook:', '', '> **Subject:** RE: Theatre 3 late starts', '>',
+            '> Hi Priya,', '>', '> Thank you for pulling this together. I am happy to approve the **08:00 start pilot** for the orthopaedic list for one month from 1 November.', '>',
+            '> Could you share a short utilisation report at the end of the month, comparing start times and cancellations with October? That will help us decide whether to make it permanent.', '>',
+            '> Many thanks,', '> Alex'),
+          citations: [{ kind: 'mail', title: 'RE: Theatre 3 late starts', meta: 'Priya Shah · Tue' }],
+          suggestions: ['Make it more formal', 'Add the theatre team in copy', 'Shorten it'] }
+      ] },
+    { id: 'board', title: 'Prepare for the board', app: 'chat',
+      steps: [
+        { type: 'caption', text: 'Type <b>/</b> to point Copilot at specific files, people or meetings. It then grounds the answer in exactly those sources.' },
+        { type: 'prompt', text: "Prepare me for Thursday's Hospital Management Board using /HMB agenda – October and /Monthly KPI pack – September. Summarise the key points, flag the top three risks and suggest questions I should ask.",
+          refs: [{ kind: 'docx', name: 'HMB agenda – October' }, { kind: 'pptx', name: 'Monthly KPI pack – September' }] },
+        { type: 'response', status: ['Reading HMB agenda – October', 'Reading Monthly KPI pack – September', 'Comparing against last month'],
+          content: L('## Board briefing: Thursday 10:00', '', '### Headlines', '| Measure | September | Target | Trend |', '|---|---|---|---|',
+            '| Theatre utilisation | 84% | 85% | ▲ up 3 pts |', '| Average length of stay | 3.4 days | 3.2 days | ▼ improving |',
+            '| Patient satisfaction | 96% | 95% | ■ steady |', '| Agency spend | £212k | £200k | ▲ over plan |', '',
+            '### Top three risks', '1. **Agency spend** is 6% over plan; two wards account for 70% of it [2]',
+            '2. **Orthopaedic waiting list** has grown by 38 patients since August [2]', '3. **Estates**: the Theatre 2 ventilation upgrade may slip into December [1]', '',
+            '### Questions you could ask', '- What is the plan to convert agency shifts to bank or substantive roles, and by when?',
+            '- Which actions would bring the orthopaedic list back to August levels?', '- What is the contingency if the Theatre 2 upgrade slips?'),
+          citations: [{ kind: 'docx', title: 'HMB agenda – October', meta: 'SharePoint · Board papers' }, { kind: 'pptx', title: 'Monthly KPI pack – September', meta: 'Performance team' }],
+          suggestions: ['Turn this into a one-page brief', 'Draft an opening statement', 'What changed since last month?'] }
+      ] },
+    { id: 'prompting', title: 'From vague to great prompts', app: 'chat',
+      steps: [
+        { type: 'caption', text: 'Watch what happens with a vague prompt…' },
+        { type: 'prompt', text: 'write something about the new discharge lounge' },
+        { type: 'response', status: ['Generating a response'],
+          content: L('A discharge lounge is a dedicated area where patients who are medically fit to leave can wait for transport, medication or paperwork. It can help free up beds earlier in the day and improve patient flow.', '',
+            'Would you like me to write an announcement, a proposal or a patient leaflet?'),
+          suggestions: ['Write an announcement', 'Write a proposal'] },
+        { type: 'caption', text: 'Now add a <b>Goal</b>, <b>Context</b>, <b>Source</b> and <b>Expectations</b>…' },
+        { type: 'prompt', text: L('Goal: announce our new discharge lounge to all ward staff.', 'Context: it opens on 3 November on Level 1, 08:00 to 20:00, and should free up beds earlier in the day.',
+            'Source: use /Discharge lounge proposal.', 'Expectations: under 150 words, warm tone, three bullet points on what changes for wards, suitable for Teams.'),
+          refs: [{ kind: 'docx', name: 'Discharge lounge proposal' }] },
+        { type: 'response', status: ['Reading Discharge lounge proposal', 'Writing for Teams, under 150 words'],
+          content: L('**Our new discharge lounge opens on 3 November** 🎉', '',
+            'From Monday 3 November, patients who are ready to go home can wait in comfort in our new discharge lounge on **Level 1**, open **08:00 to 20:00** [1].', '',
+            '**What changes for wards**', '- Move patients to the lounge by **11:00** once they are medically fit, even if they are waiting for medication or transport',
+            '- The lounge team will handle **TTOs, transport and relatives\' calls** [1]', '- Beds become available earlier, so **admissions flow sooner** in the afternoon', '',
+            'Thank you for everything you do for our patients. Questions? Contact the Patient Flow team.'),
+          citations: [{ kind: 'docx', title: 'Discharge lounge proposal', meta: 'Patient Flow · v3' }],
+          suggestions: ['Make it shorter', 'Create a poster version', 'Translate for the patient leaflet'] },
+        { type: 'caption', text: '<b>Goal · Context · Source · Expectations</b>: the same request, a far better result.' }
+      ] },
+    { id: 'analyst', title: 'Analyse length of stay', app: 'chat', agent: 'Analyst',
+      steps: [
+        { type: 'caption', text: 'Attach a spreadsheet and ask questions in plain English; no formulas needed.' },
+        { type: 'prompt', text: 'Compare average length of stay by specialty between Q2 and Q3, show it as a chart, and highlight anything unusual.', attach: [{ kind: 'xlsx', name: 'Length of stay Q2–Q3.xlsx' }] },
+        { type: 'response', status: ['Opening Length of stay Q2–Q3.xlsx', 'Calculating averages for 6 specialties', 'Building a chart'],
+          content: L('Average length of stay fell in **4 of 6 specialties** between Q2 and Q3 [1].', '', '```chart',
+            '{"title":"Average length of stay (days)","labels":["Ortho","General surg.","Gynae","Urology","ENT","Cardiology"],"series":[{"name":"Q2","values":[4.1,3.2,2.1,2.4,1.3,3.6]},{"name":"Q3","values":[3.6,3.0,2.0,2.9,1.2,4.3]}],"highlight":[3,5]}',
+            '```', '', '### Worth a closer look', '- **Cardiology** rose from 3.6 to **4.3 days** (+19%), driven by 11 patients who stayed longer than 10 days [1]',
+            '- **Urology** rose from 2.4 to **2.9 days**, mostly in September', '- **Orthopaedics** improved most, down 0.5 days, in line with the enhanced recovery pathway', '',
+            '> Tip: ask *"Which patients drove the cardiology increase?"* to drill in.'),
+          citations: [{ kind: 'xlsx', title: 'Length of stay Q2–Q3.xlsx', meta: 'Attached' }],
+          suggestions: ['Which patients drove the cardiology increase?', 'Put this in a slide', 'Compare with last year'] }
+      ] },
+    { id: 'cqc', title: 'CQC Well-led summary', app: 'chat', agent: 'Researcher',
+      steps: [
+        { type: 'caption', text: 'Researcher works through many documents to build a structured, referenced answer.' },
+        { type: 'prompt', text: 'Using /Well-led evidence folder, draft a one-page summary of our strengths and gaps against the CQC Well-led key question. Use a table and keep it factual.',
+          refs: [{ kind: 'folder', name: 'Well-led evidence folder' }] },
+        { type: 'response', status: ['Planning the research', 'Reading 23 documents in Well-led evidence folder', 'Checking governance minutes and staff survey', 'Drafting the summary with references'],
+          content: L('## Well-led: strengths and gaps', '', '| Area | Strengths | Gaps to address |', '|---|---|---|',
+            '| Leadership and culture | Visible leadership walkrounds every week [1]; staff survey engagement up 6 pts [2] | Two wards below 60% on "I feel listened to" [2] |',
+            '| Governance | Monthly quality committee with clear escalation [3] | Risk register actions overdue on 4 of 31 items [4] |',
+            '| Learning and improvement | Learning from incidents shared in weekly huddles [5] | No structured follow-up on actions from complaints [5] |', '',
+            '### Suggested next steps', '1. Clear the 4 overdue risk actions before the next committee', '2. Agree a listening plan for the two lower-scoring wards', '3. Add a complaints action tracker to the quality dashboard', '',
+            '> Always review Copilot\'s summary against the source documents before sharing it.'),
+          citations: [{ kind: 'docx', title: 'Leadership walkround log', meta: 'Well-led evidence' }, { kind: 'pdf', title: 'Staff survey results 2025', meta: 'Well-led evidence' },
+            { kind: 'docx', title: 'Quality committee ToR', meta: 'Well-led evidence' }, { kind: 'xlsx', title: 'Risk register.xlsx', meta: 'Governance' }, { kind: 'loop', title: 'Learning from incidents', meta: 'Loop page' }],
+          suggestions: ['Create a slide from this', 'Draft the listening plan', 'Show the overdue risk actions'] }
+      ] },
+    { id: 'outlook', title: 'Outlook: summarise a long thread', app: 'outlook',
+      canvas: { kind: 'email', subject: 'Weekend discharge planning – bed pressures', messages: [
+        { from: 'Sam Patel', role: 'Bed Manager', time: 'Mon 08:12', body: 'Morning all, we are expecting high admissions this weekend. Can wards confirm expected discharges for Saturday by Thursday midday?' },
+        { from: 'Jo Richards', role: 'Ward 4 Sister', time: 'Mon 10:40', body: 'Ward 4 expects 5 discharges on Saturday, but 2 depend on pharmacy TTOs being ready by 10:00.' },
+        { from: 'Dr Chen', role: 'Consultant', time: 'Mon 13:05', body: 'I can do an early board round on Saturday at 08:30 to support this if the discharge lounge is staffed.' },
+        { from: 'Pharmacy team', role: 'Pharmacy', time: 'Tue 09:15', body: 'We can prioritise weekend TTOs if we receive them by Friday 16:00.' },
+        { from: 'Sam Patel', role: 'Bed Manager', time: 'Tue 11:30', body: 'Thanks all. Alex, could you confirm we can open the discharge lounge from 08:00 on Saturday?' }] },
+      steps: [
+        { type: 'caption', text: '<b>Outlook:</b> summarise a long thread in one click.' },
+        { type: 'click', target: 'summarize' },
+        { type: 'canvas', action: 'banner', content: L('- Saturday is expected to be **busy**; wards to confirm discharges by **Thursday 12:00**',
+          '- Ward 4 has **5 discharges**, 2 depending on TTOs ready by 10:00', '- Pharmacy will prioritise TTOs received by **Friday 16:00**',
+          '- Dr Chen offers an **08:30 board round** if the discharge lounge is staffed', '- **Action for you:** confirm the lounge opens at 08:00 on Saturday') },
+        { type: 'caption', text: 'Then ask Copilot to draft the reply.' },
+        { type: 'prompt', text: 'Draft a reply confirming the discharge lounge will open at 08:00 on Saturday and thank everyone.' },
+        { type: 'response', status: ['Using this conversation'], content: 'I have added a draft reply below the thread. You can edit it before sending.', suggestions: ['Make it shorter', 'Add a note about the board round'] },
+        { type: 'canvas', action: 'reply', content: L('Hi all,', '', 'Thank you for pulling this together so quickly. I can confirm the **discharge lounge will open at 08:00 on Saturday**, staffed to support Dr Chen\'s 08:30 board round.',
+          '', 'Please send weekend TTOs to pharmacy by Friday 16:00 so they can prioritise them.', '', 'Many thanks,', 'Alex') }
+      ] },
+    { id: 'teams', title: 'Teams: meeting recap', app: 'teams',
+      canvas: { kind: 'meeting', title: 'Patient flow weekly', when: 'Wednesday 14:00 – 14:45 · Recorded and transcribed', people: ['Alex Morgan', 'Sam Patel', 'Priya Shah', 'Dr Chen', 'Jo Richards'],
+        transcript: [{ who: 'Sam Patel', ts: '02:14', text: 'Delayed discharges are our biggest issue; we had 9 on Monday alone.' },
+          { who: 'Dr Chen', ts: '06:40', text: 'If we do earlier board rounds, we could get most decisions made before 10.' },
+          { who: 'Priya Shah', ts: '11:05', text: 'Theatres can hold two beds back for day cases if that helps flow.' },
+          { who: 'Alex Morgan', ts: '18:22', text: 'Let us trial earlier board rounds on two wards for a month and review.' }] },
+      steps: [
+        { type: 'caption', text: '<b>Teams:</b> missed a meeting, or need the actions? Ask Copilot.' },
+        { type: 'prompt', text: 'What were the decisions and who owns each action?' },
+        { type: 'response', status: ['Reading the meeting transcript'],
+          content: L('### Decisions', '- Trial **earlier board rounds** on two wards for one month, then review [1]', '- Theatres to **hold two beds** for day cases when flow is tight [2]', '',
+            '### Actions', '| Action | Owner | When |', '|---|---|---|', '| Pick the two pilot wards | Sam Patel | Friday |', '| Share the board-round template | Dr Chen | Next week |', '| Report on held beds | Priya Shah | End of month |'),
+          citations: [{ kind: 'teams', title: 'Transcript 18:22', meta: 'Alex Morgan' }, { kind: 'teams', title: 'Transcript 11:05', meta: 'Priya Shah' }],
+          suggestions: ['Draft a follow-up email', 'What concerns were raised?'] }
+      ] },
+    { id: 'word', title: 'Word: draft from a file', app: 'word',
+      canvas: { kind: 'doc', title: 'Discharge lounge: business case' },
+      steps: [
+        { type: 'caption', text: '<b>Word:</b> start from a blank page, not a blank mind.' },
+        { type: 'prompt', text: 'Draft a one-page business case for the discharge lounge using /Bed flow notes, with sections for the problem, the proposal, costs and benefits.', refs: [{ kind: 'docx', name: 'Bed flow notes' }] },
+        { type: 'response', status: ['Reading Bed flow notes', 'Drafting in your document'], content: 'Done. I have drafted the business case in your document. Review it and ask me to change the tone or length.', suggestions: ['Make it more concise', 'Add a risks section'] },
+        { type: 'canvas', action: 'append', content: L('## The problem', 'Most discharges happen after 14:00, so beds free up late and admissions wait. In September, **31% of elective admissions** waited more than two hours for a bed.', '',
+          '## The proposal', 'Open a **12-chair discharge lounge** on Level 1, 08:00 to 20:00, staffed by a nurse and a healthcare assistant.', '',
+          '## Costs and benefits', '| | Year 1 |', '|---|---|', '| Staffing and set-up | £148k |', '| Bed days released | 1,900 |', '| Estimated value | £410k |', '',
+          '## Recommendation', 'Approve a six-month pilot from 3 November, with monthly reporting to the Hospital Management Board.') }
+      ] },
+    { id: 'excel', title: 'Excel: insights and a chart', app: 'excel',
+      canvas: { kind: 'sheet', name: 'LOS by specialty', columns: ['Specialty', 'Q2 avg LOS', 'Q3 avg LOS', 'Change'],
+        rows: [['Orthopaedics', 4.1, 3.6, -0.5], ['General surgery', 3.2, 3.0, -0.2], ['Gynaecology', 2.1, 2.0, -0.1], ['Urology', 2.4, 2.9, 0.5], ['ENT', 1.3, 1.2, -0.1], ['Cardiology', 3.6, 4.3, 0.7]] },
+      steps: [
+        { type: 'caption', text: '<b>Excel:</b> ask for insights, charts and formulas in plain English.' },
+        { type: 'prompt', text: 'Chart Q2 against Q3 average length of stay by specialty and highlight the specialties that got worse.' },
+        { type: 'response', status: ['Analysing LOS by specialty', 'Adding a chart'], content: 'I have added a column chart and highlighted **Urology** and **Cardiology**, the only specialties where length of stay increased.', suggestions: ['Add a trend line', 'Explain the cardiology rise'] },
+        { type: 'canvas', action: 'chart', title: 'Average length of stay: Q2 vs Q3', labelCol: 0, valueCols: [1, 2], highlight: [3, 5] }
+      ] },
+    { id: 'ppt', title: 'PowerPoint: deck from a document', app: 'powerpoint',
+      canvas: { kind: 'slides', title: 'Discharge lounge' },
+      steps: [
+        { type: 'caption', text: '<b>PowerPoint:</b> turn a document into a first-draft deck in seconds.' },
+        { type: 'prompt', text: 'Create a presentation from /Discharge lounge: business case for the Hospital Management Board.', refs: [{ kind: 'docx', name: 'Discharge lounge: business case' }] },
+        { type: 'response', status: ['Reading Discharge lounge: business case', 'Designing 4 slides'], content: 'Your draft deck is ready: 4 slides with speaker notes. Review and adjust before presenting.', suggestions: ['Add a slide on risks', 'Use our corporate template'] },
+        { type: 'canvas', action: 'slides', slides: [
+          { title: 'Discharge lounge', subtitle: 'Business case · Hospital Management Board', layout: 'title' },
+          { title: 'The problem', bullets: ['Most discharges happen after 14:00', '31% of elective admissions waited 2+ hours', 'Beds free up too late in the day'] },
+          { title: 'The proposal', bullets: ['12-chair lounge on Level 1', 'Open 08:00 to 20:00', 'Nurse and healthcare assistant'] },
+          { title: 'Costs and benefits', bullets: ['£148k staffing and set-up', '1,900 bed days released', '£410k estimated value'] }] }
+      ] }
+  ]
+};
+
+/* =====================================================================
+   State & settings
+   ===================================================================== */
+const S = Object.assign({ theme: 'light', fs: 15, frame: 'fit', typeSpeed: 1, streamSpeed: 1, captions: true, cursor: true }, store.get('settings', {}));
+let DATA = store.get('data', null) || JSON.parse(JSON.stringify(DEFAULT_DATA));
+const CANCEL = { cancelled: true };
+const G = { si: 0, step: 0, playing: false, req: 0, skip: false, instant: false, speed: 1, runId: 0, busy: false, done: false, recAll: false };
+const scene = () => DATA.scenes[G.si];
+
+function applySettings() {
+  document.documentElement.dataset.theme = S.theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.style.setProperty('--fs', S.fs + 'px');
+  layoutFrame(); store.set('settings', S);
+}
+function frameSize() { return S.frame && S.frame !== 'fit' ? S.frame.split('x').map(Number) : null; }
+function layoutFrame() {
+  const app = $('#app'), f = frameSize();
+  if (!f) { document.body.classList.remove('framed'); ['width', 'height', 'left', 'top', 'transform'].forEach(k => { app.style[k] = ''; }); return; }
+  const [w, h] = f, sc = Math.min(innerWidth / w, innerHeight / h);
+  document.body.classList.add('framed');
+  Object.assign(app.style, { width: w + 'px', height: h + 'px', left: ((innerWidth - w * sc) / 2) + 'px', top: ((innerHeight - h * sc) / 2) + 'px', transform: `scale(${sc})` });
+}
+addEventListener('resize', layoutFrame);
+
+/* =====================================================================
+   Timing engine (every wait respects speed, skip and instant)
+   ===================================================================== */
+function frame(id) {
+  return new Promise((res, rej) => requestAnimationFrame(now => {
+    if (id !== G.runId) return rej(CANCEL);
+    const dt = Math.max(0, Math.min(100, now - (frame.last || now))); frame.last = now; res(dt * G.speed);
+  }));
+}
+async function wait(ms) { const id = G.runId; let left = ms; while (left > 0) { if (G.instant || G.skip) return; left -= await frame(id); } }
+async function typeText(total, cps, onUpdate) {
+  const id = G.runId; let t = 0, shown = -1;
+  while (shown < total.length) {
+    if (G.instant || G.skip) break;
+    t += await frame(id);
+    const n = Math.min(total.length, Math.floor(t * cps / 1000));
+    if (n !== shown) { shown = n; onUpdate(total.slice(0, n), false); }
+  }
+  onUpdate(total, true);
+}
+
+/* =====================================================================
+   Chrome: rail, sidebar, scene picker
+   ===================================================================== */
+function renderChrome() {
+  const u = DATA.user || {};
+  $('#meAv').textContent = initials(u.name || 'Alex Morgan'); $('#orgName').textContent = u.org || '';
+  const sc = scene();
+  // rail
+  const appBtn = a => { const A = APPS[a]; const idx = DATA.scenes.findIndex(x => x.app === a); return idx < 0 ? '' : `<button class="rbtn${sc.app === a ? ' on' : ''}" data-go="${idx}" title="${A[0]}"><span class="tile" style="background:${A[2]}">${A[1]}</span>${A[0]}</button>`; };
+  const chatIdx = DATA.scenes.findIndex(x => x.app === 'chat');
+  $('#rail').innerHTML = `<button class="rbtn${sc.app === 'chat' ? ' on' : ''}" data-go="${chatIdx}" title="Copilot">${GLYPH.replace('cp-glyph', 'cp-glyph" style="width:1.9em;height:1.9em')}Copilot</button>
+    <button class="rbtn" title="Search">${icon('search')}Search</button><button class="rbtn" title="Create">${icon('create')}Create</button><div class="sep"></div>` +
+    ['outlook', 'teams', 'word', 'excel', 'powerpoint'].map(appBtn).join('') + `<div class="sep"></div><button class="rbtn" title="Apps">${icon('apps')}Apps</button>`;
+  // sidebar (chat) or hidden in apps
+  const side = $('#side');
+  side.style.display = sc.app === 'chat' ? '' : 'none';
+  if (sc.app === 'chat') {
+    const agents = DATA.agents || [];
+    side.innerHTML = `<button class="newchat">${icon('newchat')} New chat</button>
+      <h4>Agents</h4>${agents.map(a => `<button class="sitem${sc.agent === a ? ' on' : ''}"><span class="ag" style="background:${a === 'Analyst' ? '#107c41' : '#5b5fc7'}">${icon(a === 'Analyst' ? 'analyst' : 'research')}</span><span>${esc(a)}</span></button>`).join('')}
+      <button class="sitem" style="color:var(--dim)">${icon('agents')}<span>Get agents</span></button>
+      <h4>Chats</h4>` + DATA.scenes.map((x, i) => x.app === 'chat' ? `<button class="sitem${i === G.si ? ' on' : ''}" data-go="${i}">${icon('chat')}<span>${esc(x.title)}</span></button>` : '').join('') +
+      `<div style="flex:1"></div><button class="sitem" style="color:var(--dim)">${icon('pages')}<span>Pages</span></button>`;
+  }
+  document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => goScene(+b.dataset.go));
+  // picker
+  const pick = $('#scenePick');
+  const opt = (x, i) => `<option value="${i}"${i === G.si ? ' selected' : ''}>${i + 1}. ${esc(x.title)}</option>`;
+  pick.innerHTML = `<optgroup label="Copilot Chat">${DATA.scenes.map((x, i) => x.app === 'chat' ? opt(x, i) : '').join('')}</optgroup><optgroup label="Microsoft 365 apps">${DATA.scenes.map((x, i) => x.app !== 'chat' ? opt(x, i) : '').join('')}</optgroup>`;
+}
+
+/* =====================================================================
+   Chat panel (used full-width in Copilot Chat and as the pane in apps)
+   ===================================================================== */
+let C = null; // current chat panel handles
+function chatPanel(host, opts) {
+  const u = DATA.user || {}, first = (u.name || 'Alex').split(' ')[0];
+  const cards = (opts.cards || []).map(t => `<div class="card">${icon('spark')}<span>${esc(t)}</span></div>`).join('');
+  host.innerHTML = `<div class="conv scroll"><div class="inner">
+      <div class="welcome">${GLYPH.replace('cp-glyph', 'cp-glyph big-glyph')}<h1>${opts.compact ? 'How can I help?' : `Hi ${esc(first)}, how can I help?`}</h1><p>${opts.compact ? 'Ask me about this ' + esc(opts.noun || 'file') : 'Ask anything about your work, from emails and meetings to files and chats'}</p>${cards ? `<div class="cards">${cards}</div>` : ''}</div>
+      <div class="thread"></div></div></div>
+    <div class="composer-wrap"><div class="composer"><div class="attachrow"></div><div class="input ph">${opts.compact ? 'Ask Copilot' : 'Message Copilot'}</div>
+      <div class="ctools"><button class="cb" title="Add">${icon('plus')}</button><button class="cb" title="Attach">${icon('clip')}</button><span class="sp"></span><button class="cb" title="Dictate">${icon('mic')}</button><button class="send" title="Send">${icon('send')}</button></div></div>
+      <div class="disclaimer">AI-generated content may be incorrect</div></div>`;
+  C = { host, conv: host.querySelector('.conv'), thread: host.querySelector('.thread'), welcome: host.querySelector('.welcome'), input: host.querySelector('.input'), attach: host.querySelector('.attachrow'), send: host.querySelector('.send'), composer: host.querySelector('.composer'), compact: !!opts.compact };
+}
+function scrollDown() { if (C) C.conv.scrollTop = C.conv.scrollHeight; }
+function refsToChips(text, refs) {
+  let h = esc(text).replace(/\n/g, '<br>');
+  (refs || []).forEach(r => { h = h.split('/' + esc(r.name)).join(`<span class="refchip">${tile(r.kind)}${esc(r.name)}</span>`); });
+  return h;
+}
+async function doPrompt(st) {
+  if (C.welcome && C.welcome.style.display !== 'none') {
+    const card = [...C.welcome.querySelectorAll('.card')].find(c => c.textContent.trim().toLowerCase().startsWith(st.text.slice(0, 24).toLowerCase()));
+    if (card && !G.instant) { await moveCursorTo(card); card.classList.add('hot'); await wait(350); }
+  }
+  C.attach.innerHTML = (st.attach || []).map(a => `<span class="chipfile">${tile(a.kind)}${esc(a.name)}</span>`).join('');
+  C.input.classList.remove('ph'); C.composer.classList.add('focus');
+  const cps = 42 * S.typeSpeed;
+  await typeText(st.text, cps, (t, done) => { C.input.innerHTML = done ? refsToChips(t, st.refs) : esc(t).replace(/\n/g, '<br>'); C.input.classList.toggle('caret', !done); C.send.classList.toggle('ready', t.length > 0); C.input.scrollTop = C.input.scrollHeight; });
+  await wait(380);
+  C.send.classList.add('press'); await wait(140); C.send.classList.remove('press', 'ready');
+  if (C.welcome) C.welcome.style.display = 'none';
+  const m = el('div', 'umsg');
+  m.innerHTML = (st.attach && st.attach.length ? `<div class="attachrow" style="margin:0">${st.attach.map(a => `<span class="chipfile">${tile(a.kind)}${esc(a.name)}</span>`).join('')}</div>` : '') + `<div class="ububble">${refsToChips(st.text, st.refs)}</div>`;
+  C.thread.appendChild(m);
+  C.attach.innerHTML = ''; C.input.innerHTML = C.compact ? 'Ask Copilot' : 'Message Copilot'; C.input.classList.add('ph'); C.composer.classList.remove('focus');
+  scrollDown();
+}
+async function doResponse(st) {
+  const sc = scene(), agent = st.agent || sc.agent;
+  const m = el('div', 'bmsg');
+  m.innerHTML = `${GLYPH}<div class="bbody">${agent ? `<div class="agentname">${esc(agent)}</div>` : ''}<div class="steps"></div><div class="answer md"></div></div>`;
+  C.thread.appendChild(m); scrollDown();
+  const stepsBox = m.querySelector('.steps'), ans = m.querySelector('.answer'), body = m.querySelector('.bbody');
+  // thinking / grounding steps
+  const status = st.status && st.status.length ? st.status : ['Generating a response'];
+  for (const s of status) {
+    const row = el('div', 'st', `<span class="ic"><span class="spin"></span></span><span class="shimmer">${esc(s)}</span>`);
+    stepsBox.appendChild(row); scrollDown();
+    await wait(st.stepMs || 950);
+    row.querySelector('.ic').innerHTML = `<span class="done-ic">${icon('check')}</span>`; row.querySelector('.shimmer').className = '';
+  }
+  await wait(250);
+  stepsBox.outerHTML = `<div class="stepsum">${icon('check')} ${esc(status.length > 1 ? `Completed ${status.length} steps` : status[0])}</div>`;
+  // streamed answer
+  const cps = 260 * S.streamSpeed;
+  await typeText(st.content || '', cps, (t, done) => { ans.innerHTML = md(t); scrollDown(); });
+  // references, actions, suggestions
+  const cites = st.citations || [];
+  if (cites.length) {
+    const r = el('div', 'refs', `<div class="rhead">${cites.length} reference${cites.length > 1 ? 's' : ''}</div><div class="reflist">${cites.map((c, i) => `<div class="ref"><span class="n">${i + 1}</span>${tile(c.kind)}<span class="rt">${esc(c.title)}</span>${c.meta ? `<span class="rm">· ${esc(c.meta)}</span>` : ''}</div>`).join('')}</div>`);
+    body.appendChild(r);
+  }
+  body.appendChild(el('div', 'acts', `<button class="ab" title="Copy">${icon('copy')}</button><button class="ab" title="Like">${icon('up')}</button><button class="ab" title="Dislike">${icon('down')}</button><button class="ab">${icon('pages')} Edit in Pages</button><button class="ab" title="Export">${icon('export')}</button><span class="sp"></span>${st.label ? `<span class="label">${icon('lock')} ${esc(st.label)}</span>` : ''}`));
+  if ((st.suggestions || []).length) body.appendChild(el('div', 'sugs', st.suggestions.map(s => `<span class="sug">${esc(s)}</span>`).join('')));
+  scrollDown();
+}
+
+/* =====================================================================
+   App canvases
+   ===================================================================== */
+function renderApp(sc) {
+  const A = APPS[sc.app], cv = sc.canvas || {};
+  const ribbonCp = `<span class="rb cp" data-hot="copilot">${GLYPH} Copilot</span>`;
+  const ribbons = { outlook: ['Home', 'View', 'Help'], teams: ['Chat', 'Calendar', 'Files'], word: ['Home', 'Insert', 'Layout', 'Review'], excel: ['Home', 'Insert', 'Data', 'Formulas'], powerpoint: ['Home', 'Insert', 'Design', 'Slide Show'] }[sc.app];
+  const docName = cv.subject || cv.title || cv.name || sc.title;
+  $('#main').innerHTML = `<div class="appview" style="--appc:${A[2]}">
+    <div class="appbar"><span class="tile">${A[1]}</span><span class="an">${A[0]}</span><span class="doc">· ${esc(docName)}</span><span class="sp"></span><span class="avatar" style="background:rgba(255,255,255,.25)">${initials((DATA.user || {}).name)}</span></div>
+    <div class="ribbon">${ribbons.map(r => `<span class="rb">${r}</span>`).join('')}<span style="flex:1"></span>${ribbonCp}</div>
+    <div class="appbody"><div class="canvas scroll" id="canvas"></div><div class="pane"><div class="phead">${GLYPH} Copilot</div><div id="paneHost" style="flex:1;display:flex;flex-direction:column;min-height:0"></div></div></div></div>`;
+  const c = $('#canvas');
+  if (cv.kind === 'email') {
+    c.innerHTML = `<div class="mail"><h2>${esc(cv.subject)}<span class="sp"></span><span class="hotbtn" data-hot="summarize">${GLYPH} Summary by Copilot</span></h2><div id="cpBanner"></div>${(cv.messages || []).map(mm => `<div class="msgcard"><div class="mh"><span class="avatar" style="background:${colorFor(mm.from)}">${initials(mm.from)}</span><div><b>${esc(mm.from)}</b><div style="font-size:.8em;color:var(--faint)">${esc(mm.role || '')}</div></div><span class="t">${esc(mm.time || '')}</span></div><div class="mb">${esc(mm.body)}</div></div>`).join('')}<div id="cpReply"></div></div>`;
+  } else if (cv.kind === 'meeting') {
+    c.innerHTML = `<div class="meet"><h2>${esc(cv.title)}</h2><div class="when">${esc(cv.when || '')}</div><div class="people">${(cv.people || []).map(p => `<span class="avatar" title="${esc(p)}" style="background:${colorFor(p)}">${initials(p)}</span>`).join('')}</div>
+      <div class="tabs2"><span>Chat</span><span>Files</span><span class="on" data-hot="recap">Recap</span></div><div id="cpRecap"></div><h4 style="margin:.4em 0 .6em;color:var(--dim);font-weight:600">Transcript</h4>
+      ${(cv.transcript || []).map(t => `<div class="tline"><span class="ts">${esc(t.ts)}</span><span class="avatar" style="background:${colorFor(t.who)};width:1.7em;height:1.7em;font-size:.7em">${initials(t.who)}</span><div><b style="font-size:.9em">${esc(t.who)}</b><div>${esc(t.text)}</div></div></div>`).join('')}</div>`;
+  } else if (cv.kind === 'doc') {
+    c.innerHTML = `<div class="page"><h1>${esc(cv.title)}</h1><div class="md" id="docBody">${cv.body ? md(cv.body) : `<div class="inlinecp" data-hot="draft">${GLYPH} Describe what you'd like to draft, or reference a file with /</div>`}</div></div>`;
+  } else if (cv.kind === 'sheet') {
+    const cols = cv.columns || [], letters = 'ABCDEFGHIJ';
+    c.innerHTML = `<div class="sheetwrap"><div class="fbar"><span class="nm">A1</span><span>fx</span><span>${esc(cols[0] || '')}</span></div><div class="grid" id="grid"><table><thead><tr><th></th>${cols.map((_, i) => `<th>${letters[i]}</th>`).join('')}<th>${letters[cols.length]}</th><th>${letters[cols.length + 1]}</th></tr></thead><tbody>
+      <tr class="hdr"><td class="rh">1</td>${cols.map(x => `<td>${esc(x)}</td>`).join('')}<td></td><td></td></tr>
+      ${(cv.rows || []).map((r, i) => `<tr data-r="${i}"><td class="rh">${i + 2}</td>${r.map((v, ci) => `<td class="${typeof v === 'number' ? 'num' : ''}">${typeof v === 'number' && v > 0 && ci === r.length - 1 && /change/i.test(cols[ci] || '') ? '+' + v : esc(v)}</td>`).join('')}<td></td><td></td></tr>`).join('')}
+      ${Array.from({ length: 8 }, (_, k) => `<tr><td class="rh">${(cv.rows || []).length + 2 + k}</td>${cols.map(() => '<td></td>').join('')}<td></td><td></td></tr>`).join('')}</tbody></table></div>
+      <div class="sheettabs"><span class="on">${esc(cv.name || 'Sheet1')}</span><span>+</span></div></div>`;
+    c.classList.remove('scroll'); c.style.overflow = 'hidden';
+  } else if (cv.kind === 'slides') {
+    c.innerHTML = `<div class="deck"><div class="thumbs" id="thumbs"></div><div class="stagearea"><div class="slide" id="mainSlide"><div class="ghost"><div class="inlinecp" data-hot="copilot" style="border:0">${GLYPH} Create a presentation with Copilot</div></div></div></div></div>`;
+    c.classList.remove('scroll'); c.style.overflow = 'hidden';
+  }
+  chatPanel($('#paneHost'), { compact: true, noun: { email: 'email', meeting: 'meeting', doc: 'document', sheet: 'data', slides: 'presentation' }[cv.kind] || 'file', cards: [] });
+}
+const PAL = ['#8764b8', '#0f6cbd', '#107c41', '#c43e1c', '#5b5fc7', '#038387', '#ca5010', '#4f6bed'];
+function colorFor(n) { let h = 0; for (const ch of String(n)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return PAL[h % PAL.length]; }
+async function doCanvas(st) {
+  const sc = scene(), cv = sc.canvas || {};
+  const stream = async (box, content) => { await typeText(content || '', 240 * S.streamSpeed, t => { box.innerHTML = md(t); const c = $('#canvas'); if (c) c.scrollTop = c.scrollHeight; }); };
+  if (st.action === 'banner') {
+    const b = $('#cpBanner'); b.innerHTML = `<div class="cpcard"><div><div class="ch">${GLYPH} Summary by Copilot</div><div class="md"></div></div></div>`;
+    await stream(b.querySelector('.md'), st.content);
+  } else if (st.action === 'reply') {
+    const r = $('#cpReply'); r.innerHTML = `<div class="draft"><div class="dh">${GLYPH} Draft reply by Copilot · Review before sending</div><div class="md"></div></div>`;
+    await stream(r.querySelector('.md'), st.content);
+  } else if (st.action === 'recap') {
+    const r = $('#cpRecap'); r.innerHTML = `<div class="cpcard"><div><div class="ch">${GLYPH} AI notes</div><div class="md"></div></div></div>`;
+    await stream(r.querySelector('.md'), st.content);
+  } else if (st.action === 'append') {
+    const d = $('#docBody'); d.innerHTML = '<div class="md"></div>'; await stream(d.querySelector('.md'), st.content);
+  } else if (st.action === 'chart') {
+    const rows = cv.rows || [], cols = cv.columns || [];
+    (st.highlight || []).forEach(i => { const tr = document.querySelector(`#grid tr[data-r="${i}"]`); if (tr) tr.classList.add('hl'); });
+    const spec = { title: st.title, labels: rows.map(r => r[st.labelCol || 0]), series: (st.valueCols || [1]).map(ci => ({ name: cols[ci], values: rows.map(r => +r[ci]) })), highlight: st.highlight };
+    const f = el('div', 'floatchart', chartSvg(spec)); $('#grid').appendChild(f); await wait(700);
+  } else if (st.action === 'slides') {
+    const thumbs = $('#thumbs'), main = $('#mainSlide');
+    for (let i = 0; i < (st.slides || []).length; i++) {
+      const s = st.slides[i];
+      thumbs.querySelectorAll('.thumb').forEach(t => t.classList.remove('on'));
+      thumbs.appendChild(el('div', 'thumb on', `<span>${i + 1}</span><div class="sl"><b>${esc(s.title)}</b>${(s.bullets || []).map(x => '· ' + esc(x)).join('<br>')}${s.subtitle ? esc(s.subtitle) : ''}</div>`));
+      main.className = 'slide' + (s.layout === 'title' ? ' title-slide' : '');
+      main.innerHTML = s.layout === 'title' ? `<h2>${esc(s.title)}</h2><p>${esc(s.subtitle || '')}</p>` : `<h2>${esc(s.title)}</h2><ul>${(s.bullets || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+      void main.offsetWidth; main.style.animation = 'none'; void main.offsetWidth; main.style.animation = '';
+      await wait(900);
+    }
+  }
+}
+
+/* ---------- pointer & captions ---------- */
+async function moveCursorTo(target) {
+  if (!S.cursor || G.instant || document.body.classList.contains('recording-nocursor')) { target.classList.add('pulse'); setTimeout(() => target.classList.remove('pulse'), 700); return; }
+  const cur = $('#cursor'), app = $('#app'), a = app.getBoundingClientRect(), r = target.getBoundingClientRect(), sc = a.width / app.offsetWidth || 1;
+  if (!cur.classList.contains('on')) { cur.style.transition = 'none'; cur.style.left = (app.offsetWidth * .6) + 'px'; cur.style.top = (app.offsetHeight * .75) + 'px'; void cur.offsetWidth; cur.style.transition = ''; cur.classList.add('on'); }
+  cur.style.left = ((r.left - a.left) / sc + Math.min(r.width / sc * .5, 60)) + 'px'; cur.style.top = ((r.top - a.top) / sc + r.height / sc * .55) + 'px';
+  await wait(620); target.classList.add('pulse'); setTimeout(() => target.classList.remove('pulse'), 700); await wait(250);
+  setTimeout(() => cur.classList.remove('on'), 900);
+}
+function setCaption(html) { const c = $('#caption'); if (!S.captions || !html) { c.classList.remove('on'); return; } c.innerHTML = html; c.classList.add('on'); }
+
+/* =====================================================================
+   Scene runner
+   ===================================================================== */
+const GATED = new Set(['prompt', 'click', 'pause']);
+async function execStep(st) {
+  switch (st.type) {
+    case 'caption': setCaption(st.text); break;
+    case 'prompt': await doPrompt(st); break;
+    case 'response': await doResponse(st); break;
+    case 'click': { const t = document.querySelector(`[data-hot="${st.target}"]`); if (t) { await moveCursorTo(t); if (st.target === 'summarize' || st.target === 'copilot') t.classList.add('on'); } break; }
+    case 'canvas': await doCanvas(st); break;
+    case 'wait': await wait(st.ms || 800); break;
+  }
+}
+function renderScene() {
+  const sc = scene();
+  renderChrome();
+  setCaption('');
+  $('#cursor').classList.remove('on');
+  if (sc.app === 'chat') {
+    $('#main').innerHTML = `<div class="chatwrap"><div class="chathead"><span class="title">${esc(sc.title)}</span><span class="seg"><span class="on">${icon('work')} Work</span><span>${icon('globe')} Web</span></span></div><div id="chatHost" style="flex:1;display:flex;flex-direction:column;min-height:0"></div></div>`;
+    chatPanel($('#chatHost'), { cards: (sc.welcome && sc.welcome.cards) || [] });
+  } else renderApp(sc);
+  updateProg();
+}
+async function runScene() {
+  const id = ++G.runId; G.step = 0; G.done = false; G.req = 0; G.skip = false;
+  renderScene();
+  const steps = scene().steps || [];
+  try {
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      if (GATED.has(st.type) && !G.instant) {
+        if (G.playing) { if (i > 0) await wait(st.type === 'prompt' ? 1600 : 700); }
+        else { while (!(G.playing || G.req > 0 || G.instant)) await frame(id); if (G.req > 0) G.req--; }
+      }
+      G.skip = false; G.busy = true; await execStep(st); G.busy = false;
+      G.step = i + 1; updateProg();
+      if (!G.instant && st.type !== 'caption') await wait(200);
+    }
+    G.done = true; G.busy = false; G.instant = false; updateProg();
+    onSceneDone(id);
+  } catch (e) { G.busy = false; if (e !== CANCEL) { console.error(e); toast('Scene error: ' + e.message, 4000); } }
+}
+function onSceneDone(id) {
+  if (REC.active) {
+    if (REC.scope === 'all' && G.si < DATA.scenes.length - 1) { setTimeout(() => { if (REC.active && id === G.runId) { G.si++; runScene(); } }, 1800); }
+    else REC.stopTimer = setTimeout(stopRec, REC.tail * 1000);
+  }
+}
+function goScene(i) { if (REC.active) return; G.si = Math.max(0, Math.min(DATA.scenes.length - 1, i)); G.instant = false; runScene(); }
+function next() {
+  if (G.busy) { G.skip = true; return; }
+  if (G.done) { if (G.si < DATA.scenes.length - 1) goScene(G.si + 1); return; }
+  G.req++;
+}
+function setPlaying(v) { G.playing = v; $('#pPlay').textContent = v ? '❚❚ Auto' : '▶ Auto'; $('#pPlay').classList.toggle('primary', v); }
+function finishScene() { G.instant = true; }
+function updateProg() { const n = (scene().steps || []).length; $('#prog').textContent = `${G.si + 1}/${DATA.scenes.length} · ${G.step}/${n}`; }
+
+/* =====================================================================
+   Record: tab capture cropped to the stage → PowerPoint-ready MP4
+   ===================================================================== */
+/* ---------- MP4 tools: read the codec, and turn a fragmented MP4 into a standard one ---------- */
+// Browsers' MediaRecorder writes fragmented MP4 (moov + moof/mdat pairs, often with no duration).
+// Players cope, but PowerPoint's importer does not, so we rebuild a plain MP4 with a full sample
+// table (stts/stss/ctts/stsc/stsz/stco), a real duration and the moov before the media ("fast start").
+const MP4 = (() => {
+  const CONTAINERS = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'moof', 'traf', 'edts', 'dinf']);
+  const str = (u8, o) => String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]);
+  function boxes(u8, dv, start, end) {
+    const out = [];
+    let o = start;
+    while (o + 8 <= end) {
+      let size = dv.getUint32(o), hdr = 8;
+      const type = str(u8, o + 4);
+      if (size === 1) { size = Number(dv.getBigUint64(o + 8)); hdr = 16; }
+      else if (size === 0) size = end - o;
+      if (size < hdr || o + size > end) break;
+      const b = { type, start: o, end: o + size, body: o + hdr, kids: null };
+      if (CONTAINERS.has(type)) b.kids = boxes(u8, dv, b.body, b.end);
+      out.push(b); o += size;
+    }
+    return out;
+  }
+  const find = (list, path) => { let cur = list, b = null; for (const t of path.split('/')) { b = (cur || []).find(x => x.type === t); if (!b) return null; cur = b.kids; } return b; };
+  const all = (list, t) => (list || []).filter(x => x.type === t);
+
+  function parse(buf) {
+    const u8 = new Uint8Array(buf), dv = new DataView(buf);
+    return { u8, dv, top: boxes(u8, dv, 0, u8.length) };
+  }
+  // First video sample-entry type (avc1, avc3, hvc1, vp09, av01 …)
+  function codecOf(buf) {
+    try {
+      const { u8, dv, top } = parse(buf);
+      for (const trak of all(find(top, 'moov').kids, 'trak')) {
+        const stsd = find(trak.kids, 'mdia/minf/stbl/stsd'); if (!stsd) continue;
+        const entry = str(u8, stsd.body + 8 + 4);
+        if (find(trak.kids, 'mdia/minf/vmhd')) return entry;
+      }
+    } catch (e) {}
+    return '';
+  }
+  function isFragmented(buf) { try { const { top } = parse(buf); return !!find(top, 'moov/mvex') || top.some(b => b.type === 'moof'); } catch (e) { return false; } }
+
+  // --- writers ---
+  const u32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const u16 = v => [(v >>> 8) & 255, v & 255];
+  const s4 = t => [...t].map(c => c.charCodeAt(0));
+  function box(type, ...parts) {
+    let len = 8; parts.forEach(p => { len += p.length; });
+    const out = new Uint8Array(len); const h = [...u32(len), ...s4(type)]; out.set(h, 0);
+    let o = 8; parts.forEach(p => { out.set(p, o); o += p.length; });
+    return out;
+  }
+  const full = (type, version, flags, ...parts) => box(type, new Uint8Array([version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255]), ...parts);
+  const bytes = arr => new Uint8Array(arr);
+  const MATRIX = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000].flatMap(u32);
+
+  function defragment(buf) {
+    const { u8, dv, top } = parse(buf);
+    const moov = find(top, 'moov'); if (!moov) throw new Error('no moov box');
+    // Pick the video track
+    const trak = all(moov.kids, 'trak').find(t => find(t.kids, 'mdia/minf/vmhd')); if (!trak) throw new Error('no video track');
+    const tkhd = find(trak.kids, 'tkhd'), mdhd = find(trak.kids, 'mdia/mdhd'), hdlr = find(trak.kids, 'mdia/hdlr');
+    const vmhd = find(trak.kids, 'mdia/minf/vmhd'), dinf = find(trak.kids, 'mdia/minf/dinf'), stsd = find(trak.kids, 'mdia/minf/stbl/stsd');
+    const tkV = u8[tkhd.body], trackId = dv.getUint32(tkhd.body + (tkV === 1 ? 20 : 12));
+    const width = dv.getUint32(tkhd.end - 8), height = dv.getUint32(tkhd.end - 4);
+    const mdV = u8[mdhd.body], timescale = dv.getUint32(mdhd.body + (mdV === 1 ? 20 : 12));
+    // Track defaults from mvex/trex
+    let def = { dur: 0, size: 0, flags: 0 };
+    const mvex = find(moov.kids, 'mvex');
+    if (mvex) for (const trex of all(mvex.kids, 'trex')) if (dv.getUint32(trex.body + 4) === trackId) def = { dur: dv.getUint32(trex.body + 12), size: dv.getUint32(trex.body + 16), flags: dv.getUint32(trex.body + 20) };
+    // Walk every fragment and collect samples
+    const samples = [];
+    for (const moof of top.filter(b => b.type === 'moof')) {
+      for (const traf of all(moof.kids, 'traf')) {
+        const tfhd = find(traf.kids, 'tfhd'); if (!tfhd) continue;
+        const tf = dv.getUint32(tfhd.body) & 0xffffff; let p = tfhd.body + 4;
+        if (dv.getUint32(p) !== trackId) continue; p += 4;
+        let base = moof.start;
+        if (tf & 0x1) { base = Number(dv.getBigUint64(p)); p += 8; }
+        if (tf & 0x2) p += 4;
+        let dDur = def.dur, dSize = def.size, dFlags = def.flags;
+        if (tf & 0x8) { dDur = dv.getUint32(p); p += 4; }
+        if (tf & 0x10) { dSize = dv.getUint32(p); p += 4; }
+        if (tf & 0x20) { dFlags = dv.getUint32(p); p += 4; }
+        let pos = base;
+        for (const trun of all(traf.kids, 'trun')) {
+          const ver = u8[trun.body], fl = dv.getUint32(trun.body) & 0xffffff; let q = trun.body + 4;
+          const n = dv.getUint32(q); q += 4;
+          if (fl & 0x1) { pos = base + dv.getInt32(q); q += 4; }
+          let first = null; if (fl & 0x4) { first = dv.getUint32(q); q += 4; }
+          for (let i = 0; i < n; i++) {
+            const dur = fl & 0x100 ? dv.getUint32((q += 4) - 4) : dDur;
+            const size = fl & 0x200 ? dv.getUint32((q += 4) - 4) : dSize;
+            let flags = fl & 0x400 ? dv.getUint32((q += 4) - 4) : dFlags;
+            if (i === 0 && first !== null) flags = first;
+            const cto = fl & 0x800 ? (ver === 0 ? dv.getUint32((q += 4) - 4) : dv.getInt32((q += 4) - 4)) : 0;
+            samples.push({ off: pos, size, dur, sync: !(flags & 0x00010000), cto });
+            pos += size;
+          }
+        }
+      }
+    }
+    if (!samples.length) throw new Error('no samples found');
+    // Some recorders leave the last duration 0: use the typical frame duration instead
+    const typical = samples.map(s => s.dur).filter(Boolean).sort((a, b) => a - b)[Math.floor(samples.length / 2)] || Math.round(timescale / 30);
+    samples.forEach(s => { if (!s.dur) s.dur = typical; });
+    const mediaDur = samples.reduce((a, s) => a + s.dur, 0);
+    const movieTs = 1000, movieDur = Math.round(mediaDur * movieTs / timescale);
+
+    // Sample tables
+    const stts = []; samples.forEach(s => { const l = stts[stts.length - 1]; if (l && l[1] === s.dur) l[0]++; else stts.push([1, s.dur]); });
+    const syncIdx = samples.map((s, i) => s.sync ? i + 1 : 0).filter(Boolean);
+    const hasCto = samples.some(s => s.cto), negCto = samples.some(s => s.cto < 0);
+    const ctts = []; if (hasCto) samples.forEach(s => { const l = ctts[ctts.length - 1]; if (l && l[1] === s.cto) l[0]++; else ctts.push([1, s.cto]); });
+    const mdatSize = samples.reduce((a, s) => a + s.size, 0);
+
+    const build = chunkOffset => {
+      const stbl = box('stbl',
+        u8.slice(stsd.start, stsd.end),
+        full('stts', 0, 0, bytes([...u32(stts.length), ...stts.flatMap(([c, d]) => [...u32(c), ...u32(d)])])),
+        ...(syncIdx.length && syncIdx.length < samples.length ? [full('stss', 0, 0, bytes([...u32(syncIdx.length), ...syncIdx.flatMap(u32)]))] : []),
+        ...(hasCto ? [full('ctts', negCto ? 1 : 0, 0, bytes([...u32(ctts.length), ...ctts.flatMap(([c, o]) => [...u32(c), ...u32(o >>> 0)])]))] : []),
+        full('stsc', 0, 0, bytes([...u32(1), ...u32(1), ...u32(samples.length), ...u32(1)])),
+        full('stsz', 0, 0, bytes([...u32(0), ...u32(samples.length), ...samples.flatMap(s => u32(s.size))])),
+        full('stco', 0, 0, bytes([...u32(1), ...u32(chunkOffset)])));
+      const minf = box('minf', u8.slice(vmhd.start, vmhd.end), dinf ? u8.slice(dinf.start, dinf.end) : full('dinf', 0, 0), stbl);
+      const mdia = box('mdia',
+        full('mdhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(timescale), ...u32(mediaDur), ...u16(0x55c4), ...u16(0)])),
+        u8.slice(hdlr.start, hdlr.end), minf);
+      const tk = full('tkhd', 0, 3, bytes([...u32(0), ...u32(0), ...u32(1), ...u32(0), ...u32(movieDur), ...u32(0), ...u32(0), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...MATRIX, ...u32(width), ...u32(height)]));
+      const mvhd = full('mvhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(movieTs), ...u32(movieDur), ...u32(0x00010000), ...u16(0x0100), ...new Array(10).fill(0), ...MATRIX, ...new Array(24).fill(0), ...u32(2)]));
+      return box('moov', mvhd, box('trak', tk, mdia));
+    };
+    const ftyp = box('ftyp', bytes([...s4('isom'), ...u32(512), ...s4('isom'), ...s4('iso2'), ...s4('avc1'), ...s4('mp41')]));
+    let moovOut = build(0);
+    const firstSampleAt = ftyp.length + moovOut.length + 8;
+    moovOut = build(firstSampleAt);                       // same size, now with the real chunk offset
+    const out = new Uint8Array(firstSampleAt + mdatSize);
+    out.set(ftyp, 0); out.set(moovOut, ftyp.length);
+    out.set([...u32(8 + mdatSize), ...s4('mdat')], ftyp.length + moovOut.length);
+    let o = firstSampleAt; samples.forEach(s => { out.set(u8.subarray(s.off, s.off + s.size), o); o += s.size; });
+    return { buffer: out.buffer, seconds: mediaDur / timescale, frames: samples.length, width: width >>> 16, height: height >>> 16 };
+  }
+  return { codecOf, isFragmented, defragment };
+})();
+
+const REC = { active: false };
+const REC_MIMES = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.4d0028', 'video/mp4;codecs=avc1.42e01f', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+const recMime = () => (window.MediaRecorder && REC_MIMES.find(t => MediaRecorder.isTypeSupported(t))) || '';
+function recInfo() { const m = recMime(); $('#rFmt').textContent = !m ? 'This browser cannot record; use the latest Chrome or Edge.' : m.startsWith('video/mp4') ? 'MP4 (H.264): PowerPoint-ready' : 'WebM: this browser has no H.264 recorder; convert before inserting into PowerPoint'; }
+async function startRec() {
+  if (REC.active) { stopRec(); return; }
+  const msg = t => { $('#rMsg').textContent = t; toast(t, 5000); };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { msg('This browser cannot record. Open this file directly in Chrome or Edge.'); return; }
+  const pol = document.permissionsPolicy || document.featurePolicy;
+  if (pol && pol.allowsFeature && !pol.allowsFeature('display-capture')) { msg('Recording is blocked inside this preview or frame. Open the HTML file directly in Chrome or Edge.'); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30, displaySurface: 'browser', cursor: 'never' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' }); }
+  catch (e) { msg(e && e.name === 'NotAllowedError' ? 'Recording was cancelled or blocked. Open the file directly in Chrome or Edge and choose "this tab".' : 'Could not start capture: ' + (e.message || e)); return; }
+  const track = stream.getVideoTracks()[0];
+  try { if (window.CropTarget && track.cropTo) await track.cropTo(await CropTarget.fromElement($('#app'))); } catch (e) {}
+  const f = frameSize(); if (f) { try { await track.applyConstraints({ width: f[0], height: f[1], frameRate: 30 }); } catch (e) {} }
+  const mime = recMime();
+  let mr; try { mr = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: +$('#rQ').value || 1500000 }); } catch (e) { stream.getTracks().forEach(t => t.stop()); msg('Could not start the recorder: ' + e.message); return; }
+  Object.assign(REC, { active: true, mr, stream, chunks: [], scope: $('#rScope').value, tail: +$('#rTail').value || 5, title: document.title });
+  $('#drawer').classList.remove('open'); $('#clipCard').classList.remove('on');
+  document.body.classList.add('clean', 'nocursor'); $('#pbar').classList.add('hidden'); document.title = '● REC · ' + REC.title;
+  mr.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+  mr.onstop = () => saveRec(mr.mimeType || mime);
+  track.addEventListener('ended', stopRec);
+  if (REC.scope === 'all') G.si = 0;
+  G.playing = true; setPlaying(true); runScene();       // renders the start of the scene
+  await new Promise(r => setTimeout(r, 900));
+  if (!REC.active) return;
+  REC.size = track.getSettings(); REC.t0 = performance.now(); mr.start(1000);
+}
+function stopRec() {
+  if (!REC.active) return; REC.active = false; clearTimeout(REC.stopTimer);
+  try { if (REC.mr.state !== 'inactive') REC.mr.stop(); } catch (e) {}
+  REC.stream.getTracks().forEach(t => t.stop());
+  document.body.classList.remove('clean', 'nocursor'); $('#pbar').classList.remove('hidden'); document.title = REC.title; setPlaying(false);
+}
+async function saveRec(type) {
+  if (!REC.chunks.length) { toast('Nothing was recorded.'); return; }
+  let blob = new Blob(REC.chunks, { type: type || 'video/webm' }); REC.chunks = [];
+  let ready = false, codec = '';
+  try { const buf = await blob.arrayBuffer(); codec = MP4.codecOf(buf); if (codec === 'avc1') { ready = true; if (MP4.isFragmented(buf)) blob = new Blob([MP4.defragment(buf).buffer], { type: 'video/mp4' }); } } catch (e) { ready = false; }
+  const name = slug(REC.scope === 'all' ? 'copilot-training' : scene().title) + (/mp4/.test(blob.type) ? '.mp4' : '.webm');
+  const url = URL.createObjectURL(blob);
+  try { const a = el('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
+  const s = REC.size || {}, secs = Math.round((performance.now() - REC.t0) / 1000);
+  $('#clipVid').src = url; $('#clipSave').href = url; $('#clipSave').download = name;
+  $('#clipMeta').textContent = `${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${s.width ? s.width + ' × ' + s.height : ''} · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} · ${ready ? 'PowerPoint-ready ✓' : 'Not PowerPoint-ready (' + (codec || 'WebM') + '): convert with Clipchamp or HandBrake'}`;
+  $('#clipCard').classList.add('on'); toast('Clip recorded: ' + name, 4000);
+}
+
+/* =====================================================================
+   Data & setup drawer
+   ===================================================================== */
+function openDrawer(p) { $('#drawer').classList.add('open'); if (p) selTab(p); $('#jBox').value = JSON.stringify(DATA, null, 2); recInfo(); syncSetup(); }
+function selTab(p) { document.querySelectorAll('.tabd').forEach(t => t.classList.toggle('sel', t.dataset.p === p)); document.querySelectorAll('.pane2').forEach(x => x.classList.toggle('sel', x.id === p)); }
+document.querySelectorAll('.tabd').forEach(t => t.onclick = () => selTab(t.dataset.p));
+$('#dClose').onclick = () => $('#drawer').classList.remove('open');
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') $('#drawer').classList.remove('open'); });
+function syncSetup() {
+  $('#sName').value = (DATA.user || {}).name || ''; $('#sOrg').value = (DATA.user || {}).org || '';
+  $('#sTheme').value = S.theme; $('#sFs').value = String(S.fs); $('#sFrame').value = S.frame; $('#sType').value = String(S.typeSpeed); $('#sStream').value = String(S.streamSpeed);
+  $('#sCaps').checked = S.captions; $('#sCursor').checked = S.cursor;
+}
+const onSet = (id, fn) => $(id).addEventListener('change', e => { fn(e.target); applySettings(); });
+onSet('#sTheme', t => S.theme = t.value); onSet('#sFs', t => S.fs = +t.value); onSet('#sFrame', t => S.frame = t.value);
+onSet('#sType', t => S.typeSpeed = +t.value); onSet('#sStream', t => S.streamSpeed = +t.value);
+onSet('#sCaps', t => { S.captions = t.checked; if (!t.checked) setCaption(''); }); onSet('#sCursor', t => S.cursor = t.checked);
+const onUser = () => { DATA.user = Object.assign({}, DATA.user, { name: $('#sName').value.trim() || 'Alex Morgan', org: $('#sOrg').value.trim() }); store.set('data', DATA); renderChrome(); };
+$('#sName').addEventListener('change', onUser); $('#sOrg').addEventListener('change', onUser);
+function validate(d) {
+  if (!d || !Array.isArray(d.scenes) || !d.scenes.length) throw new Error('JSON needs a non-empty "scenes" array');
+  d.scenes.forEach((s, i) => { if (!s.title) throw new Error(`Scene ${i + 1} needs a "title"`); if (!Array.isArray(s.steps)) throw new Error(`Scene "${s.title}" needs a "steps" array`); if (s.app && s.app !== 'chat' && !APPS[s.app]) throw new Error(`Scene "${s.title}": unknown app "${s.app}"`); s.app = s.app || 'chat'; });
+  return d;
+}
+function applyData(text, msgEl) {
+  try { DATA = validate(JSON.parse(text)); store.set('data', DATA); G.si = 0; runScene(); msgEl.className = 'msg ok'; msgEl.textContent = `Loaded ${DATA.scenes.length} scenes.`; return true; }
+  catch (e) { msgEl.className = 'msg err'; msgEl.textContent = 'Could not load: ' + e.message; return false; }
+}
+$('#jApply').onclick = () => applyData($('#jBox').value, $('#jMsg'));
+$('#jDown').onclick = () => { const a = el('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' })); a.download = 'copilot-training-scenes.json'; a.click(); };
+$('#jFile').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(t => { $('#jBox').value = t; applyData(t, $('#jMsg')); }); e.target.value = ''; };
+$('#jReset').onclick = () => { DATA = JSON.parse(JSON.stringify(DEFAULT_DATA)); store.set('data', DATA); $('#jBox').value = JSON.stringify(DATA, null, 2); G.si = 0; runScene(); $('#jMsg').className = 'msg ok'; $('#jMsg').textContent = 'Built-in scenes restored.'; };
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files[0]; if (f && /json/i.test(f.type + f.name)) f.text().then(t => { if (applyData(t, $('#jMsg'))) toast('Scenes loaded from ' + f.name); else openDrawer('dData'); }); });
+$('#rGo').onclick = startRec;
+$('#clipX').onclick = () => $('#clipCard').classList.remove('on');
+
+/* =====================================================================
+   Presenter controls & keys
+   ===================================================================== */
+$('#pNext').onclick = next;
+$('#pPrev').onclick = () => goScene(G.si - 1);
+$('#pRestart').onclick = () => goScene(G.si);
+$('#pPlay').onclick = () => { setPlaying(!G.playing); if (G.playing && G.done && G.si < DATA.scenes.length - 1) goScene(G.si + 1); };
+$('#pSpeed').onchange = e => { G.speed = +e.target.value; e.target.blur(); };
+$('#pTheme').onclick = () => { S.theme = S.theme === 'dark' ? 'light' : 'dark'; applySettings(); };
+$('#pRec').onclick = startRec;
+$('#pData').onclick = () => openDrawer('dSetup');
+$('#pFull').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); };
+$('#scenePick').onchange = e => { goScene(+e.target.value); e.target.blur(); };
+document.addEventListener('click', e => { const b = e.target.closest('#pbar button'); if (b) b.blur(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (REC.active) { stopRec(); return; } $('#drawer').classList.remove('open'); document.body.classList.remove('clean'); return; }
+  if ($('#drawer').classList.contains('open') || e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === 'ArrowRight' && e.shiftKey) { e.preventDefault(); goScene(G.si + 1); }
+  else if (k === 'ArrowRight' || k === 'PageDown' || k === 'Enter') { e.preventDefault(); next(); }
+  else if (k === 'ArrowLeft' || k === 'PageUp') { e.preventDefault(); goScene(G.si - 1); }
+  else if (k === ' ') { e.preventDefault(); $('#pPlay').click(); }
+  else if (k === 'r') goScene(G.si);
+  else if (k === 'e') finishScene();
+  else if (k === 't') $('#pTheme').click();
+  else if (k === 'h') { document.body.classList.toggle('clean'); toast(document.body.classList.contains('clean') ? 'Presenter bar hidden: hover the bottom edge or press H' : 'Presenter bar shown'); }
+  else if (k === 'c') startRec();
+  else if (k === 'd') openDrawer('dSetup');
+  else if (k === 'f') $('#pFull').click();
+  else if (k === '+' || k === '=') { S.fs = Math.min(22, S.fs + 1); applySettings(); }
+  else if (k === '-') { S.fs = Math.max(12, S.fs - 1); applySettings(); }
+  else if (/^[1-9]$/.test(k)) goScene(+k - 1);
+});
+
+let idleT; const wake = () => { document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => document.body.classList.add('idle'), 2500); };
+addEventListener('mousemove', wake); addEventListener('keydown', wake); wake();
+/* ---------- boot ---------- */
+applySettings();
+try { validate(DATA); } catch (e) { DATA = JSON.parse(JSON.stringify(DEFAULT_DATA)); }
+runScene();
+</script>
+</body>
+</html>

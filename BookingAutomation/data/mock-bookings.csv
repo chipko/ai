@@ -1,0 +1,7 @@
+id,title,first_name,last_name,dob,sex,nhs_number,email,phone,hospital,specialty,consultant,appointment_type,funding,insurer,policy_number,appointment_date,time,notes,sms_reminders,skip
+# One row = one booking. Blank cells are left untouched. Put anything in "skip" to skip a row.
+ortho-selfpay,Mr,Test,Patient-One,14/03/1968,Male,9434765919,test1@example.com,07700900001,Clifton Park Hospital,Orthopaedics,Ms R Jones,New consultation,Self-pay,,,12/11/2026,10:15,Left knee pain,yes,
+cardio-insured,Mrs,Test,Patient-Two,02/09/1975,Female,,test2@example.com,07700900002,Oaks Hospital,Cardiology,Dr F Adeyemi,Follow-up,Insured,Bupa,BUPA-123456,13/11/2026,14:00,,no,
+gynae-nhs,Ms,Test,Patient-Three,21/12/1990,Female,9434765870,,07700900003,Duchy Hospital,Gynaecology,,Video consultation,NHS e-Referral,,,16/11/2026,09:00,eRS UBRN 000123456789,,
+ent-any-consultant,Mx,Test,Patient-Four,5/1/2001,Prefer not to say,,test4@example.com,,Oaks Hospital,"Ear, Nose and Throat",Any consultant,New consultation,Insured,AXA Health,AXA-77,17/11/2026,16:45,,yes,
+on-hold,Mr,Test,Patient-Six,01/01/1980,Male,,,,Duchy Hospital,Orthopaedics,,,Self-pay,,,19/11/2026,09:30,,,waiting for clinic set-up

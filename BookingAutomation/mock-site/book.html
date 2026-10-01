@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mock HealthHub – New booking</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!--
+    A stand-in for a dropdown-heavy booking journey, used to prove the CSV runner works.
+    It deliberately mixes the awkward widgets real booking systems use: custom ARIA comboboxes,
+    dependent dropdowns that load after a delay, a type-ahead search, a DD/MM/YYYY date box and a
+    time-slot grid that only appears once a date is chosen.
+  -->
+  <main class="card">
+    <form id="booking" novalidate>
+      <!-- Step 1 -->
+      <section class="step" id="step-patient">
+        <h1>Patient details</h1>
+        <label for="title">Title</label>
+        <select id="title">
+          <option value="">Select…</option>
+          <option value="MR">Mr</option><option value="MRS">Mrs</option><option value="MS">Ms</option>
+          <option value="MISS">Miss</option><option value="DR">Dr</option><option value="MX">Mx</option>
+        </select>
+        <label for="first">First name</label><input id="first" />
+        <label for="last">Last name</label><input id="last" />
+        <label for="dob">Date of birth</label><input id="dob" type="date" />
+        <fieldset role="radiogroup" aria-labelledby="sex-l">
+          <legend id="sex-l">Sex</legend>
+          <label><input type="radio" name="sex" value="F" /> Female</label>
+          <label><input type="radio" name="sex" value="M" /> Male</label>
+          <label><input type="radio" name="sex" value="X" /> Prefer not to say</label>
+        </fieldset>
+        <label for="nhs">NHS number</label><input id="nhs" inputmode="numeric" />
+        <label for="email">Email</label><input id="email" type="email" />
+        <label for="phone">Mobile</label><input id="phone" type="tel" />
+        <p class="error" id="err-1"></p>
+        <button type="button" data-next="1">Continue</button>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="step" id="step-appt" hidden>
+        <h1>Appointment</h1>
+
+        <label id="hospital-l">Hospital</label>
+        <div class="combo" data-combo="hospital">
+          <button type="button" role="combobox" aria-labelledby="hospital-l" aria-expanded="false">Choose a hospital</button>
+        </div>
+
+        <label id="specialty-l">Specialty</label>
+        <div class="combo" data-combo="specialty">
+          <button type="button" role="combobox" aria-labelledby="specialty-l" aria-expanded="false" disabled>Choose a hospital first</button>
+        </div>
+
+        <label for="consultant">Consultant</label>
+        <select id="consultant" disabled><option value="">Choose a specialty first</option></select>
+
+        <fieldset role="radiogroup" aria-labelledby="type-l">
+          <legend id="type-l">Appointment type</legend>
+          <label><input type="radio" name="type" value="new" /> New consultation</label>
+          <label><input type="radio" name="type" value="fu" /> Follow-up</label>
+          <label><input type="radio" name="type" value="video" /> Video consultation</label>
+        </fieldset>
+
+        <label for="funding">Funding</label>
+        <select id="funding">
+          <option value="">Select…</option>
+          <option value="SELF">Self-pay</option><option value="PMI">Insured</option><option value="NHS">NHS e-Referral</option>
+        </select>
+
+        <div id="insurer-block" hidden>
+          <label for="insurer">Insurer</label>
+          <div class="combo"><input id="insurer" role="combobox" aria-autocomplete="list" autocomplete="off" placeholder="Start typing…" /></div>
+          <label for="policy">Policy number</label><input id="policy" />
+        </div>
+
+        <label for="date">Preferred date (DD/MM/YYYY)</label><input id="date" placeholder="DD/MM/YYYY" />
+        <div role="group" aria-label="Available times" class="slots" id="slots"></div>
+
+        <p class="error" id="err-2"></p>
+        <button type="button" data-next="2">Continue</button>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="step" id="step-review" hidden>
+        <h1>Review and confirm</h1>
+        <dl id="summary"></dl>
+        <label for="notes">Referral notes</label><input id="notes" />
+        <label><input type="checkbox" id="consent" /> Patient consents to treatment terms</label>
+        <label><input type="checkbox" id="sms" /> Send SMS reminders</label>
+        <p class="error" id="err-3"></p>
+        <button type="submit">Confirm booking</button>
+      </section>
+
+      <section class="step" id="step-done" hidden>
+        <h1>Booking confirmed</h1>
+        <p>Reference: <strong id="booking-ref"></strong></p>
+        <a class="button" href="/book">Make another booking</a>
+      </section>
+    </form>
+  </main>
+
+  <script>
+    if (!document.cookie.includes('session=')) location.href = '/login';
+
+    const DATA = {
+      'Clifton Park Hospital': {
+        Orthopaedics: ['Mr A Patel', 'Ms R Jones', 'Mr T Okafor'],
+        Cardiology: ['Dr S Kaur', 'Dr M Evans'],
+        Dermatology: ['Dr L Chen'],
+      },
+      'Duchy Hospital': {
+        Orthopaedics: ['Mr P Hughes', 'Ms K Doyle'],
+        'General Surgery': ['Mr D Ahmed'],
+        Gynaecology: ['Miss E Walsh', 'Mr B Singh'],
+      },
+      'Oaks Hospital': {
+        Ophthalmology: ['Mr J Bennett'],
+        Cardiology: ['Dr F Adeyemi'],
+        'Ear, Nose and Throat': ['Mr H Novak', 'Ms C Rossi'],
+      },
+    };
+    const INSURERS = ['Aviva', 'AXA Health', 'Bupa', 'Vitality', 'WPA', 'Cigna', 'Simplyhealth'];
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+    const $ = (id) => document.getElementById(id);
+    const state = {};
+
+    // ---- Custom ARIA combobox (like React-Select / MUI Autocomplete) ----
+    function combo(name, getOptions, onPick) {
+      const wrap = document.querySelector(`[data-combo=${name}]`);
+      const btn = wrap.querySelector('button');
+      let list;
+      const close = () => { list?.remove(); list = null; btn.setAttribute('aria-expanded', 'false'); };
+      btn.addEventListener('click', async () => {
+        if (list) return close();
+        list = document.createElement('ul');
+        list.setAttribute('role', 'listbox');
+        list.innerHTML = '<li class="loading">Loading…</li>';
+        wrap.append(list);
+        btn.setAttribute('aria-expanded', 'true');
+        const opts = await getOptions();
+        if (!list) return;
+        list.innerHTML = '';
+        for (const o of opts) {
+          const li = document.createElement('li');
+          li.setAttribute('role', 'option');
+          li.textContent = o;
+          li.addEventListener('click', () => { btn.textContent = o; close(); onPick(o); });
+          list.append(li);
+        }
+      });
+      document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) close(); });
+      return btn;
+    }
+
+    const hospitalBtn = combo('hospital', async () => { await delay(300); return Object.keys(DATA); }, (h) => {
+      state.hospital = h; state.specialty = null;
+      specialtyBtn.disabled = false; specialtyBtn.textContent = 'Choose a specialty';
+      const c = $('consultant'); c.disabled = true; c.innerHTML = '<option value="">Choose a specialty first</option>';
+    });
+    const specialtyBtn = combo('specialty', async () => { await delay(500); return Object.keys(DATA[state.hospital]); }, async (s) => {
+      state.specialty = s;
+      const c = $('consultant');
+      c.disabled = true; c.innerHTML = '<option value="">Loading…</option>';
+      await delay(700); // dependent dropdown arrives later, like an API call
+      c.innerHTML = '<option value="">Any consultant</option>' +
+        DATA[state.hospital][s].map((n, i) => `<option value="C${i + 1}">${n}</option>`).join('');
+      c.disabled = false;
+    });
+
+    $('funding').addEventListener('change', (e) => { $('insurer-block').hidden = e.target.value !== 'PMI'; });
+
+    // ---- Type-ahead insurer search ----
+    $('insurer').addEventListener('input', async (e) => {
+      const q = e.target.value.toLowerCase();
+      document.querySelector('#insurer-block [role=listbox]')?.remove();
+      if (q.length < 2) return;
+      await delay(250);
+      const ul = document.createElement('ul');
+      ul.setAttribute('role', 'listbox');
+      for (const i of INSURERS.filter((x) => x.toLowerCase().includes(q))) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option'); li.textContent = i;
+        li.addEventListener('click', () => { $('insurer').value = i; state.insurer = i; ul.remove(); });
+        ul.append(li);
+      }
+      document.querySelector('#insurer-block [role=listbox]')?.remove();
+      $('insurer').parentElement.append(ul);
+    });
+
+    // ---- Time slots load once a valid date is entered ----
+    $('date').addEventListener('change', async (e) => {
+      const slots = $('slots');
+      state.time = null;
+      slots.innerHTML = '';
+      if (!/^\d{2}\/\d{2}\/\d{4}$/.test(e.target.value)) { slots.textContent = 'Enter a date as DD/MM/YYYY'; return; }
+      slots.innerHTML = '<span class="loading">Finding times…</span>';
+      await delay(400);
+      slots.innerHTML = '';
+      for (const t of ['09:00', '09:30', '10:15', '11:00', '14:00', '15:30', '16:45']) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = t; b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', () => {
+          slots.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+          b.setAttribute('aria-pressed', 'true'); state.time = t;
+        });
+        slots.append(b);
+      }
+    });
+
+    // ---- Validation and step navigation ----
+    const radio = (n) => document.querySelector(`input[name=${n}]:checked`);
+    const checks = {
+      1: () => [
+        !$('title').value && 'Title',
+        !$('first').value && 'First name',
+        !$('last').value && 'Last name',
+        !$('dob').value && 'Date of birth',
+        !radio('sex') && 'Sex',
+        $('nhs').value && !/^\d{10}$/.test($('nhs').value.replace(/\s/g, '')) && 'NHS number must be 10 digits',
+      ],
+      2: () => [
+        !state.hospital && 'Hospital',
+        !state.specialty && 'Specialty',
+        !radio('type') && 'Appointment type',
+        !$('funding').value && 'Funding',
+        $('funding').value === 'PMI' && !state.insurer && 'Insurer',
+        !state.time && 'Time',
+      ],
+      3: () => [!$('consent').checked && 'Consent'],
+    };
+    const ok = (n) => {
+      const missing = checks[n]().filter(Boolean);
+      $('err-' + n).textContent = missing.length ? 'Please complete: ' + missing.join(', ') : '';
+      return !missing.length;
+    };
+    const show = (id) => document.querySelectorAll('.step').forEach((s) => (s.hidden = s.id !== id));
+
+    document.querySelector('[data-next="1"]').addEventListener('click', () => ok(1) && show('step-appt'));
+    document.querySelector('[data-next="2"]').addEventListener('click', () => {
+      if (!ok(2)) return;
+      const c = $('consultant');
+      $('summary').innerHTML = [
+        ['Patient', `${$('title').selectedOptions[0].text} ${$('first').value} ${$('last').value}`],
+        ['Hospital', state.hospital], ['Specialty', state.specialty],
+        ['Consultant', c.selectedOptions[0]?.text ?? 'Any'],
+        ['When', `${$('date').value} ${state.time}`],
+      ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+      show('step-review');
+    });
+    $('booking').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!ok(3)) return;
+      await delay(500);
+      $('booking-ref').textContent = 'HH-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+      show('step-done');
+    });
+  </script>
+</body>
+</html>

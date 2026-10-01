@@ -1,0 +1,5 @@
+id,title,first_name,last_name,dob,sex,nhs_number,email,phone,postcode,hospital,specialty,consultant,appointment_type,funding,insurer,policy_number,appointment_date,time,notes,skip
+# One row = one booking. Edit in Excel/Sheets and save as CSV (UTF-8). Blank cells are left untouched.
+# Column names must match the "column" entries in configs/healthhub.config.ts. Use clearly fake test patients only.
+tp-001,Mr,Test,Automation-One,14/03/1968,Male,,test.one@example.com,07700900001,BS1 1AA,,,,,Self-pay,,,,,Automated test booking,
+tp-002,Mrs,Test,Automation-Two,02/09/1975,Female,,test.two@example.com,07700900002,BS1 1AA,,,,,Insured,Bupa,TEST-0001,,,Automated test booking,

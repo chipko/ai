@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mock HealthHub – Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="card narrow">
+    <h1>Welcome, <span id="who"></span></h1>
+    <a class="button" href="/book">New booking</a>
+  </main>
+  <script>
+    const m = document.cookie.match(/session=([^;]+)/);
+    if (!m) location.href = '/login';
+    else document.getElementById('who').textContent = decodeURIComponent(m[1]);
+  </script>
+</body>
+</html>

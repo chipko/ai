@@ -10,6 +10,7 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 - **Looks live.** An animated pointer moves to each control and clicks it. Prompts are typed character by character. Copilot shows reasoning steps (*Reading Board paper.docx…*) with a realistic pause for each one, then streams its answer with tables, citations, references, created files and follow-up chips. Think Deeper thinks for longer and Quick Response barely pauses. If a script has no thinking steps, they're generated from the sources the answer cites.
 - **Documents.** Attach one or more files to a prompt. They appear as file chips with icons in the message box and above the sent prompt.
 - Notebooks (create, add references, set instructions) and the Prompt Gallery (save a prompt, share it with the team) are scripted too.
+- **Tooltips** (optional, under Look): when the pointer rests on a control, a Copilot-style tooltip appears, such as *Add content* on the **+** button. `@tooltips on` or `off` changes this mid-scene, and `@tip plus | Add content` shows one tooltip.
 - All names, numbers and documents in the built-in scenes are invented.
 
 ## Built-in scenes (Section C of the away-day deck)
@@ -72,10 +73,13 @@ Other commands: `@mode web`, `@type` / `@send`, `@newchat`, `@caption text | ms`
   - The **end card** shows the takeaway, the prompts used and a "simulated demonstration" footnote.
   - Both use the deck's navy, Cambria and Calibri by default. You can switch them to light, or to match Copilot.
 - Files are named by slide, such as `47-catch-up-on-a-thread.mp4`, and saved to your downloads folder. A **Clips ready** panel offers preview and Save.
-- Chrome and Edge record H.264. The tool then rebuilds the file as a standard MP4, without re-encoding, so PowerPoint accepts it: Insert → Video → This Device. Browsers without H.264 save WebM, which needs converting (Clipchamp or HandBrake). **Make a clip PowerPoint-ready** fixes an earlier MP4.
-- Quality: Standard 4 Mbps (≈ 30 MB/min), **High 8 Mbps (≈ 60 MB/min, default)** or Very high 12 Mbps. The recorder asks for a keyframe every second and favours sharp text. Keyframes are read from the video data itself, so PowerPoint can start or seek anywhere without smearing.
+- **How the video is made.** Every captured frame is drawn into a canvas of exactly the video size, so the picture can never change size mid-clip (that is what smeared earlier clips). In Chrome and Edge the frames are encoded as H.264 with WebCodecs at a constant frame rate, with a keyframe every second, and written as a standard MP4 by the page itself. Then the finished file is decoded and compared with what was on screen, and the Clips ready panel says **Verified** (or explains why not). Insert it with Insert → Video → This Device. A browser without WebCodecs falls back to its own recorder; if it has no H.264, the clip is WebM and needs converting (Clipchamp or HandBrake). **Make a clip PowerPoint-ready** rebuilds an older fragmented MP4.
+- Quality: Standard 3 Mbps (≈ 22 MB/min), **High 6 Mbps (≈ 45 MB/min, default)** or Very high 10 Mbps. Static screens use much less than the maximum.
 - Video size is 1920 × 1080 by default, with 1280 × 720, 2560 × 1440 and 4:3 options. **UI zoom** (125% by default) makes the interface large enough to read on a slide. Make the browser window large (F11) for the sharpest clip.
 - Open the file directly. Previews and embedded frames block screen capture.
 
+## Snapshots
+**📷 Frame** (or **P**) pauses playback and saves the Copilot window as a PNG at the video size, for a still on a slide such as the tour. The first snapshot asks to share this tab; the capture then stays open for two minutes so you can take several. In a script, `@snapshot name` saves a frame mid-scene, and during a recording it needs no extra prompt.
+
 ## Keys
-Space play/pause · R reset · E jump to the finished screen · ← → previous/next scene · T light/dark · D scenes and editor · C record · H hide the toolbar · F fullscreen · Esc stop
+Space play/pause · R reset · E jump to the finished screen · ← → previous/next scene · T light/dark · D scenes and editor · C record · P snapshot · H hide the toolbar · F fullscreen · Esc stop

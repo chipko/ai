@@ -592,7 +592,7 @@ A file with several "scene" lines imports as several scenes.</pre></details>
     <p class="msg">Records just the stage (no browser bars) to MP4: title card → the scene → end card, hands-free. Choose <b>this tab</b> when the browser asks. Esc stops early.</p>
     <div class="row"><button class="btn red" id="rScene">● Record this scene</button><button class="btn" id="rSection">● Record this section</button><button class="btn" id="rAll">● Record every scene</button></div>
     <p class="msg" id="clipFormat"></p>
-    <div class="row"><label>Quality</label><select data-s="clipQuality" data-num="1"><option value="1500000">Small · 1.5 Mbps (≈ 11 MB/min)</option><option value="3000000">Balanced · 3 Mbps (≈ 22 MB/min)</option><option value="6000000">High · 6 Mbps (≈ 45 MB/min)</option></select></div>
+    <div class="row"><label>Quality</label><select data-s="clipQuality" data-num="1"><option value="4000000">Standard · 4 Mbps (≈ 30 MB/min)</option><option value="8000000">High · 8 Mbps (≈ 60 MB/min)</option><option value="12000000">Very high · 12 Mbps (≈ 90 MB/min)</option></select></div>
     <div class="row"><label>Frame rate</label><select data-s="clipFps" data-num="1"><option value="30">30 fps</option><option value="60">60 fps</option></select></div>
     <p class="msg" id="clipMsg"></p>
     <h4>Tips</h4>
@@ -698,9 +698,11 @@ const DEFAULTS = {
   cardStyle: 'navy', introMs: 3500, tailMs: 2500, outroMs: 6500,
   kicker: 'C · Microsoft 365 Copilot', outroKicker: 'Try it in Copilot Chat', cardBrand: 'Microsoft 365 Copilot · Chat',
   footnote: 'Simulated demonstration · illustrative content, not real data', badge: false,
-  clipQuality: 3000000, clipFps: 30
+  clipQuality: 8000000, clipFps: 30, clipV: 2
 };
 let S = Object.assign({}, DEFAULTS, store.get('settings', {}));
+// v2: higher bitrates; move older saved settings onto the new default
+if (S.clipV !== 2) { S.clipQuality = DEFAULTS.clipQuality; S.clipV = 2; }
 const saveSettings = () => store.set('settings', S);
 const models = () => S.models.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [n, d] = l.split('|').map(x => x.trim()); return { name: n, desc: d || '' }; });
 const frameSize = () => { const [w, h] = String(S.frame).split('x').map(Number); return [w || 1920, h || 1080]; };
@@ -1473,7 +1475,7 @@ function bindForm() {
 /* ---------- recording ---------- */
 const CLIP = { active: false, stream: null, rec: null, clips: [] };
 function syncClipInfo() {
-  const mime = clipMime(), [w, h] = frameSize(), mbps = (Number(S.clipQuality) || 3e6) / 1e6;
+  const mime = clipMime(), [w, h] = frameSize(), mbps = (Number(S.clipQuality) || 8e6) / 1e6;
   $('#clipFormat').textContent = !mime ? 'This browser can’t record clips. Use a recent Chrome or Edge.'
     : `Output: ${mime.startsWith('video/mp4') ? 'MP4 (H.264), PowerPoint-ready' : 'WebM. This browser has no H.264 recorder, so PowerPoint will need the clip converted. Use the latest Chrome or Edge'} · ${w} × ${h} · ≈ ${Math.round(mbps * 60 / 8)} MB per minute`;
 }
@@ -1493,6 +1495,7 @@ async function record(indexes) {
     return;
   }
   const track = stream.getVideoTracks()[0];
+  try { track.contentHint = 'detail'; } catch (e) {}   // keep text sharp rather than motion smooth
   document.body.classList.add('rec'); document.body.classList.remove('drawer'); fit();
   let cropped = false;
   try { if (window.CropTarget && track.cropTo) { await track.cropTo(await CropTarget.fromElement(stage)); cropped = true; } } catch (e) {}
@@ -1511,7 +1514,7 @@ async function record(indexes) {
     resetUI(sc); if (S.cards && sc.intro.on) showCard('intro', sc, true);
     await sleep(350);
     let rec;
-    try { rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Number(S.clipQuality) || 3e6 }); }
+    try { rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Number(S.clipQuality) || 8e6, videoKeyFrameIntervalDuration: 1000 }); }
     catch (e) { clipMsg('Could not start the recorder: ' + e.message, 'err'); break; }
     CLIP.rec = rec;
     const chunks = [], stopped = new Promise(r => { rec.onstop = r; });
@@ -1793,6 +1796,27 @@ const MP4 = (() => {
       }
     }
     if (!samples.length) throw new Error('no samples found');
+    // Don't trust the recorder's sync flags: some mark every frame as a keyframe, so players seek
+    // onto in-between frames and paint smears. Read the H.264 data and mark only real IDR frames.
+    const entry = str(u8, stsd.body + 8 + 4);
+    if (entry === 'avc1' || entry === 'avc3') {
+      let nalLen = 4;
+      for (let o = stsd.body + 16; o < stsd.end - 8; o++) if (str(u8, o) === 'avcC') { nalLen = (u8[o + 8] & 3) + 1; break; }
+      const isIdr = s => {
+        for (let o = s.off, end = s.off + s.size; o + nalLen < end;) {
+          let n = 0; for (let k = 0; k < nalLen; k++) n = n * 256 + u8[o + k];
+          if ((u8[o + nalLen] & 0x1f) === 5) return true;
+          if (n <= 0) break; o += nalLen + n;
+        }
+        return false;
+      };
+      const idr = samples.map(isIdr);
+      if (idr.some(Boolean)) {
+        samples.forEach((s, i) => { s.sync = idr[i]; });
+        const first = idr.indexOf(true);
+        if (first > 0) samples.splice(0, first);   // never start on a frame that can't be decoded
+      }
+    }
     // Some recorders leave the last duration 0: use the typical frame duration instead
     const typical = samples.map(s => s.dur).filter(Boolean).sort((a, b) => a - b)[Math.floor(samples.length / 2)] || Math.round(timescale / 30);
     samples.forEach(s => { if (!s.dur) s.dur = typical; });

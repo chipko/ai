@@ -1,0 +1,2625 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot Chat Simulator</title>
+<style>
+/* ---------- shell (everything outside the recorded stage) ---------- */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#17191c;color:#e8e8e8;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+#viewport{position:fixed;left:0;top:0;right:0;bottom:54px;overflow:hidden}
+body.drawer #viewport{right:500px}
+body.nobar #viewport{bottom:0}
+body.rec #viewport{right:0;bottom:0}
+body.rec, body.rec *{cursor:none!important}
+body.rec #bar, body.rec #drawer, body.nobar #bar{display:none}
+
+/* ---------- stage: fixed frame (e.g. 1920x1080) scaled to fit ---------- */
+#stage{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;background:var(--bg);box-shadow:0 12px 50px rgba(0,0,0,.55);contain:layout paint}
+body.rec #stage{box-shadow:none}
+#ui{position:absolute;left:0;top:0;transform-origin:0 0;display:flex;color:var(--fg);background:var(--bg);font-size:15px;line-height:1.5;font-family:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+#ui button{border:0;background:none;padding:0;cursor:default}
+
+/* Copilot themes */
+.t-light{--bg:#fff;--side:#fff;--fg:#242424;--fg2:#424242;--mut:#707070;--line:#e6e6e6;--line2:#d1d1d1;--pill:#ebebeb;--seg:#f0f0f0;--segOn:#fff;--hover:#f3f3f3;--bubble:#f0f0f0;--chip:#fff;--menu:#fff;--shadow:0 8px 28px rgba(0,0,0,.14),0 1px 3px rgba(0,0,0,.08);--citeBg:#e8e8e8;--citeFg:#424242;--accent:#0f6cbd;--code:#f6f6f6;--th:#fafafa;--tag:#242424;--tagFg:#fff;--ok:#107c10;--scrim:rgba(0,0,0,.28);--send:#242424;--sendFg:#fff;--voice:#ebebeb;--toast:#242424;--toastFg:#fff}
+.t-dark{--bg:#1f1f1f;--side:#191919;--fg:#f2f2f2;--fg2:#d6d6d6;--mut:#a3a3a3;--line:#333;--line2:#4a4a4a;--pill:#333;--seg:#2a2a2a;--segOn:#3d3d3d;--hover:#2b2b2b;--bubble:#2f2f2f;--chip:#1f1f1f;--menu:#2a2a2a;--shadow:0 8px 28px rgba(0,0,0,.55);--citeBg:#3b3b3b;--citeFg:#e6e6e6;--accent:#479ef5;--code:#292929;--th:#262626;--tag:#f2f2f2;--tagFg:#1f1f1f;--ok:#54b054;--scrim:rgba(0,0,0,.55);--send:#f2f2f2;--sendFg:#1f1f1f;--voice:#333;--toast:#f2f2f2;--toastFg:#1f1f1f}
+
+.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ib{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;color:var(--fg);flex:none}
+.ib.sm{width:30px;height:30px;color:var(--mut)}
+.ib.sm .i{width:17px;height:17px}
+
+/* sidebar */
+#side{width:272px;flex:none;background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:8px 10px 12px}
+.stop{display:flex;align-items:center;height:46px;padding:0 0 0 6px;gap:2px}
+.brand{font-size:21px;font-weight:600;letter-spacing:-.2px;flex:1}
+.seg{display:flex;background:var(--seg);border-radius:14px;padding:3px;margin:8px 0 14px}
+.seg span{flex:1;text-align:center;padding:6px 0;border-radius:11px;font-size:15px;color:var(--mut)}
+.seg .on{background:var(--segOn);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.13)}
+.nav a{display:flex;align-items:center;gap:12px;height:38px;padding:0 10px;border-radius:12px;font-size:15px;color:var(--fg);margin-bottom:2px;transition:background .15s}
+.nav a.sel{background:var(--pill)}
+.nav a .i{width:21px;height:21px}
+.chatsH{margin:22px 0 6px 6px;font-size:13px;color:var(--mut);display:flex;align-items:center;gap:2px}
+.chatsH .i{width:14px;height:14px}
+.sfoot{margin-top:auto;display:flex;align-items:center;gap:10px;padding:6px 2px 0 6px}
+.av{width:34px;height:34px;border-radius:50%;background:#7a5c47 center/cover no-repeat;color:#fff;display:grid;place-items:center;font-weight:600;font-size:14px;flex:none}
+.tag{background:var(--tag);color:var(--tagFg);font-size:11px;font-weight:700;padding:1px 4px;border-radius:4px;margin-right:5px;vertical-align:1px}
+.who{flex:1;line-height:1.3;font-size:14px;min-width:0}
+.who small{display:block;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* main + top bar */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+#top{height:58px;display:flex;align-items:center;gap:6px;padding:0 12px;position:relative;flex:none;z-index:15}
+.modeSeg{display:flex;gap:2px}
+.modeSeg span{padding:5px 12px;border-radius:12px;font-size:15px;color:var(--fg);transition:background .15s}
+.modeSeg .on{background:var(--pill)}
+.modeSeg.solo span:not(.on){display:none}
+#modelBtn{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:10px;font-size:15px;transition:background .15s}
+#modelBtn .i{width:16px;height:16px}
+#modelBtn.open{background:var(--hover)}
+.tright{margin-left:auto;display:flex;gap:4px}
+.menu{position:absolute;top:52px;background:var(--menu);border-radius:12px;box-shadow:var(--shadow);border:1px solid var(--line);padding:6px;min-width:310px;opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .16s,transform .16s;z-index:20}
+.menu.on{opacity:1;transform:none}
+.mi{display:flex;gap:12px;padding:9px 12px;border-radius:8px;align-items:center;transition:background .12s}
+.mi.hover{background:var(--hover)}
+.mi b{font-weight:600;display:block;font-size:14.5px;line-height:1.3}
+.mi small{color:var(--mut);font-size:13px}
+.mi .ck{margin-left:auto;opacity:0;width:18px;height:18px}
+.mi.on .ck{opacity:1}
+
+/* views */
+#views{flex:1;position:relative;min-height:0}
+.view{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .28s;visibility:hidden}
+.view.on{opacity:1;visibility:visible}
+#vHome{align-items:center;justify-content:center;padding-bottom:56px}
+.homeCol{width:min(900px,calc(100% - 80px))}
+.greet{font-size:32px;font-weight:400;margin:0 0 54px 62px;letter-spacing:-.3px;line-height:1.2}
+.chips{display:flex;gap:14px;margin:34px 0 0 46px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:12px;padding:9px 13px;font-size:15px;color:var(--fg2);background:var(--chip);line-height:1.2}
+.chip.dots{border:0;padding:9px 6px;color:var(--fg2)}
+
+/* composer */
+#composer{position:relative;border:1px solid var(--line2);border-radius:36px;background:var(--bg);padding:10px 12px 10px 18px;transition:border-radius .2s;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+#composer.tall{border-radius:24px;padding-top:12px}
+.crow{display:flex;align-items:center;gap:10px;min-height:44px}
+#cText{flex:1;font-size:16px;white-space:pre-wrap;word-break:break-word;max-height:150px;overflow:hidden;padding:0 4px;line-height:1.45}
+.ph{color:var(--mut)}
+.caret{display:inline-block;width:1.5px;height:1.2em;background:var(--fg);vertical-align:-0.22em;margin-left:1px;animation:blink 1.05s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+#cPlus .i{width:24px;height:24px;stroke-width:1.4}
+#cPrompts{display:none}
+#vChat #cPrompts,#vNb #cPrompts{display:grid}
+#cSend{width:46px;height:46px;border-radius:50%;background:var(--voice);display:grid;place-items:center;color:var(--fg);transition:background .15s,color .15s}
+#cSend.go{background:var(--send);color:var(--sendFg)}
+#cSend .i{width:22px;height:22px}
+.attRow{display:flex;flex-wrap:wrap;gap:8px;padding:0 0 8px 2px}
+.attRow:empty{display:none}
+.fchip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:5px 10px 5px 5px;font-size:13.5px;background:var(--bg);max-width:340px;animation:pop .25s ease-out;line-height:1.3}
+.fchip .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+.ft{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700;flex:none;letter-spacing:-.3px;font-family:"Segoe UI",Arial,sans-serif}
+.ft .i{width:16px;height:16px;stroke:#fff;stroke-width:1.8}
+.ft.pdf{font-size:9px}
+.disc{text-align:center;font-size:12px;color:var(--mut);margin-top:8px}
+#vHome .disc{display:none}
+
+/* attach popover */
+.pop{position:absolute;bottom:calc(100% + 10px);left:0;width:400px;background:var(--menu);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:8px;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .16s,transform .16s;z-index:30}
+.pop.down{bottom:auto;top:calc(100% + 8px);left:auto;right:0}
+.pop.on{opacity:1;transform:none}
+.popH{font-size:13px;color:var(--mut);padding:6px 10px 4px;font-weight:600}
+.pi{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:14px;transition:background .12s}
+.pi .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi.hover{background:var(--hover)}
+.pi .box{width:18px;height:18px;border:1.5px solid var(--line2);border-radius:4px;display:grid;place-items:center;flex:none}
+.pi .box .i{width:13px;height:13px;stroke:#fff;stroke-width:2.6;opacity:0}
+.pi.on .box{background:var(--accent);border-color:var(--accent)}
+.pi.on .box .i{opacity:1}
+.popF{display:flex;justify-content:flex-end;padding:8px 6px 2px}
+.btnP{background:var(--accent)!important;color:#fff;border-radius:8px;padding:6px 16px!important;font-size:14px;font-weight:600}
+.btnG{border:1px solid var(--line2)!important;border-radius:8px;padding:6px 16px!important;font-size:14px}
+
+/* conversation */
+.thread{flex:1;overflow-y:auto;scrollbar-width:none;padding:8px 0 28px}
+.thread::-webkit-scrollbar{display:none}
+.tcol{width:min(820px,calc(100% - 72px));margin:0 auto}
+.dock{width:min(820px,calc(100% - 72px));margin:0 auto 14px;flex:none}
+.msg{margin:22px 0;animation:fadeUp .3s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}}
+.u{display:flex;flex-direction:column;align-items:flex-end}
+.u .bub{background:var(--bubble);border-radius:20px;padding:10px 16px;max-width:78%;font-size:15px;white-space:pre-wrap;line-height:1.5}
+.u .uatt{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:8px;max-width:85%}
+.uact{display:flex;gap:2px;margin-top:4px;opacity:0;transition:opacity .15s}
+.u.hover .uact{opacity:1}
+.uact .on{color:var(--fg)}
+.uact .on .i{fill:currentColor}
+.think{margin-bottom:12px;font-size:14px;color:var(--mut)}
+.thh{display:flex;align-items:center;gap:8px;color:var(--fg2);min-height:24px}
+.thh .i{width:16px;height:16px}
+.think.done .thh{color:var(--mut)}
+.thl{list-style:none;margin:6px 0 0 7px;padding:0 0 0 16px;border-left:2px solid var(--line)}
+.thl li{display:flex;gap:8px;align-items:center;margin:5px 0;animation:fadeUp .25s ease-out;line-height:1.35}
+.thl li .d{width:14px;height:14px;flex:none;display:grid;place-items:center}
+.thl li .d .i{width:14px;height:14px;color:var(--ok);stroke-width:2.2}
+.ring{width:12px;height:12px;border-radius:50%;border:2px solid var(--line2);border-top-color:var(--fg2);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.think.done .thl{display:none}
+.spark{width:18px;height:18px;flex:none;border-radius:50%;background:conic-gradient(from 0deg,#2b88d8,#8661c5,#e3008c,#ff8c00,#2b88d8);animation:spin 1.6s linear infinite;-webkit-mask:radial-gradient(circle,transparent 4px,#000 4.5px);mask:radial-gradient(circle,transparent 4px,#000 4.5px)}
+.shim{background:linear-gradient(90deg,var(--mut) 0%,var(--mut) 35%,var(--fg) 50%,var(--mut) 65%,var(--mut) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shim 1.8s linear infinite}
+@keyframes shim{from{background-position:100% 0}to{background-position:-150% 0}}
+.dots{display:flex;gap:5px;padding:8px 0}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--mut);animation:dot 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+.body{font-size:15px;line-height:1.62}
+.body h2{font-size:20px;margin:16px 0 8px;font-weight:600;line-height:1.3}
+.body h3{font-size:17px;margin:16px 0 6px;font-weight:600;line-height:1.3}
+.body h4{font-size:15px;margin:14px 0 4px;font-weight:600}
+.body > :first-child{margin-top:0}
+.body p{margin:0 0 12px}
+.body ul,.body ol{margin:0 0 12px;padding-left:24px}
+.body li{margin:3px 0}
+.body li > ul,.body li > ol{margin:3px 0}
+.body strong{font-weight:600}
+.body table{border-collapse:separate;border-spacing:0;width:100%;margin:4px 0 14px;font-size:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden;line-height:1.45}
+.body th{background:var(--th);text-align:left;font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line)}
+.body td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.body tr:last-child td{border-bottom:0}
+.body pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:"Cascadia Mono",Consolas,Menlo,monospace;font-size:13.5px;white-space:pre-wrap;margin:4px 0 14px;line-height:1.5}
+.body code{font-family:"Cascadia Mono",Consolas,Menlo,monospace;background:var(--code);padding:1px 5px;border-radius:5px;font-size:.9em}
+.body pre code{background:none;padding:0;font-size:inherit}
+.body hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.body a{color:var(--accent);text-decoration:none}
+.cite{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--citeBg);color:var(--citeFg);font-size:11px;font-weight:600;margin-left:3px;vertical-align:2px;line-height:1}
+.fcard{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:4px 0 12px;max-width:480px;background:var(--bg);animation:pop .3s ease-out}
+.fcard .ft{width:38px;height:38px;font-size:16px;border-radius:8px}
+.fcard .ft .i{width:20px;height:20px}
+.fcard .fx{flex:1;min-width:0;line-height:1.35}
+.fcard b{display:block;font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fcard small{color:var(--mut);font-size:13px}
+.fcard .open{border:1px solid var(--line2);border-radius:8px;padding:4px 12px;font-size:13.5px;flex:none}
+.refs{margin-top:6px}
+.refT{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--fg2);border:1px solid var(--line);border-radius:10px;padding:3px 10px}
+.refT .i{width:14px;height:14px}
+.refL{margin-top:8px;display:grid;gap:6px;animation:fadeUp .3s ease-out}
+.refs:not(.open) .refL{display:none}
+.ref{display:flex;align-items:center;gap:9px;font-size:13.5px;line-height:1.3}
+.ref .cite{margin:0;vertical-align:0}
+.ref .ft{width:22px;height:22px;font-size:10.5px;border-radius:5px}
+.ref .ft .i{width:14px;height:14px}
+.ref .ft.pdf{font-size:7.5px}
+.ref .meta{color:var(--mut)}
+.acts{display:flex;gap:2px;margin-top:6px}
+.fups{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:fadeUp .3s ease-out}
+.fup{border:1px solid var(--line);border-radius:12px;padding:6px 12px;font-size:14px;color:var(--fg2);background:var(--chip)}
+
+/* notebooks */
+.nbl{width:min(980px,calc(100% - 80px));margin:28px auto 0}
+.nblHead{display:flex;align-items:center;margin-bottom:22px}
+.nblHead h1{font-size:28px;font-weight:600;margin:0;flex:1;letter-spacing:-.3px}
+.prim{display:inline-flex;align-items:center;gap:6px;background:var(--send)!important;color:var(--sendFg);border-radius:12px;padding:8px 16px!important;font-size:14.5px;font-weight:600}
+.prim .i{width:16px;height:16px}
+.nblGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.nbc{border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;gap:12px;align-items:flex-start;animation:fadeUp .3s ease-out}
+.nbc .fi{width:38px;height:38px;border-radius:10px;background:var(--pill);display:grid;place-items:center;flex:none}
+.nbc b{display:block;font-weight:600}
+.nbc small{color:var(--mut);font-size:13px}
+.nbHead{display:flex;align-items:center;gap:12px;padding:6px 28px 14px;border-bottom:1px solid var(--line);flex:none}
+.nbHead .fi{width:38px;height:38px;border-radius:10px;background:var(--pill);display:grid;place-items:center}
+.nbHead h2{font-size:22px;font-weight:600;margin:0;line-height:1.2}
+.nbHead small{display:block;color:var(--mut);font-size:13px}
+.nbBody{flex:1;display:flex;min-height:0}
+.nbMain{flex:1;display:flex;flex-direction:column;min-width:0}
+.nbMain .tcol,.nbMain .dock{width:calc(100% - 64px)}
+.nbEmpty{margin:70px auto 0;text-align:center;color:var(--mut);max-width:380px}
+.nbEmpty b{display:block;color:var(--fg);font-size:18px;font-weight:600;margin-bottom:6px}
+.nbSide{width:330px;flex:none;border-left:1px solid var(--line);padding:16px 18px;display:flex;flex-direction:column;gap:18px;overflow:hidden}
+.nbSecH{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14.5px;margin-bottom:10px;position:relative}
+.nbSecH .cnt{color:var(--mut);font-weight:400}
+.nbSecH .add{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:13.5px;border:1px solid var(--line2)!important;border-radius:8px;padding:3px 10px!important;font-weight:400}
+.nbSecH .add .i{width:14px;height:14px}
+#nbRefs{display:grid;gap:8px}
+#nbRefs:empty::before{content:"No references yet";color:var(--mut);font-size:13.5px}
+.nbr{display:flex;align-items:center;gap:10px;font-size:13.5px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;animation:pop .3s ease-out;line-height:1.3}
+.nbr .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nbInstr{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;min-height:110px;font-size:14px;white-space:pre-wrap;line-height:1.5}
+.nbSaved{font-size:12.5px;color:var(--ok);margin-top:6px;opacity:0;transition:opacity .2s;display:flex;gap:4px;align-items:center}
+.nbSaved .i{width:14px;height:14px}
+.nbSaved.on{opacity:1}
+
+/* modals */
+.modal{position:absolute;inset:0;background:var(--scrim);display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .2s;z-index:40}
+.modal.on{opacity:1}
+.mbox{background:var(--menu);border-radius:16px;box-shadow:var(--shadow);padding:22px 24px;width:440px;transform:scale(.97);transition:transform .2s}
+.modal.on .mbox,.modal.on .gbox{transform:none}
+.mbox h3{margin:0 0 14px;font-size:18px;font-weight:600}
+.field{border:1px solid var(--line2);border-radius:10px;padding:9px 12px;font-size:15px;min-height:42px}
+.mact{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.gbox{background:var(--menu);border-radius:18px;box-shadow:var(--shadow);width:min(900px,86%);height:min(620px,84%);display:flex;flex-direction:column;padding:20px 24px;transform:scale(.97);transition:transform .2s}
+.gh{display:flex;align-items:center}
+.gh h3{margin:0;font-size:20px;font-weight:600;flex:1}
+.gtabs{display:flex;gap:6px;margin:16px 0 16px}
+.gtabs span{padding:6px 14px;border-radius:10px;font-size:14.5px;color:var(--fg2);transition:background .15s}
+.gtabs span.on{background:var(--pill);color:var(--fg);font-weight:600}
+.ggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;overflow:hidden;align-content:start}
+.gcard{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px;min-height:150px;animation:fadeUp .25s ease-out;position:relative}
+.gcard b{font-weight:600;font-size:14.5px;padding-right:64px}
+.gcard p{margin:0;font-size:13.5px;color:var(--fg2);line-height:1.45;flex:1}
+.gcard small{color:var(--mut);font-size:12.5px}
+.gcard .gacts{position:absolute;top:8px;right:8px;display:flex}
+.gcard .shared{color:var(--accent);font-weight:600}
+.gempty{grid-column:1/-1;color:var(--mut);padding:40px 0;text-align:center}
+
+/* overlays inside the UI */
+#utoast{position:absolute;left:50%;bottom:120px;transform:translate(-50%,12px);background:var(--toast);color:var(--toastFg);border-radius:12px;padding:10px 16px;font-size:14px;display:flex;gap:8px;align-items:center;opacity:0;transition:opacity .2s,transform .2s;z-index:50;box-shadow:var(--shadow);white-space:nowrap}
+#utoast.on{opacity:1;transform:translate(-50%,0)}
+#utoast .i{width:16px;height:16px}
+#cursor{position:absolute;left:0;top:0;width:24px;height:24px;z-index:80;pointer-events:none;opacity:0;transition-property:transform,opacity;transition-timing-function:cubic-bezier(.45,.05,.25,1);transition-duration:0ms,.2s;will-change:transform}
+#cursor.on{opacity:1}
+#cursor svg{position:absolute;left:-3px;top:-2px;width:24px;height:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));transition:transform .1s}
+#cursor.down svg{transform:scale(.86)}
+#cursor .rip{position:absolute;left:-17px;top:-17px;width:34px;height:34px;border-radius:50%;background:rgba(0,145,213,.35);transform:scale(0);opacity:0}
+#cursor .rip.go{animation:rip .45s ease-out}
+@keyframes rip{0%{transform:scale(.2);opacity:1}100%{transform:scale(1.4);opacity:0}}
+#hl{position:absolute;left:0;top:0;border:3px solid #0091d5;border-radius:14px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:70}
+#hl.on{opacity:1;animation:hlp 1.6s ease-in-out infinite}
+@keyframes hlp{0%,100%{box-shadow:0 0 0 4px rgba(0,145,213,.18)}50%{box-shadow:0 0 0 10px rgba(0,145,213,.28)}}
+#hl .lab{position:absolute;top:calc(100% + 12px);left:-3px;background:#0a2a4e;color:#fff;font:600 16px/1.3 Calibri,"Segoe UI",sans-serif;padding:8px 14px;border-radius:9px;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+#hl .lab:empty{display:none}
+#hl.up .lab{top:auto;bottom:calc(100% + 12px)}
+#hl.right .lab{left:auto;right:-3px}
+
+/* ---------- presentation overlays (not zoomed; sized by --u = 1% of frame height) ---------- */
+#cap{position:absolute;left:50%;bottom:calc(var(--u)*17);transform:translate(-50%,calc(var(--u)*1.2));background:rgba(10,42,78,.95);color:#fff;font:600 calc(var(--u)*2.5)/1.3 Calibri,"Segoe UI",sans-serif;padding:calc(var(--u)*1.25) calc(var(--u)*2.6);border-radius:calc(var(--u)*1.3);opacity:0;transition:opacity .35s,transform .35s;max-width:78%;text-align:center;z-index:85;box-shadow:0 calc(var(--u)*.6) calc(var(--u)*2.4) rgba(0,0,0,.25);pointer-events:none}
+#cap.on{opacity:1;transform:translate(-50%,0)}
+#badge{position:absolute;right:calc(var(--u)*1.6);top:calc(var(--u)*1.4);background:rgba(10,42,78,.9);color:#fff;font:700 calc(var(--u)*1.3)/1 Calibri,"Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:calc(var(--u)*.7) calc(var(--u)*1.1);border-radius:calc(var(--u)*.6);z-index:86;display:none}
+#badge.on{display:block}
+.card{position:absolute;inset:0;z-index:90;opacity:0;pointer-events:none;transition:opacity .55s;display:flex;flex-direction:column;justify-content:center;padding:0 calc(var(--u)*10) calc(var(--u)*4);font-family:Calibri,Carlito,"Segoe UI",sans-serif}
+.card.on{opacity:1}
+.card.now{transition:none}
+.card.navy{background:#0a2a4e;color:#fff}
+.card.navy::before{content:"";position:absolute;left:0;top:0;bottom:0;width:calc(var(--u)*1.5);background:#0091d5}
+.card.light{background:#fff;color:#0a2a4e}
+.card.light::before{content:"";position:absolute;left:0;top:0;bottom:0;width:calc(var(--u)*1.5);background:#0a2a4e}
+.card.match{background:var(--bg);color:var(--fg)}
+.card .k{font-size:calc(var(--u)*1.9);letter-spacing:.2em;font-weight:700;color:#0091d5;text-transform:uppercase;margin-bottom:calc(var(--u)*2.6)}
+.card .ct{font-family:Cambria,Caladea,Georgia,serif;font-weight:700;font-size:calc(var(--u)*7.2);line-height:1.1;margin:0;max-width:92%}
+.card .ct.sm{font-size:calc(var(--u)*5)}
+.card .cs{font-size:calc(var(--u)*2.9);margin-top:calc(var(--u)*3);color:#c4daea;max-width:85%;line-height:1.35}
+.card.light .cs{color:#14406e}
+.card.match .cs{color:var(--fg2)}
+.card .cprompts{margin-top:calc(var(--u)*4);display:grid;gap:calc(var(--u)*1.5);max-width:88%}
+.card .cp{background:#14406e;border-radius:calc(var(--u)*1);padding:calc(var(--u)*1.5) calc(var(--u)*2.2);font-family:"Courier New",Courier,monospace;font-size:calc(var(--u)*2.15);line-height:1.38;color:#fff}
+.card .cprompts.n3 .cp,.card .cprompts.n4 .cp{font-size:calc(var(--u)*1.75);padding:calc(var(--u)*1.1) calc(var(--u)*2)}
+.card.light .cp{background:#eff4f9;color:#0a2a4e}
+.card.match .cp{background:var(--bubble);color:var(--fg)}
+.card .cfoot{position:absolute;left:calc(var(--u)*10);right:calc(var(--u)*6);bottom:calc(var(--u)*5);display:flex;justify-content:space-between;gap:calc(var(--u)*4);font-size:calc(var(--u)*1.75);color:#9fb4c6}
+.card.light .cfoot{color:#6b8ca8}
+.card.match .cfoot{color:var(--mut)}
+
+/* ---------- toolbar ---------- */
+#bar{position:fixed;left:0;right:0;bottom:0;height:54px;background:#202327;border-top:1px solid #33373d;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:13.5px;z-index:100}
+#bar button,#bar select{background:#2d3238;border:1px solid #3c4249;border-radius:8px;height:34px;padding:0 11px;color:#e8e8e8;font-size:13.5px}
+#bar select{padding:0 6px;max-width:330px}
+#bar button:hover{background:#383e45}
+#bar .pri{background:#0f6cbd;border-color:#0f6cbd;font-weight:600;min-width:86px}
+#bar .pri:hover{background:#1a7ad1}
+#bar .rec{background:#a4262c;border-color:#a4262c;font-weight:600}
+#bar .rec:hover{background:#bc2f36}
+#bar .grow{flex:1}
+#bar .tg{display:flex;align-items:center;gap:5px;color:#c8c8c8;white-space:nowrap}
+#bar .sep{width:1px;height:26px;background:#3c4249;margin:0 4px}
+#frameInfo{color:#8d949c;font-size:12.5px;white-space:nowrap}
+#toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:#2d3238;border:1px solid #4a5057;color:#fff;padding:9px 16px;border-radius:10px;font-size:13.5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;max-width:80vw;text-align:center}
+#toast.on{opacity:1}
+
+/* ---------- editor drawer ---------- */
+#drawer{position:fixed;right:0;top:0;bottom:54px;width:500px;background:#1f2226;border-left:1px solid #33373d;transform:translateX(100%);transition:transform .2s;z-index:110;display:flex;flex-direction:column;font-size:13.5px}
+body.drawer #drawer{transform:none}
+body.nobar #drawer{bottom:0}
+.dtabs{display:flex;border-bottom:1px solid #33373d;flex:none}
+.dtabs button{flex:1;background:none;border:0;padding:13px 0;color:#9aa1a9;font-weight:600;border-bottom:2px solid transparent}
+.dtabs button.on{color:#fff;border-bottom-color:#0f6cbd}
+.dpane{display:none;overflow-y:auto;padding:14px 16px 30px;flex:1}
+.dpane.on{display:block}
+.dpane h4{margin:18px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8d949c}
+.dpane h4:first-child{margin-top:2px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.row > label{width:118px;color:#b9bfc6;flex:none}
+.row > input[type=text],.row > input[type=number],.row > select,.row > textarea{flex:1;min-width:0}
+#drawer input[type=text],#drawer input[type=number],#drawer select,#drawer textarea{background:#15171a;border:1px solid #3c4249;border-radius:7px;color:#eee;padding:6px 8px;font:inherit}
+#drawer textarea{width:100%;resize:vertical;line-height:1.45}
+#drawer textarea.code{font-family:"Cascadia Mono",Consolas,Menlo,monospace;font-size:12.5px;min-height:340px;white-space:pre;tab-size:2}
+#drawer .btn{background:#2d3238;border:1px solid #3c4249;border-radius:7px;padding:6px 11px;color:#e8e8e8;font-size:13px}
+#drawer .btn:hover{background:#383e45}
+#drawer .btn.pri{background:#0f6cbd;border-color:#0f6cbd}
+#drawer .btn.red{background:#a4262c;border-color:#a4262c}
+#drawer .msg,#clips .msg{color:#9aa1a9;font-size:12.5px;line-height:1.45;margin:6px 0}
+#drawer .msg.ok{color:#6ccb5f}#drawer .msg.err{color:#ff8a80}
+.slist{border:1px solid #33373d;border-radius:9px;overflow:hidden;margin-top:8px}
+.slist .sh{background:#262a2f;color:#8d949c;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:7px 10px;font-weight:700}
+.slist .si{padding:7px 10px;border-top:1px solid #2b2f34;cursor:pointer;display:flex;gap:8px}
+.slist .si:hover{background:#262a2f}
+.slist .si.on{background:#0f6cbd33;color:#fff}
+.slist .si .no{color:#8d949c;width:28px;flex:none;text-align:right}
+details.cheat{margin-top:10px;background:#15171a;border:1px solid #33373d;border-radius:8px;padding:8px 10px}
+details.cheat summary{cursor:pointer;color:#b9bfc6;font-weight:600}
+details.cheat pre{white-space:pre-wrap;font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;color:#cfd4d9;margin:8px 0 0;line-height:1.5}
+.chk{display:flex;align-items:center;gap:6px;color:#b9bfc6}
+.fmtSeg{display:inline-flex}.fmtSeg .btn{border-radius:0}.fmtSeg .btn:first-child{border-radius:7px 0 0 7px}.fmtSeg .btn:last-child{border-radius:0 7px 7px 0}
+.fmtSeg .btn.on{background:#0f6cbd;border-color:#0f6cbd}
+
+/* clips panel */
+#clips{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:200}
+#clips.on{display:grid}
+.cbox{background:#1f2226;border:1px solid #3c4249;border-radius:14px;padding:18px 20px;width:min(760px,92vw);max-height:90vh;overflow:auto}
+.cbox h3{margin:0 0 10px;font-size:17px}
+.cbox video{width:100%;border-radius:8px;background:#000;max-height:46vh}
+.clipRow{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #33373d;font-size:13px}
+.clipRow .nm{flex:1;min-width:0}
+.clipRow .nm small{display:block;color:#9aa1a9}
+.clipRow a,.clipRow button{background:#2d3238;border:1px solid #3c4249;border-radius:7px;padding:5px 10px;color:#e8e8e8;text-decoration:none;font-size:12.5px}
+#dropzone{position:fixed;inset:0;background:rgba(15,108,189,.25);border:3px dashed #0f6cbd;display:none;place-items:center;font-size:20px;color:#fff;z-index:250;pointer-events:none}
+#dropzone.on{display:grid}
+</style>
+</head>
+<body>
+<div id="viewport">
+  <div id="stage" class="t-light">
+    <div id="ui">
+      <aside id="side">
+        <div class="stop"><span class="brand">Copilot</span><span class="ib" data-i="waffle"></span><span class="ib" data-i="tasks"></span><span class="ib" data-i="panel"></span></div>
+        <div class="seg"><span class="on">Chat</span><span>Cowork</span></div>
+        <nav class="nav">
+          <a id="navNew" class="sel"><span data-i="newchat"></span>New chat</a>
+          <a id="navSearch"><span data-i="search"></span>Search</a>
+          <a id="navLib"><span data-i="library"></span>Library</a>
+          <a id="navNb"><span data-i="folder"></span>Notebooks</a>
+        </nav>
+        <div class="chatsH">Chats <span data-i="chevR"></span></div>
+        <div class="sfoot"><div class="av" id="avatar"></div><div class="who"><div><span class="tag" id="pTag"></span><span id="pName"></span></div><small id="pPlan"></small></div><span class="ib" id="gear" data-i="gear"></span></div>
+      </aside>
+      <section id="main">
+        <header id="top">
+          <div class="modeSeg" id="modeSeg"><span id="mWork" class="on"></span><span id="mWeb"></span></div>
+          <button id="modelBtn"><span id="modelName">Auto</span><span data-i="chevD"></span></button>
+          <div class="tright"><span class="ib" data-i="shield"></span><span class="ib" data-i="bubble"></span><span class="ib" data-i="more"></span></div>
+          <div class="menu" id="modelMenu"></div>
+        </header>
+        <div id="views">
+          <div class="view on" id="vHome">
+            <div class="homeCol">
+              <h1 class="greet" id="greet"></h1>
+              <div id="homeDock">
+                <div id="composer">
+                  <div class="attRow" id="attRow"></div>
+                  <div class="crow">
+                    <button class="ib" id="cPlus" data-i="plus"></button>
+                    <div id="cText"></div>
+                    <button class="ib" id="cPrompts" data-i="book"></button>
+                    <button class="ib" id="cMic" data-i="mic"></button>
+                    <button id="cSend" data-i="voice"></button>
+                  </div>
+                  <div class="pop" id="attPop"></div>
+                </div>
+                <div class="disc" id="disc"></div>
+              </div>
+              <div class="chips" id="chips"></div>
+            </div>
+          </div>
+          <div class="view" id="vChat">
+            <div class="thread" id="chatThread"><div class="tcol" id="chatCol"></div></div>
+            <div class="dock" id="chatDock"></div>
+          </div>
+          <div class="view" id="vNbList">
+            <div class="nbl"><div class="nblHead"><h1>Notebooks</h1><button class="prim" id="nbCreate"><span data-i="plus"></span>Create new</button></div><div class="nblGrid" id="nblGrid"></div></div>
+          </div>
+          <div class="view" id="vNb">
+            <div class="nbHead"><div class="fi" data-i="folder"></div><div><h2 id="nbName"></h2><small>Notebook</small></div></div>
+            <div class="nbBody">
+              <div class="nbMain">
+                <div class="thread" id="nbThread"><div class="tcol" id="nbCol"></div></div>
+                <div class="dock" id="nbDock"></div>
+              </div>
+              <aside class="nbSide">
+                <div><div class="nbSecH">References <span class="cnt" id="nbCount"></span><button class="add" id="nbAdd"><span data-i="plus"></span>Add</button><div class="pop down" id="nbPop"></div></div><div id="nbRefs"></div></div>
+                <div><div class="nbSecH">Instructions</div><div class="nbInstr" id="nbInstr"></div><div class="nbSaved" id="nbSaved"><span data-i="check"></span>Saved</div></div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="modal" id="nbModal"><div class="mbox"><h3>Create a notebook</h3><div class="field" id="nbField"></div><div class="mact"><button class="btnG mx">Cancel</button><button class="btnP" id="nbGo">Create</button></div></div></div>
+      <div class="modal" id="gal"><div class="gbox"><div class="gh"><h3>Prompt Gallery</h3><button class="ib mx" data-i="close"></button></div><div class="gtabs" id="galTabs"></div><div class="ggrid" id="galGrid"></div></div></div>
+      <div id="utoast"></div>
+      <div id="hl"><div class="lab"></div></div>
+      <div id="cursor"><svg viewBox="0 0 24 24"><path d="M4 2.5v17.2l4.6-4.3 2.9 6.6 3-1.3-2.9-6.5h6.3z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="rip"></span></div>
+    </div>
+    <div id="cap"></div>
+    <div id="badge">Simulated</div>
+    <div id="card" class="card navy"></div>
+  </div>
+</div>
+
+<div id="bar">
+  <button id="bDrawer" title="Scenes and editor (D)">☰ Scenes</button>
+  <button id="bPrev" title="Previous scene (←)">‹</button>
+  <select id="sceneSel" title="Scene"></select>
+  <button id="bNext" title="Next scene (→)">›</button>
+  <span class="sep"></span>
+  <button id="bPlay" class="pri" title="Play / pause (Space)">▶ Play</button>
+  <button id="bRestart" title="Reset to the start (R)">⟲</button>
+  <button id="bEnd" title="Jump to the finished screen (E)">⏭</button>
+  <select id="speedSel" title="Playback speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select>
+  <label class="tg" title="Show the title and end cards in preview and recordings"><input type="checkbox" id="cardsTg"> Title &amp; end cards</label>
+  <button id="bTheme" title="Light / dark (T)">◐ Light</button>
+  <span class="grow"></span>
+  <span id="frameInfo"></span>
+  <button id="bRec" class="rec" title="Record this scene to MP4 (C)">● Rec</button>
+  <button id="bRecSec" title="Record every scene in this section, one MP4 each">● Rec section</button>
+  <button id="bHide" title="Hide this bar (H)">⌄</button>
+</div>
+
+<div id="drawer">
+  <div class="dtabs"><button data-p="pScenes" class="on">Scenes</button><button data-p="pScript">Script</button><button data-p="pLook">Look</button><button data-p="pRec">Record</button></div>
+
+  <div class="dpane on" id="pScenes">
+    <h4>Saved scenes</h4>
+    <div class="row"><button class="btn pri" id="sNew">+ New scene</button><button class="btn" id="sDup">Duplicate</button><button class="btn" id="sUp">▲</button><button class="btn" id="sDown">▼</button><button class="btn red" id="sDel">Delete</button></div>
+    <p class="msg">Scenes are grouped by section and saved in this browser as you edit. Click one to load it.</p>
+    <div class="slist" id="sList"></div>
+    <h4>Library</h4>
+    <div class="row"><button class="btn" id="lExport">Export (.json)</button><button class="btn" id="lExportL">Export (.jsonl)</button><label class="btn" style="cursor:pointer">Import .json / .jsonl…<input type="file" id="lImport" accept=".json,.jsonl,.ndjson,.txt,application/json" hidden></label></div>
+    <div class="row"><label class="chk"><input type="checkbox" id="lAppend" checked> Add imported scenes to the library (untick to replace it)</label></div>
+    <div class="row"><button class="btn" id="lStandalone">Download standalone HTML</button><button class="btn red" id="lReset">Reset to built-in scenes</button></div>
+    <p class="msg" id="libMsg">Export to back up or share your scenes. A standalone HTML file carries your scenes and look inside it.</p>
+  </div>
+
+  <div class="dpane" id="pScript">
+    <h4>Scene</h4>
+    <div class="row"><label>Title</label><input type="text" data-c="title"></div>
+    <div class="row"><label>Section</label><input type="text" data-c="section" list="secList"><datalist id="secList"></datalist></div>
+    <div class="row"><label>Slide</label><input type="text" data-c="slide" placeholder="e.g. 47"></div>
+    <div class="row"><label>Theme</label><select data-c="theme"><option value="">Follow the light/dark toggle</option><option value="light">Always light</option><option value="dark">Always dark</option></select></div>
+    <div class="row"><label>Starts in</label><select data-c="mode"><option value="work">Work IQ</option><option value="web">Web</option></select></div>
+    <div class="row"><label>Starting model</label><select data-c="model" id="sceneModel"></select></div>
+    <h4>Title card (header)</h4>
+    <div class="row"><label class="chk"><input type="checkbox" data-c="intro.on"> Show</label></div>
+    <div class="row"><label>Kicker</label><input type="text" data-c="intro.kicker" class="phK"></div>
+    <div class="row"><label>Title</label><input type="text" data-c="intro.title" placeholder="(scene title)"></div>
+    <div class="row"><label>Subtitle</label><input type="text" data-c="intro.subtitle" placeholder="(section)"></div>
+    <h4>End card</h4>
+    <div class="row"><label class="chk"><input type="checkbox" data-c="outro.on"> Show</label><label class="chk"><input type="checkbox" data-c="outro.prompts"> List the prompts used</label></div>
+    <div class="row"><label>Kicker</label><input type="text" data-c="outro.kicker" class="phO"></div>
+    <div class="row"><label>Takeaway</label><input type="text" data-c="outro.title" placeholder="Try it yourself"></div>
+    <div class="row"><label>Extra line</label><input type="text" data-c="outro.body" placeholder="(optional)"></div>
+    <h4>Script</h4>
+    <div class="row"><span class="fmtSeg"><button class="btn" data-f="script">Script</button><button class="btn" data-f="jsonl">JSONL</button></span><button class="btn" id="jCopy">Copy JSONL</button><button class="btn" id="jLLM" title="Copies instructions you can paste into any LLM to write a scene">Copy LLM prompt</button></div>
+    <textarea class="code" data-c="script" id="scriptBox" spellcheck="false"></textarea>
+    <textarea class="code" id="jsonlBox" spellcheck="false" style="display:none"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn pri" id="sPlay">▶ Play from the start</button><button class="btn" id="sEnd">Show the finished screen</button></div>
+    <p class="msg" id="scriptMsg"></p>
+    <details class="cheat"><summary>JSONL format</summary><pre>{"type":"scene","title":"…","section":"…","slide":"47"}
+{"type":"model","value":"Think Deeper"}
+{"type":"prompt","text":"…","context":["Paper.docx","Pack.xlsx",
+  {"name":"Budget queries","kind":"email"}]}   (files attached to this prompt, shown as chips)
+{"type":"think","steps":["Reading Paper.docx",{"text":"Comparing","ms":2500}]}
+{"type":"response","markdown":"…[1]","refs":[{"title":"Paper.docx","kind":"docx","meta":"You attached this"}],"followups":["…"],"files":[{"name":"Deck.pptx","meta":"8 slides"}]}
+{"type":"caption","text":"…","ms":4000}
+Any script command works as {"type":"newchat"}, {"type":"pause","value":1500} …
+A file with several "scene" lines imports as several scenes.</pre></details>
+    <details class="cheat" open><summary>Script cheat sheet</summary><pre>&gt; prompt text          type it into the box and send
+~ thinking step        shown while Copilot works (add {2000} for ms)
+~= Thought for 20s     label once the thinking collapses
+&lt; response…           Markdown until the next command line:
+                       ## heading, **bold**, - bullets, 1. lists,
+                       | tables |, ```code```, [1] citations
+^ Title | kind | meta  a reference (docx xlsx pptx pdf email
+                       meeting teams web loop)
+? follow-up            a suggestion chip under the answer
+@file Name.pptx | 8 slides   a file Copilot made
+
+@model Think Deeper    open the model picker and choose
+@mode web              Work IQ / Web toggle (work | web)
+@attach A.docx; B.xlsx pick files with the + button
+@type text / @send     type without sending, then send
+@newchat               start a new chat
+@caption Text | 4000   lower-third caption (@caption clears)
+@highlight model | Label    ring + label (@unhighlight)
+   targets: model work web plus send composer notebooks
+   newchat chips prompts last lastprompt refs file
+@click target          move the pointer and click
+@pause 1500            wait (ms)
+@scroll prompt|end     scroll the conversation
+@save Title            save the last prompt to the gallery
+@gallery Suggested|Saved|Team   open / switch tab
+@share                 share the newest saved prompt
+@close                 close a dialog
+@notebooks             open Notebooks
+@create Month End      create a notebook
+@refs A.xlsx; B.docx   add references to it
+@instructions text     type the notebook instructions
+@instant … @live       set up earlier turns with no animation
+@theme dark|light      switch mid-scene
+// comment</pre></details>
+  </div>
+
+  <div class="dpane" id="pLook">
+    <h4>Copilot</h4>
+    <div class="row"><label>Theme</label><select data-s="theme"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+    <div class="row"><label>Name</label><input type="text" data-s="name"></div>
+    <div class="row"><label>Account tag</label><input type="text" data-s="tag"></div>
+    <div class="row"><label>Plan</label><input type="text" data-s="plan"></div>
+    <div class="row"><label>Initials</label><input type="text" data-s="initials" style="max-width:70px"><label class="btn" style="cursor:pointer;width:auto">Photo…<input type="file" id="photoIn" accept="image/*" hidden></label><button class="btn" id="photoClear">No photo</button></div>
+    <div class="row"><label>Work label</label><input type="text" data-s="workLabel"></div>
+    <div class="row"><label>Web label</label><input type="text" data-s="webLabel"></div>
+    <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="showWeb"> Always show the Web option</label></div>
+    <div class="row"><label>Greeting</label><input type="text" data-s="greeting"></div>
+    <div class="row"><label>Placeholder</label><input type="text" data-s="placeholder"></div>
+    <div class="row"><label>Disclaimer</label><input type="text" data-s="disclaimer"></div>
+    <div class="row"><label>Models</label><textarea rows="3" data-s="models" title="One per line: Name | description"></textarea></div>
+    <div class="row"><label>Home chips</label><textarea rows="4" data-s="chips"></textarea></div>
+    <div class="row"><label>Notebooks</label><textarea rows="3" data-s="notebooks" title="Existing notebooks shown in the list"></textarea></div>
+    <div class="row"><label>Team name</label><input type="text" data-s="team"></div>
+    <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="refsOpen"> Expand references under answers</label></div>
+    <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="cursor"> Show the animated pointer</label></div>
+    <h4>Frame</h4>
+    <div class="row"><label>Video size</label><select data-s="frame"><option value="1920x1080">1920 × 1080 (16:9)</option><option value="1280x720">1280 × 720 (16:9)</option><option value="2560x1440">2560 × 1440 (16:9)</option><option value="1440x1080">1440 × 1080 (4:3)</option></select></div>
+    <div class="row"><label>UI zoom</label><select data-s="zoom" data-num="1"><option value="1">100% (as on a laptop)</option><option value="1.1">110%</option><option value="1.25">125% (good for slides)</option><option value="1.4">140%</option><option value="1.5">150% (large print)</option></select></div>
+    <h4>Pace</h4>
+    <div class="row"><label>Typing</label><input type="number" data-s="typeCps" min="5" max="200"> <span class="msg">characters / second</span></div>
+    <div class="row"><label>Answers</label><input type="number" data-s="streamWps" min="2" max="200"> <span class="msg">words / second</span></div>
+    <div class="row"><label>Thinking step</label><input type="number" data-s="thinkMs" min="100" max="10000" step="100"> <span class="msg">ms each, varied a little. Think Deeper ×1.7, Quick Response ×0.55</span></div>
+    <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="autoThink"> Add reasoning steps when a script has none</label></div>
+    <h4>Title &amp; end cards</h4>
+    <div class="row"><label>Style</label><select data-s="cardStyle"><option value="navy">Deck navy</option><option value="light">Deck light</option><option value="match">Match Copilot theme</option></select></div>
+    <div class="row"><label>Title card</label><input type="number" data-s="introMs" min="0" step="250"> <span class="msg">ms</span></div>
+    <div class="row"><label>End hold</label><input type="number" data-s="tailMs" min="0" step="250"> <span class="msg">ms on the finished screen</span></div>
+    <div class="row"><label>End card</label><input type="number" data-s="outroMs" min="0" step="250"> <span class="msg">ms</span></div>
+    <div class="row"><label>Kicker</label><input type="text" data-s="kicker"></div>
+    <div class="row"><label>End kicker</label><input type="text" data-s="outroKicker"></div>
+    <div class="row"><label>Brand line</label><input type="text" data-s="cardBrand"></div>
+    <div class="row"><label>Footnote</label><input type="text" data-s="footnote"></div>
+    <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="badge"> “Simulated” badge on the video</label></div>
+    <div class="row" style="margin-top:12px"><button class="btn red" id="lookReset">Reset the look</button></div>
+  </div>
+
+  <div class="dpane" id="pRec">
+    <h4>Record for PowerPoint</h4>
+    <p class="msg">Records just the stage (no browser bars) to MP4: title card → the scene → end card, hands-free. Choose <b>this tab</b> when the browser asks. Esc stops early.</p>
+    <div class="row"><button class="btn red" id="rScene">● Record this scene</button><button class="btn" id="rSection">● Record this section</button><button class="btn" id="rAll">● Record every scene</button></div>
+    <p class="msg" id="clipFormat"></p>
+    <div class="row"><label>Quality</label><select data-s="clipQuality" data-num="1"><option value="1500000">Small · 1.5 Mbps (≈ 11 MB/min)</option><option value="3000000">Balanced · 3 Mbps (≈ 22 MB/min)</option><option value="6000000">High · 6 Mbps (≈ 45 MB/min)</option></select></div>
+    <div class="row"><label>Frame rate</label><select data-s="clipFps" data-num="1"><option value="30">30 fps</option><option value="60">60 fps</option></select></div>
+    <p class="msg" id="clipMsg"></p>
+    <h4>Tips</h4>
+    <p class="msg">• Open this file directly in Chrome or Edge. Previews and embedded frames block screen capture.<br>• Make the window large (F11 helps). The clip is scaled to the video size, so a bigger window gives a sharper clip.<br>• Recording a section downloads one file per scene. If Chrome asks to allow multiple downloads, choose Allow.<br>• Files are rebuilt as standard MP4 (H.264) without re-encoding, so PowerPoint accepts them: Insert → Video → This Device.</p>
+    <h4>Fix an earlier clip</h4>
+    <div class="row"><label class="btn" style="cursor:pointer;width:auto">Make a clip PowerPoint-ready…<input type="file" id="fixIn" accept="video/mp4,.mp4,video/*" hidden></label></div>
+    <p class="msg" id="fixMsg">Or drop the .mp4 anywhere on the page.</p>
+  </div>
+</div>
+
+<div id="clips"><div class="cbox"><h3>Clips ready</h3><video id="clipVid" controls muted></video><p class="msg">Each clip has been downloaded to your browser's downloads folder. If one is missing, use Save.</p><div id="clipList"></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" id="clipsX" style="background:#2d3238;border:1px solid #3c4249;border-radius:7px;padding:6px 14px;color:#eee">Close</button></div></div></div>
+<div id="toast"></div>
+<div id="dropzone">Drop a library .json to import it, or an .mp4 to make it PowerPoint-ready</div>
+
+<script type="application/json" id="embedded-library"></script>
+<script>
+'use strict';
+const ORIGINAL_HTML = '<!doctype html>\n' + document.documentElement.outerHTML;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const slug = s => String(s || 'clip').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'clip';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = () => 's' + Math.random().toString(36).slice(2, 9);
+
+/* ---------- icons ---------- */
+const LIKE = '<path d="M7.5 10.5v9h-3v-9zM7.5 10.5l3.8-6.5c1.4 0 2.4 1.2 2.1 2.6l-.6 3.4h5.1a2 2 0 0 1 2 2.4l-1.2 5.8a2 2 0 0 1-2 1.8H7.5"/>';
+const ICON = {
+  waffle: [5, 12, 19].flatMap(y => [5, 12, 19].map(x => `<circle cx="${x}" cy="${y}" r="1.7" fill="currentColor" stroke="none"/>`)).join(''),
+  tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 12.2l2.8 2.8L16.5 9"/>',
+  panel: '<rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+  newchat: '<circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M12 7.5v9M7.5 12h9" style="stroke:var(--bg)" stroke-width="2"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20.5 20.5"/>',
+  library: '<path d="M4.5 4h3v16h-3zM10 4h3v16h-3zM15.2 5.2l2.9-.8 3.6 14.8-2.9.8z"/>',
+  folder: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.2h7.5A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>',
+  chevR: '<path d="M9.5 6l6 6-6 6"/>',
+  chevD: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8l1.7 2.5 2.9-.8.6 2.9 2.7 1.3-.9 2.8.9 2.8-2.7 1.3-.6 2.9-2.9-.8L12 21.2l-1.7-2.5-2.9.8-.6-2.9-2.7-1.3.9-2.8-.9-2.8 2.7-1.3.6-2.9 2.9.8z"/>',
+  shield: '<path d="M12 2.8l7.5 3v5.8c0 4.6-3.1 8.3-7.5 9.6-4.4-1.3-7.5-5-7.5-9.6V5.8z" style="stroke:var(--ok)"/><path d="M8.6 12l2.4 2.4 4.4-4.6" style="stroke:var(--ok)"/>',
+  bubble: '<path d="M12 3.5a8.5 8.5 0 1 0 4.2 15.9l3.8 1.1-1.1-3.7A8.5 8.5 0 0 0 12 3.5z" stroke-dasharray="3.2 2.4"/>',
+  more: '<circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  plus: '<path d="M12 4.5v15M4.5 12h15"/>',
+  mic: '<rect x="9" y="2.8" width="6" height="11.5" rx="3" fill="currentColor"/><path d="M5.8 11a6.2 6.2 0 0 0 12.4 0M12 17.2v3.5"/>',
+  voice: '<path d="M6 10v4M9 7v10M12 4.5v15M15 7v10M18 10v4"/>',
+  up: '<path d="M12 19V5.5M6 11l6-6 6 6"/>',
+  stop: '<rect x="7.5" y="7.5" width="9" height="9" rx="1.5" fill="currentColor" stroke="none"/>',
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
+  like: LIKE,
+  dislike: `<g transform="rotate(180 12 12)">${LIKE}</g>`,
+  share: '<path d="M12 14.5V3.8M8 7.5l4-3.7 4 3.7M5 12.5v5.5A2 2 0 0 0 7 20h10a2 2 0 0 0 2-2v-5.5"/>',
+  bookmark: '<path d="M7 3.8h10v16.4l-5-3.6-5 3.6z"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.6 3.6 8.5s-1 5.9-3.6 8.5C9.4 17.9 8.4 14.9 8.4 12S9.4 6.1 12 3.5z"/>',
+  book: '<path d="M5 18.5V6a2.5 2.5 0 0 1 2.5-2.5H19v12.5H7.5A2.5 2.5 0 0 0 5 18.5zm0 0A2.5 2.5 0 0 0 7.5 21H19v-5"/><path d="M12 7l.8 1.9 1.9.8-1.9.8L12 12.4l-.8-1.9-1.9-.8 1.9-.8z" fill="currentColor" stroke="none"/>',
+  mail: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  chat: '<path d="M4 5.5h16v10H9.5L5 19.5v-4H4z"/>',
+  page: '<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>'
+};
+const ic = (n, cls) => `<svg class="i${cls ? ' ' + cls : ''}" viewBox="0 0 24 24">${ICON[n] || ''}</svg>`;
+function paintIcons(root = document) { $$('[data-i]', root).forEach(e => { if (!e.querySelector('svg')) e.insertAdjacentHTML('afterbegin', ic(e.dataset.i)); }); }
+
+/* file tiles: generic coloured tiles, not product logos */
+const FT = { docx: ['W', '#185abd'], xlsx: ['X', '#107c41'], pptx: ['P', '#c43e1c'], pdf: ['PDF', '#d13438'], email: ['@mail', '#0f6cbd'], meeting: ['@cal', '#5b5fc7'], teams: ['@chat', '#5b5fc7'], web: ['@globe', '#616161'], loop: ['L', '#7719aa'], page: ['@page', '#6b6b6b'], folder: ['@folder', '#c19c00'] };
+function kindOf(name) {
+  const m = String(name).toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = m ? m[1] : '';
+  return { doc: 'docx', docx: 'docx', xls: 'xlsx', xlsx: 'xlsx', csv: 'xlsx', ppt: 'pptx', pptx: 'pptx', pdf: 'pdf', msg: 'email', eml: 'email', loop: 'loop' }[ext] || 'page';
+}
+function tile(kind) {
+  const k = FT[kind] ? kind : 'page', [g, c] = FT[k];
+  return `<span class="ft ${k}" style="background:${c}">${g[0] === '@' ? ic(g.slice(1)) : g}</span>`;
+}
+// "Name | kind" items separated by ;
+function parseFiles(arg) {
+  return String(arg || '').split(';').map(s => s.trim()).filter(Boolean).map(s => {
+    const [name, kind] = s.split('|').map(x => x.trim());
+    return { name, kind: kind || kindOf(name) };
+  });
+}
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('m365sim.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('m365sim.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* ---------- settings ---------- */
+const DEFAULTS = {
+  theme: 'light', frame: '1920x1080', zoom: 1.25, speed: 1, cards: true,
+  typeCps: 38, streamWps: 14, thinkMs: 1400, autoThink: true, scriptFmt: 'script', cursor: true, refsOpen: true,
+  name: 'Jason', tag: 'Work', plan: 'M365 Copilot (Premium)', initials: 'J', photo: '',
+  workLabel: 'Work IQ', webLabel: 'Web', showWeb: false,
+  greeting: 'What can I help with?', placeholder: 'Message Copilot', disclaimer: 'AI-generated content may be incorrect',
+  models: 'Auto | Decides how long to think\nQuick Response | Answers right away\nThink Deeper | Thinks longer for better answers',
+  chips: 'File Insights\nInbox Triage\nPeople Search\nMeeting Prep',
+  notebooks: 'Board — November\nTheatre expansion\nCQC readiness',
+  team: 'Hospital Directors',
+  cardStyle: 'navy', introMs: 3500, tailMs: 2500, outroMs: 6500,
+  kicker: 'C · Microsoft 365 Copilot', outroKicker: 'Try it in Copilot Chat', cardBrand: 'Microsoft 365 Copilot · Chat',
+  footnote: 'Simulated demonstration · illustrative content, not real data', badge: false,
+  clipQuality: 3000000, clipFps: 30
+};
+let S = Object.assign({}, DEFAULTS, store.get('settings', {}));
+const saveSettings = () => store.set('settings', S);
+const models = () => S.models.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [n, d] = l.split('|').map(x => x.trim()); return { name: n, desc: d || '' }; });
+const frameSize = () => { const [w, h] = String(S.frame).split('x').map(Number); return [w || 1920, h || 1080]; };
+
+/* ---------- library of saved scenes ---------- */
+function normScene(s) {
+  s = s || {};
+  return Object.assign({ id: uid(), section: 'Scenes', slide: '', title: 'Untitled scene', theme: '', mode: 'work', model: '', script: '' }, s, {
+    intro: Object.assign({ on: true, kicker: '', title: '', subtitle: '' }, s.intro || {}),
+    outro: Object.assign({ on: true, kicker: '', title: '', body: '', prompts: true }, s.outro || {})
+  });
+}
+const EMBEDDED = (() => { try { const t = $('#embedded-library').textContent.trim(); return t ? JSON.parse(t) : null; } catch (e) { return null; } })();
+const LIBKEY = EMBEDDED ? 'library.' + hash(JSON.stringify(EMBEDDED)) : 'library';
+function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+let LIB;
+function loadLibrary() {
+  const saved = store.get(LIBKEY, null);
+  const src = saved || (EMBEDDED && EMBEDDED.scenes ? EMBEDDED : null) || { version: 1, scenes: BUILTIN };
+  if (!saved && EMBEDDED && EMBEDDED.look && !store.get('settings.' + LIBKEY, null)) { S = Object.assign({}, DEFAULTS, EMBEDDED.look); store.set('settings.' + LIBKEY, 1); saveSettings(); }
+  LIB = { version: 1, scenes: (src.scenes || []).map(normScene) };
+  if (!LIB.scenes.length) LIB.scenes = BUILTIN.map(normScene);
+}
+const saveLib = (() => { let t; return () => { clearTimeout(t); t = setTimeout(() => store.set(LIBKEY, LIB), 300); }; })();
+let CUR = 0;
+const scene = () => LIB.scenes[CUR];
+const sections = () => { const out = []; LIB.scenes.forEach(s => { if (!out.includes(s.section)) out.push(s.section); }); return out; };
+
+/* ---------- script parser ---------- */
+// Line commands: > prompt · ~ thinking · < response (Markdown until the next command) · ^ reference · ? follow-up · @command
+function parseScript(src) {
+  const steps = []; let resp = null, think = null, lastR = null;
+  const endResp = () => { if (resp) { resp.md = resp.lines.join('\n').replace(/\s+$/, ''); delete resp.lines; resp = null; } };
+  for (const raw of String(src || '').replace(/\r/g, '').split('\n')) {
+    const isCmd = /^(>|<|~|\^|\?|@|\/\/)/.test(raw);
+    if (resp && !isCmd) { resp.lines.push(raw); continue; }
+    if (!isCmd) continue;
+    endResp();
+    if (raw.startsWith('//')) continue;
+    const ch = raw[0], rest = raw.slice(1).trim();
+    if (ch === '>') { think = null; steps.push({ t: 'prompt', text: rest }); }
+    else if (ch === '~') {
+      if (!think) { think = { t: 'think', lines: [], summary: '' }; steps.push(think); }
+      if (rest.startsWith('=')) { think.summary = rest.slice(1).trim(); continue; }
+      const m = rest.match(/^(.*?)\s*\{(\d+)\}$/);
+      think.lines.push({ text: m ? m[1] : rest, ms: m ? +m[2] : 0 });
+    }
+    else if (ch === '<') { think = null; resp = { t: 'resp', lines: rest ? [rest] : [], refs: [], fups: [], files: [] }; steps.push(resp); lastR = resp; }
+    else if (ch === '^') { if (lastR) { const [title, kind, meta] = rest.split('|').map(x => x.trim()); lastR.refs.push({ title, kind: kind || kindOf(title), meta: meta || '' }); } }
+    else if (ch === '?') { if (lastR) lastR.fups.push(rest); }
+    else if (ch === '@') {
+      const m = rest.match(/^(\w+)\s*([\s\S]*)$/); if (!m) continue;
+      const cmd = m[1].toLowerCase(), arg = m[2].trim();
+      if (cmd === 'file') { if (lastR) { const [name, meta] = arg.split('|').map(x => x.trim()); lastR.files.push({ name, meta: meta || '', kind: kindOf(name) }); } continue; }
+      think = null; steps.push({ t: 'cmd', cmd, arg });
+    }
+  }
+  endResp();
+  return steps;
+}
+/* ---------- JSONL: one JSON object per line, converted to and from the script ---------- */
+const SCENE_KEYS = ['title', 'section', 'slide', 'theme', 'mode', 'model', 'intro', 'outro'];
+function sceneToJsonl(sc) {
+  const head = { type: 'scene' }; SCENE_KEYS.forEach(k => { head[k] = clone(sc[k]); });
+  const out = [JSON.stringify(head)];
+  let ctx = null;   // an @attach just before a prompt becomes that prompt's context array
+  for (const s of parseScript(sc.script)) {
+    if (ctx && !(s.t === 'prompt')) { out.push(JSON.stringify({ type: 'attach', files: ctx })); ctx = null; }
+    if (s.t === 'cmd' && s.cmd === 'attach') { ctx = (ctx || []).concat(parseFiles(s.arg).map(f => f.kind === kindOf(f.name) ? f.name : { name: f.name, kind: f.kind })); continue; }
+    if (s.t === 'prompt') { out.push(JSON.stringify(ctx ? { type: 'prompt', text: s.text, context: ctx } : { type: 'prompt', text: s.text })); ctx = null; }
+    else if (s.t === 'think') out.push(JSON.stringify(Object.assign({ type: 'think', steps: s.lines.map(l => l.ms ? { text: l.text, ms: l.ms } : l.text) }, s.summary ? { summary: s.summary } : {})));
+    else if (s.t === 'resp') { const r = { type: 'response', markdown: s.md }; if (s.refs.length) r.refs = s.refs; if (s.files.length) r.files = s.files.map(f => ({ name: f.name, meta: f.meta })); if (s.fups.length) r.followups = s.fups; out.push(JSON.stringify(r)); }
+    else if (s.cmd === 'attach' || s.cmd === 'refs') out.push(JSON.stringify({ type: s.cmd, files: parseFiles(s.arg).map(f => f.kind === kindOf(f.name) ? f.name : f.name + ' | ' + f.kind) }));
+    else out.push(JSON.stringify(s.arg ? { type: s.cmd, value: s.arg } : { type: s.cmd }));
+  }
+  if (ctx) out.push(JSON.stringify({ type: 'attach', files: ctx }));
+  return out.join('\n');
+}
+const fileArg = fs => (Array.isArray(fs) ? fs : [fs]).filter(Boolean).map(x => typeof x === 'string' ? x : x.name + (x.kind ? ' | ' + x.kind : '')).join('; ');
+// Records → script lines. Unknown types become @commands, so anything the script supports works in JSONL too.
+function recordsToScript(recs) {
+  const L = [];
+  for (const r of recs) {
+    const t = String(r.type || '').toLowerCase();
+    if (t === 'prompt' || t === 'user') { const ctx = r.context || r.attach || r.files; if (ctx && ctx.length) L.push('@attach ' + fileArg(ctx)); L.push('> ' + String(r.text || '').replace(/\s*\n\s*/g, ' ')); }
+    else if (t === 'think' || t === 'thinking' || t === 'reasoning') {
+      (r.steps || (r.text ? [r.text] : [])).forEach(x => { const o = typeof x === 'string' ? { text: x } : x; L.push('~ ' + o.text + (o.ms ? ` {${o.ms}}` : '')); });
+      if (r.summary) L.push('~= ' + r.summary);
+    }
+    else if (t === 'response' || t === 'assistant' || t === 'answer') {
+      const lines = String(r.markdown || r.text || '').split('\n').map(l => /^(>|<|~|\^|\?|@|\/\/)/.test(l) ? ' ' + l : l);
+      L.push('< ' + lines[0], ...lines.slice(1));
+      (r.files || []).forEach(x => L.push('@file ' + (typeof x === 'string' ? x : x.name + (x.meta ? ' | ' + x.meta : ''))));
+      (r.refs || r.references || []).forEach(x => L.push('^ ' + (typeof x === 'string' ? x : [x.title, x.kind || kindOf(x.title), x.meta || ''].join(' | '))));
+      (r.followups || []).forEach(x => L.push('? ' + x));
+    }
+    else if (t === 'attach' || t === 'refs') L.push(`@${t} ` + fileArg(r.files || r.value));
+    else if (t === 'caption') L.push('@caption ' + (r.text || r.value || '') + (r.ms ? ' | ' + r.ms : ''));
+    else if (t === 'highlight') L.push('@highlight ' + (r.target || r.value || '') + (r.label ? ' | ' + r.label : ''));
+    else if (t && t !== 'scene' && t !== 'meta') { const v = r.value != null ? r.value : r.text != null ? r.text : r.name != null ? r.name : r.ms != null ? r.ms : ''; L.push(('@' + t + ' ' + v).trim()); }
+  }
+  return L.join('\n');
+}
+// Text with one or more {"type":"scene"} records → scenes. Lines starting with // and blank lines are skipped.
+function jsonlToScenes(text) {
+  const scenes = []; let cur = null, n = 0;
+  for (const raw of String(text).split('\n')) {
+    n++; const line = raw.trim();
+    if (!line || line.startsWith('//')) continue;
+    let r; try { r = JSON.parse(line); } catch (e) { throw new Error(`line ${n} is not valid JSON`); }
+    const t = String(r.type || '').toLowerCase();
+    if (t === 'scene' || t === 'meta' || !cur) { cur = { head: {}, recs: [] }; scenes.push(cur); }
+    if (t === 'scene' || t === 'meta') { SCENE_KEYS.forEach(k => { if (r[k] != null) cur.head[k] = r[k]; }); continue; }
+    cur.recs.push(r);
+  }
+  return scenes.map(s => Object.assign({}, s.head, { slide: s.head.slide != null ? String(s.head.slide) : '', script: recordsToScript(s.recs) }));
+}
+const LLM_PROMPT = `Write a scripted Microsoft 365 Copilot Chat demo as JSONL (one JSON object per line, no commentary, no code fences).
+First line: {"type":"scene","title":"…","section":"…","slide":"47","mode":"work","model":"Auto","outro":{"title":"one-line takeaway"}}
+Then, in order, any of:
+{"type":"model","value":"Think Deeper"}            // Auto | Quick Response | Think Deeper
+{"type":"mode","value":"web"}                      // work (Work IQ) | web
+{"type":"caption","text":"Lower-third caption","ms":4000}
+{"type":"prompt","text":"What the user types","context":["Board paper.docx","Pack.xlsx",{"name":"Budget queries","kind":"email"}]}   // context is optional: documents attached to this prompt
+{"type":"think","steps":["Searching your email","Reading Board paper.docx",{"text":"Comparing versions","ms":2500}],"summary":"Thought for 20 seconds"}
+{"type":"response","markdown":"Copilot's answer in Markdown: ## headings, **bold**, - bullets, | tables |, citations like [1]","refs":[{"title":"Board paper.docx","kind":"docx","meta":"SharePoint · Finance"}],"files":[{"name":"Summary.docx","meta":"Word document · 1 page"}],"followups":["Make it shorter"]}
+{"type":"newchat"}  {"type":"pause","value":1500}  {"type":"highlight","target":"model","label":"Choose how hard it thinks"}
+Reference kinds: docx xlsx pptx pdf email meeting teams web loop.
+Keep answers realistic, concise and grounded in the cited sources. Use invented names and numbers, never real or patient data.
+The scene is about: `;
+
+// The prompts a viewer actually sees typed (skips @instant set-up), for the end card
+function promptsOf(sc) {
+  const out = []; let instant = false;
+  for (const s of parseScript(sc.script)) {
+    if (s.t === 'cmd' && s.cmd === 'instant') instant = true;
+    else if (s.t === 'cmd' && s.cmd === 'live') instant = false;
+    else if (!instant && (s.t === 'prompt' || (s.t === 'cmd' && s.cmd === 'type')) && (s.text || s.arg) && !out.includes(s.text || s.arg)) out.push(s.text || s.arg);
+  }
+  return out;
+}
+
+/* ---------- Markdown (the subset Copilot answers use) ---------- */
+function inline(s) {
+  let h = esc(s);
+  const codes = [];
+  h = h.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return '\u0000' + (codes.length - 1) + '\u0000'; });
+  h = h.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(^|[^*\w])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
+  h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a>$1</a>');
+  h = h.replace(/\[(\d{1,2})\]/g, '<span class="cite">$1</span>');
+  h = h.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[i]}</code>`);
+  return h;
+}
+function md(src) {
+  const lines = String(src).split('\n'), out = []; let para = [], i = 0;
+  const flush = () => { if (para.length) { out.push('<p>' + para.map(inline).join('<br>') + '</p>'); para = []; } };
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^\s*```/.test(l)) {
+      flush(); const code = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+      i++; out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); continue;
+    }
+    if (/^\s*$/.test(l)) { flush(); i++; continue; }
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.*)$/))) { flush(); const n = Math.min(4, m[1].length + 1); out.push(`<h${n}>${inline(m[2])}</h${n}>`); i++; continue; }
+    if (/^\s*-{3,}\s*$/.test(l)) { flush(); out.push('<hr>'); i++; continue; }
+    if (/^\s*\|/.test(l)) {
+      flush(); const rows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) { const r = lines[i++]; if (!/^\s*\|?[\s:|-]+\|?\s*$/.test(r) || !/-/.test(r)) rows.push(r); }
+      const cells = r => { const c = r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(x => x.trim()); return c; };
+      const [head, ...body] = rows.map(cells);
+      out.push('<table><thead><tr>' + head.map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>' +
+        body.map(r => '<tr>' + head.map((_, j) => `<td>${inline(r[j] || '')}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
+      continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      flush(); const items = [];
+      while (i < lines.length && (m = lines[i].match(/^(\s*)([-*]|\d+\.)\s+(.*)$/))) { items.push({ lv: Math.min(2, Math.floor(m[1].length / 2)), ord: /\d/.test(m[2]), n: parseInt(m[2], 10) || 1, text: m[3] }); i++; }
+      let h = '', depth = -1; const tags = [];
+      for (const it of items) {
+        const lv = Math.min(depth + 1, it.lv);
+        if (lv > depth) { const t = it.ord ? 'ol' : 'ul'; h += it.ord && it.n !== 1 ? `<ol start="${it.n}">` : `<${t}>`; tags.push(t); depth = lv; }
+        else { h += '</li>'; while (depth > lv) { h += `</${tags.pop()}></li>`; depth--; } }
+        h += '<li>' + inline(it.text);
+      }
+      h += '</li>'; while (tags.length) { h += `</${tags.pop()}>`; if (tags.length) h += '</li>'; }
+      out.push(h); continue;
+    }
+    para.push(l); i++;
+  }
+  flush();
+  return out.join('');
+}
+// While streaming, close a dangling ** or ` so half-written words don't flash asterisks
+function mdPartial(s) {
+  if (((s.match(/\*\*/g) || []).length) % 2) s += '**';
+  const fences = (s.match(/^\s*```/gm) || []).length;
+  if (!fences && ((s.match(/`/g) || []).length) % 2) s += '`';
+  return md(s);
+}
+
+/* ---------- timing: every wait honours speed, pause, skip-to-end and restart ---------- */
+const ABORT = new Error('aborted');
+const RUN = { id: 0, paused: false, playing: false, instant: false, speed: 1 };
+async function wait(ms, opt) {
+  const id = RUN.id, real = opt && opt.real;
+  if (id !== RUN.id) throw ABORT;
+  if (RUN.instant && !real) return;
+  let left = ms, last = performance.now();
+  while (left > 0) {
+    await sleep(Math.min(16, left));
+    if (id !== RUN.id) throw ABORT;
+    const now = performance.now(), dt = now - last; last = now;
+    if (!RUN.paused) left -= dt * (real ? 1 : RUN.speed);
+  }
+}
+// Seeded randomness so a scene plays identically every time
+let seed = 1;
+const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+/* ---------- UI state ---------- */
+let ST;
+function freshState(sc) {
+  const ms = models();
+  return {
+    mode: sc.mode === 'web' ? 'web' : 'work',
+    model: (ms.find(m => m.name === sc.model) || ms[0] || { name: 'Auto' }).name,
+    view: 'home', typed: '', attach: [], busy: false, pendingA: null,
+    saved: [], shared: [], nb: null, galTab: 'Suggested', hl: null, scrollTo: null
+  };
+}
+const ui = $('#ui'), stage = $('#stage');
+function applyTheme(t) { stage.classList.toggle('t-dark', t === 'dark'); stage.classList.toggle('t-light', t !== 'dark'); }
+const sceneTheme = sc => sc.theme || S.theme;
+
+function applyChrome() {
+  $('#pName').textContent = S.name; $('#pTag').textContent = S.tag; $('#pTag').style.display = S.tag ? '' : 'none'; $('#pPlan').textContent = S.plan;
+  const av = $('#avatar');
+  if (S.photo) { av.style.backgroundImage = `url("${S.photo}")`; av.textContent = ''; } else { av.style.backgroundImage = ''; av.textContent = (S.initials || S.name.slice(0, 1)).toUpperCase(); }
+  $('#mWork').textContent = S.workLabel; $('#mWeb').textContent = S.webLabel;
+  $('#greet').textContent = S.greeting; $('#disc').textContent = S.disclaimer;
+  $('#chips').innerHTML = S.chips.split('\n').map(c => c.trim()).filter(Boolean).map(c => `<span class="chip">${esc(c)}</span>`).join('') + `<span class="chip dots" id="chipMore">${ic('more')}</span>`;
+  $('#modelMenu').innerHTML = models().map(m => `<div class="mi" data-m="${esc(m.name)}"><div><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></div>${ic('check', 'ck')}</div>`).join('');
+  $('#nblGrid').innerHTML = S.notebooks.split('\n').map(n => n.trim()).filter(Boolean).map((n, i) => `<div class="nbc"><div class="fi">${ic('folder')}</div><div><b>${esc(n)}</b><small>Edited ${['yesterday', '3 days ago', 'last week', '2 weeks ago'][i % 4]}</small></div></div>`).join('');
+  $('#badge').classList.toggle('on', !!S.badge);
+  $('#cardsTg').checked = !!S.cards;
+  $('#speedSel').value = String(S.speed); RUN.speed = Number(S.speed) || 1;
+  $('#bTheme').textContent = S.theme === 'dark' ? '◐ Dark' : '◐ Light';
+  $$('.phK').forEach(e => e.placeholder = S.kicker); $$('.phO').forEach(e => e.placeholder = S.outroKicker);
+  $('#sceneModel').innerHTML = models().map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+  syncClipInfo();
+}
+function renderTop() {
+  $('#mWork').classList.toggle('on', ST.mode === 'work'); $('#mWeb').classList.toggle('on', ST.mode === 'web');
+  $('#modeSeg').classList.toggle('solo', !S.showWeb && !ST.webShown && ST.mode === 'work');
+  $('#modelName').textContent = ST.model;
+  $$('#modelMenu .mi').forEach(m => m.classList.toggle('on', m.dataset.m === ST.model));
+}
+function renderComposer(caret) {
+  const ph = ST.view === 'nb' ? 'Ask about this notebook' : S.placeholder;
+  $('#cText').innerHTML = ST.typed ? esc(ST.typed) + (caret ? '<span class="caret"></span>' : '') : (caret ? '<span class="caret"></span>' : '') + `<span class="ph">${esc(ph)}</span>`;
+  const key = ST.attach.map(f => f.name).join('|'), row = $('#attRow');
+  if (row.dataset.key !== key) { row.dataset.key = key; row.innerHTML = ST.attach.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join(''); }
+  $('#composer').classList.toggle('tall', ST.attach.length > 0);
+  const send = $('#cSend');
+  const state = ST.busy ? 'stop' : (ST.typed || ST.attach.length) ? 'up' : 'voice';
+  if (send.dataset.state !== state) { send.dataset.state = state; send.innerHTML = ic(state); }
+  send.classList.toggle('go', state !== 'voice');
+}
+const VIEWS = { home: '#vHome', chat: '#vChat', nblist: '#vNbList', nb: '#vNb' };
+function showView(v) {
+  ST.view = v;
+  Object.entries(VIEWS).forEach(([k, s]) => $(s).classList.toggle('on', k === v));
+  const dock = { home: '#homeDock', chat: '#chatDock', nb: '#nbDock' }[v];
+  if (dock) { const d = $(dock); d.prepend($('#composer')); d.appendChild($('#disc')); }
+  $('#navNew').classList.toggle('sel', v === 'home' || v === 'chat');
+  $('#navNb').classList.toggle('sel', v === 'nblist' || v === 'nb');
+  renderComposer(false);
+}
+const thread = () => ST.view === 'nb' ? $('#nbCol') : $('#chatCol');
+const scroller = () => ST.view === 'nb' ? $('#nbThread') : ST.view === 'chat' ? $('#chatThread') : null;
+
+function resetUI(sc) {
+  ST = freshState(sc); seed = 1;
+  applyTheme(sceneTheme(sc));
+  $$('.menu.on,.pop.on,.modal.on').forEach(e => e.classList.remove('on'));
+  $('#modelBtn').classList.remove('open');
+  $('#chatCol').innerHTML = ''; $('#nbCol').innerHTML = ''; $('#nbRefs').innerHTML = ''; $('#nbCount').textContent = '';
+  $('#nbInstr').innerHTML = '<span class="ph">Tell Copilot how to respond in this notebook</span>'; $('#nbSaved').classList.remove('on');
+  $('#cap').classList.remove('on'); hideHL(); $('#utoast').classList.remove('on');
+  hideCard(true);
+  showView('home'); renderTop();
+  // pointer rests in the lower middle of the conversation area
+  const cur = $('#cursor'), u = ui.offsetWidth, h = ui.offsetHeight;
+  CURSOR.x = 272 + (u - 272) * 0.62; CURSOR.y = h * 0.8;
+  cur.style.transitionDuration = '0ms,.2s'; cur.style.transform = `translate(${CURSOR.x}px,${CURSOR.y}px)`;
+  cur.classList.toggle('on', !!S.cursor);
+}
+
+/* ---------- pointer, highlight, captions, toasts ---------- */
+const CURSOR = { x: 0, y: 0 };
+function uiRect(target) {
+  const u = ui.getBoundingClientRect(), r = target.getBoundingClientRect(), k = u.width / ui.offsetWidth || 1;
+  return { x: (r.left - u.left) / k, y: (r.top - u.top) / k, w: r.width / k, h: r.height / k };
+}
+async function moveTo(target, ax = 0.5, ay = 0.5) {
+  if (!target || !S.cursor || RUN.instant) return;
+  const r = uiRect(target), x = r.x + r.w * ax, y = r.y + r.h * ay;
+  const d = Math.hypot(x - CURSOR.x, y - CURSOR.y), ms = Math.round(Math.min(950, 260 + d * 0.75));
+  const cur = $('#cursor');
+  cur.classList.add('on');
+  cur.style.transitionDuration = `${Math.round(ms / RUN.speed)}ms,.2s`;
+  cur.style.transform = `translate(${x}px,${y}px)`;
+  CURSOR.x = x; CURSOR.y = y;
+  await wait(ms + 60);
+}
+async function clickOn(target, ax, ay) {
+  if (!target) return;
+  await moveTo(target, ax, ay);
+  if (!S.cursor || RUN.instant) return;
+  const cur = $('#cursor'), rip = $('.rip', cur);
+  cur.classList.add('down'); rip.classList.remove('go'); void rip.offsetWidth; rip.classList.add('go');
+  await wait(150); cur.classList.remove('down'); await wait(90);
+}
+function placeHL() {
+  if (!ST || !ST.hl) return;
+  const r = uiRect(ST.hl.target), p = 6, hl = $('#hl');
+  hl.style.left = r.x - p + 'px'; hl.style.top = r.y - p + 'px'; hl.style.width = r.w + p * 2 + 'px'; hl.style.height = r.h + p * 2 + 'px';
+  hl.classList.toggle('up', r.y + r.h > ui.offsetHeight * 0.72);
+  hl.classList.toggle('right', r.x + r.w / 2 > ui.offsetWidth * 0.62);
+}
+function hideHL() { if (ST) ST.hl = null; $('#hl').classList.remove('on'); }
+function caption(text, ms) {
+  const c = $('#cap'); clearTimeout(c._t);
+  if (!text) { c.classList.remove('on'); return; }
+  const show = () => { c.textContent = text; c.classList.add('on'); };
+  if (c.classList.contains('on') && c.textContent !== text) { c.classList.remove('on'); c._t = setTimeout(show, 300); } else show();
+  if (ms) { const id = RUN.id; setTimeout(() => { if (id === RUN.id && c.textContent === text) c.classList.remove('on'); }, ms / RUN.speed + 300); }
+}
+function utoast(msg) { const t = $('#utoast'); t.innerHTML = ic('check') + esc(msg); t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600 / RUN.speed); }
+
+// one animation loop: smooth auto-scroll and highlight tracking
+function frameLoop() {
+  if (ST) {
+    const sc = scroller();
+    if (sc) {
+      const max = sc.scrollHeight - sc.clientHeight;
+      const target = Math.max(0, Math.min(max, ST.scrollTo == null ? max : ST.scrollTo));
+      const d = target - sc.scrollTop;
+      if (RUN.instant) sc.scrollTop = target;
+      else if (Math.abs(d) > 0.5) sc.scrollTop += d * 0.14 * Math.min(2, RUN.speed);
+    }
+    placeHL();
+  }
+  requestAnimationFrame(frameLoop);
+}
+
+/* ---------- typing ---------- */
+async function typeText(render, text) {
+  if (RUN.instant) { render(text, false); return; }
+  const per = 1000 / (S.typeCps || 38);
+  let i = 0; render('', true);
+  while (i < text.length) {
+    const n = text.length > 160 ? 2 : 1;
+    i = Math.min(text.length, i + n);
+    render(text.slice(0, i), true);
+    let d = per * n * (0.55 + rnd() * 0.9);
+    if (/[,.?!]/.test(text[i - 1])) d += per * 3;
+    await wait(d);
+  }
+  render(text, true);
+}
+
+/* ---------- conversation ---------- */
+function userMsg(text, files) {
+  const u = el('div', 'msg u');
+  if (files.length) u.appendChild(el('div', 'uatt', files.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join('')));
+  if (text) u.appendChild(el('div', 'bub', esc(text)));
+  u.appendChild(el('div', 'uact', `<span class="ib sm">${ic('copy')}</span><span class="ib sm">${ic('edit')}</span><span class="ib sm save">${ic('bookmark')}</span>`));
+  u.dataset.text = text;
+  return u;
+}
+function ensureA() {
+  if (ST.pendingA) return ST.pendingA;
+  const a = el('div', 'msg a'); thread().appendChild(a); ST.pendingA = a; return a;
+}
+async function doType(text) {
+  if (ST.view === 'nblist') return;
+  await clickOn($('#cText'), 0.08, 0.5);
+  const base = ST.typed ? ST.typed + ' ' : '';
+  await typeText((t, caret) => { ST.typed = base + t; renderComposer(caret); }, text);
+  renderComposer(false);
+}
+async function doSend() {
+  if (!ST.typed && !ST.attach.length) return;
+  await wait(300);
+  await clickOn($('#cSend'));
+  if (ST.view === 'home') showView('chat');
+  thread().appendChild(userMsg(ST.typed, ST.attach));
+  ST.typed = ''; ST.attach = []; ST.busy = true; ST.scrollTo = null; renderComposer(false);
+  await wait(450);
+}
+// Think Deeper takes longer, Quick Response barely pauses (matched by position in the model list)
+function modelPace() { const i = models().findIndex(m => m.name === ST.model); return i === 2 ? 1.7 : i === 1 ? 0.55 : 1; }
+// A response with no ~ lines gets reasoning steps made up from what it cites
+function autoThink(resp) {
+  if (!S.autoThink || modelPace() < 1) return null;
+  const lines = [], add = t => { if (t && !lines.includes(t) && lines.length < 4) lines.push(t); };
+  if (ST.mode === 'web') add('Searching the web');
+  resp.refs.forEach(r => {
+    if (r.kind === 'email') add('Searching your email');
+    else if (r.kind === 'meeting') add('Checking your meetings and transcripts');
+    else if (r.kind === 'teams') add('Searching your Teams chats');
+    else if (r.kind === 'web') add('Searching the web');
+    else add('Reading ' + r.title);
+  });
+  if (!lines.length) add('Working on it');
+  return { t: 'think', lines: lines.map(text => ({ text, ms: 0 })), summary: '' };
+}
+async function doThink(s) {
+  const a = ensureA();
+  const th = el('div', 'think', `<div class="thh"><span class="spark"></span><span class="shim"></span></div><ul class="thl"></ul>`);
+  a.appendChild(th);
+  const lab = $('.shim', th), list = $('.thl', th);
+  let total = 0;
+  lab.textContent = ST.model === models()[2]?.name ? 'Thinking deeply' : 'Thinking';
+  await wait(700 * modelPace());
+  for (const line of s.lines) {
+    lab.textContent = line.text;
+    const li = el('li', '', `<span class="d"><span class="ring"></span></span><span>${esc(line.text)}</span>`);
+    list.appendChild(li);
+    const ms = Math.round((line.ms || S.thinkMs * (0.7 + rnd() * 0.7)) * modelPace()); total += ms;
+    await wait(ms);
+    $('.d', li).innerHTML = ic('check');
+  }
+  await wait(250);
+  th.classList.add('done');
+  const secs = Math.max(2, Math.round(total / 1000 * 1.5));
+  $('.thh', th).innerHTML = `${ic('check')}<span>${esc(s.summary || (s.lines.length ? `Reasoned for ${secs}s` : 'Done'))}</span>${ic('chevD')}`;
+}
+async function doResp(s) {
+  const a = ensureA(); ST.pendingA = null;
+  if (!$('.think', a) && !RUN.instant) { const auto = autoThink(s); if (auto) await doThink(auto); }
+  if (!$('.think', a)) { const d = el('div', 'dots', '<i></i><i></i><i></i>'); a.appendChild(d); await wait(900); d.remove(); }
+  const body = el('div', 'body'); a.appendChild(body);
+  const toks = s.md.match(/\s+|[^\s]+/g) || [];
+  if (RUN.instant) body.innerHTML = md(s.md);
+  else {
+    let shown = 0, acc = 0, words = 0;
+    while (shown < toks.length) {
+      await wait(33);
+      acc += (S.streamWps || 14) * 0.033 * RUN.speed * (0.7 + rnd() * 0.6);
+      let changed = false;
+      while (acc >= 1 && shown < toks.length) { if (/\S/.test(toks[shown])) { acc -= 1; words++; } shown++; changed = true; }
+      if (changed) body.innerHTML = mdPartial(toks.slice(0, shown).join(''));
+    }
+    body.innerHTML = md(s.md);
+  }
+  for (const f of s.files) { await wait(250); body.appendChild(el('div', 'fcard', `${tile(f.kind)}<div class="fx"><b>${esc(f.name)}</b><small>${esc(f.meta)}</small></div><span class="open">Open</span>`)); }
+  if (s.refs.length) {
+    await wait(200);
+    const r = el('div', 'refs' + (S.refsOpen ? ' open' : ''), `<span class="refT">${s.refs.length} reference${s.refs.length > 1 ? 's' : ''} ${ic('chevD')}</span><div class="refL">${s.refs.map((x, i) => `<div class="ref"><span class="cite">${i + 1}</span>${tile(x.kind)}<span>${esc(x.title)}</span>${x.meta ? `<span class="meta">· ${esc(x.meta)}</span>` : ''}</div>`).join('')}</div>`);
+    a.appendChild(r);
+  }
+  a.appendChild(el('div', 'acts', ['copy', 'like', 'dislike', 'share', 'more'].map(n => `<span class="ib sm">${ic(n)}</span>`).join('')));
+  ST.busy = false; renderComposer(false);
+  if (s.fups.length) {
+    $$('.fups', thread()).forEach(x => x.remove());
+    await wait(300);
+    a.appendChild(el('div', 'fups', s.fups.map(f => `<span class="fup">${esc(f)}</span>`).join('')));
+  }
+  await wait(500);
+}
+
+/* ---------- commands ---------- */
+const TARGETS = {
+  model: '#modelBtn', work: '#mWork', web: '#mWeb', mode: '#modeSeg', notebooks: '#navNb', newchat: '#navNew', search: '#navSearch', library: '#navLib',
+  plus: '#cPlus', send: '#cSend', composer: '#composer', mic: '#cMic', prompts: '#cPrompts', chips: '#chips', more: '#chipMore', sidebar: '#side', top: '#top',
+  create: '#nbCreate', add: '#nbAdd', instructions: '#nbInstr', references: '#nbRefs', avatar: '.sfoot', settings: '#gear',
+  last: () => $$('.msg.a', thread()).pop(), lastprompt: () => { const u = $$('.msg.u', thread()).pop(); return u && ($('.bub', u) || u); },
+  refs: () => $$('.refs', thread()).pop(), file: () => $$('.fcard', thread()).pop(), think: () => $$('.think', thread()).pop(), followups: () => $$('.fups', thread()).pop()
+};
+function resolve(name) {
+  name = String(name || '').trim();
+  const lc = name.toLowerCase();
+  if (lc.startsWith('chip:')) { const t = name.slice(5).trim().toLowerCase(); return $$('#chips .chip').find(c => c.textContent.trim().toLowerCase() === t); }
+  const t = TARGETS[lc];
+  if (typeof t === 'function') return t();
+  if (t) return $(t);
+  try { return $(name); } catch (e) { return null; }
+}
+async function openPop(pop, files, anchor, btnLabel) {
+  pop.innerHTML = `<div class="popH">Recent files</div>${files.map((f, i) => `<div class="pi" data-i="${i}">${tile(f.kind)}<span class="n">${esc(f.name)}</span><span class="box">${ic('check')}</span></div>`).join('')}<div class="popF"><button class="btnP">${btnLabel}</button></div>`;
+  await clickOn(anchor);
+  pop.classList.add('on'); await wait(450);
+  for (const item of $$('.pi', pop)) { await moveTo(item, 0.4); item.classList.add('hover'); await clickOn(item, 0.4); item.classList.add('on'); item.classList.remove('hover'); await wait(160); }
+  await clickOn($('.btnP', pop));
+  pop.classList.remove('on'); await wait(200);
+}
+const CMDS = {
+  async type(arg) { await doType(arg); },
+  async send() { await doSend(); },
+  async model(arg) {
+    const m = models().find(x => x.name.toLowerCase() === arg.toLowerCase()) || models().find(x => x.name.toLowerCase().startsWith(arg.toLowerCase()));
+    const btn = $('#modelBtn'), menu = $('#modelMenu');
+    menu.style.left = btn.offsetLeft + 'px';
+    await clickOn(btn); btn.classList.add('open'); menu.classList.add('on'); await wait(700);
+    if (m) {
+      const item = $(`.mi[data-m="${CSS.escape(m.name)}"]`, menu);
+      await moveTo(item, 0.3); item.classList.add('hover'); await wait(350); await clickOn(item, 0.3);
+      ST.model = m.name; renderTop(); await wait(250); item.classList.remove('hover');
+    }
+    menu.classList.remove('on'); btn.classList.remove('open'); await wait(300);
+  },
+  async mode(arg) {
+    const web = /web/i.test(arg);
+    if ($('#modeSeg').classList.contains('solo')) { await clickOn($('#mWork')); ST.webShown = true; renderTop(); await wait(350); }
+    ST.webShown = true; renderTop();
+    await clickOn(web ? $('#mWeb') : $('#mWork'));
+    ST.mode = web ? 'web' : 'work'; renderTop(); await wait(400);
+  },
+  async attach(arg) {
+    const files = parseFiles(arg); if (!files.length) return;
+    await openPop($('#attPop'), files, $('#cPlus'), 'Attach');
+    for (const f of files) { ST.attach.push(f); renderComposer(false); await wait(140); }
+    await wait(250);
+  },
+  async newchat() {
+    await clickOn($('#navNew'));
+    $('#chatCol').innerHTML = ''; ST.typed = ''; ST.attach = []; ST.pendingA = null; ST.scrollTo = null; showView('home'); await wait(500);
+  },
+  async pause(arg) { await wait(Number(arg) || 1000); },
+  async wait(arg) { await wait(Number(arg) || 1000); },
+  async caption(arg) { const [t, ms] = arg.split('|').map(x => x.trim()); caption(t, Number(ms) || 0); await wait(t ? 300 : 0); },
+  async highlight(arg) {
+    const [t, label] = arg.split('|').map(x => x.trim()); const target = resolve(t); if (!target) return;
+    ST.hl = { target }; $('.lab', $('#hl')).textContent = label || ''; placeHL(); $('#hl').classList.add('on'); await wait(400);
+  },
+  async unhighlight() { hideHL(); await wait(200); },
+  async click(arg) { await clickOn(resolve(arg)); await wait(200); },
+  async scroll(arg) {
+    const sc = scroller(); if (!sc) return;
+    if (/end|bottom/i.test(arg)) ST.scrollTo = null;
+    else if (/top/i.test(arg)) ST.scrollTo = 0;
+    else { const u = $$('.msg.u', thread()).pop(); if (u) ST.scrollTo = u.offsetTop - 12; }
+    await wait(900);
+  },
+  async save(arg) {
+    const u = $$('.msg.u', thread()).pop(); if (!u) return;
+    await moveTo($('.bub', u) || u, 0.7); u.classList.add('hover'); await wait(400);
+    const b = $('.save', u); await clickOn(b); b.classList.add('on');
+    const text = u.dataset.text;
+    ST.saved.unshift({ title: arg || text.split(/\s+/).slice(0, 5).join(' ').replace(/[,.:;]$/, '') + '…', text, by: 'You' });
+    utoast('Prompt saved to your Prompt Gallery'); await wait(1100); u.classList.remove('hover');
+  },
+  async gallery(arg) {
+    const tab = /save/i.test(arg) ? 'Saved' : /team|share/i.test(arg) ? 'Team' : 'Suggested';
+    const g = $('#gal');
+    if (!g.classList.contains('on')) {
+      await clickOn(ST.view === 'home' ? $('#chipMore') : $('#cPrompts'));
+      renderGallery('Suggested'); g.classList.add('on'); await wait(800);
+    }
+    if (tab !== ST.galTab) { await clickOn($(`#galTabs [data-t="${tab}"]`)); renderGallery(tab); await wait(500); }
+  },
+  async share() {
+    if (ST.galTab !== 'Saved') await CMDS.gallery('Saved');
+    const card = $('#galGrid .gcard'); if (!card || !ST.saved[0]) return;
+    await clickOn($('.gshare', card));
+    const p = ST.saved[0]; p.shared = true; ST.shared.unshift(Object.assign({}, p, { by: S.name }));
+    renderGallery('Saved'); utoast(`Shared with ${S.team}`); await wait(1200);
+  },
+  async close() {
+    const m = $('.modal.on'); if (m) { await clickOn($('.mx', m)); m.classList.remove('on'); await wait(350); }
+    $$('.menu.on,.pop.on').forEach(e => e.classList.remove('on')); $('#modelBtn').classList.remove('open');
+  },
+  async notebooks() { await clickOn($('#navNb')); showView('nblist'); await wait(800); },
+  async create(arg) {
+    if (ST.view !== 'nblist') await CMDS.notebooks();
+    const name = arg || 'New notebook';
+    await clickOn($('#nbCreate')); $('#nbField').innerHTML = '<span class="ph">Name your notebook</span>'; $('#nbModal').classList.add('on'); await wait(500);
+    await clickOn($('#nbField'), 0.1);
+    await typeText((t, caret) => { $('#nbField').innerHTML = t ? esc(t) + (caret ? '<span class="caret"></span>' : '') : '<span class="caret"></span><span class="ph">Name your notebook</span>'; }, name);
+    await wait(300); await clickOn($('#nbGo')); $('#nbModal').classList.remove('on');
+    ST.nb = { name, refs: [] }; $('#nbName').textContent = name; $('#nbCol').innerHTML = `<div class="nbEmpty"><b>Add references to get started</b>Copilot answers from what you put in this notebook.</div>`;
+    showView('nb'); await wait(700);
+  },
+  async refs(arg) {
+    if (ST.view !== 'nb') return;
+    const files = parseFiles(arg); if (!files.length) return;
+    await openPop($('#nbPop'), files, $('#nbAdd'), 'Add');
+    const empty = $('.nbEmpty', $('#nbCol'));
+    for (const f of files) {
+      ST.nb.refs.push(f);
+      $('#nbRefs').appendChild(el('div', 'nbr', `${tile(f.kind)}<span class="n">${esc(f.name)}</span>`));
+      $('#nbCount').textContent = ST.nb.refs.length; await wait(220);
+    }
+    if (empty) empty.innerHTML = `<b>${esc(ST.nb.name)}</b>${files.length === 1 ? '1 reference' : ST.nb.refs.length + ' references'} added. Ask anything about them.`;
+    await wait(300);
+  },
+  async instructions(arg) {
+    const box = $('#nbInstr');
+    await clickOn(box, 0.15, 0.25);
+    await typeText((t, caret) => { box.innerHTML = t ? esc(t) + (caret ? '<span class="caret"></span>' : '') : '<span class="caret"></span>'; }, arg);
+    $('#nbSaved').classList.add('on'); await wait(600);
+  },
+  async instant() { RUN.instant = true; },
+  async live() { RUN.instant = false; renderComposer(false); await wait(400); },
+  async theme(arg) { applyTheme(/dark/i.test(arg) ? 'dark' : 'light'); await wait(300); },
+  async cursor(arg) { const on = !/off|hide|no/i.test(arg); $('#cursor').classList.toggle('on', on && S.cursor); }
+};
+const SUGGESTED = [
+  ['Catch up on email', 'Summarise my unread email from today and highlight anything that needs my attention.'],
+  ['Prepare for a meeting', 'Help me prepare for my next meeting. Include the agenda, attendees and recent emails about it.'],
+  ['Draft a reply', 'Draft a reply to the latest email from my manager. Keep it short and friendly.'],
+  ['Understand a file', 'Summarise /file in five bullet points and list any open questions.'],
+  ['What did I miss?', 'What happened in Teams and email while I was out yesterday?'],
+  ['Find information', 'Find the latest documents and emails about /project and tell me where it stands.']
+];
+const TEAM = [
+  ['Who is waiting on me', 'Find emails from the past 48 hours where someone is waiting on a reply or a decision from me.', 'Priya Shah'],
+  ['Board paper summary', 'Turn this paper into a one-page executive summary for the board. Lead with the decision and the ask.', 'Sarah Whitlock'],
+  ['Variance commentary', 'Draft the monthly commentary from this analysis, in our house format: driver, amount, action, owner.', 'Priya Shah']
+];
+function renderGallery(tab, quiet) {
+  ST.galTab = tab;
+  $('#galTabs').innerHTML = [['Suggested', 'Suggested'], ['Saved', 'Saved prompts'], ['Team', S.team]].map(([k, l]) => `<span data-t="${k}" class="${k === tab ? 'on' : ''}">${esc(l)}</span>`).join('');
+  let cards;
+  if (tab === 'Suggested') cards = SUGGESTED.map(([t, p]) => ({ title: t, text: p, by: 'Microsoft' }));
+  else if (tab === 'Saved') cards = ST.saved;
+  else cards = ST.shared.concat(TEAM.map(([t, p, b]) => ({ title: t, text: p, by: b })));
+  $('#galGrid').innerHTML = cards.length ? cards.map(c => `<div class="gcard"${quiet ? ' style="animation:none"' : ''}><div class="gacts">${tab === 'Saved' ? `<span class="ib sm gshare">${ic('share')}</span>` : ''}<span class="ib sm">${ic('more')}</span></div><b>${esc(c.title)}</b><p>${esc(c.text)}</p><small>${c.shared ? `<span class="shared">Shared with ${esc(S.team)}</span>` : (tab === 'Team' ? 'Shared by ' : tab === 'Saved' ? 'Saved by ' : 'From ') + esc(c.by)}</small></div>`).join('')
+    : `<div class="gempty">Prompts you save from a chat appear here.</div>`;
+}
+
+async function runStep(s) {
+  if (s.t === 'prompt') { await doType(s.text); await doSend(); return; }
+  if (s.t === 'think') return doThink(s);
+  if (s.t === 'resp') return doResp(s);
+  const f = CMDS[s.cmd];
+  if (f) return f(s.arg || '');
+  console.warn('Unknown command @' + s.cmd);
+}
+
+/* ---------- title & end cards ---------- */
+function introHTML(sc) {
+  const k = sc.intro.kicker || S.kicker, t = sc.intro.title || sc.title, sub = sc.intro.subtitle || sc.section;
+  return `<div class="k">${esc(k)}</div><h1 class="ct">${esc(t)}</h1>${sub ? `<div class="cs">${esc(sub)}</div>` : ''}<div class="cfoot"><span>${esc(S.cardBrand)}</span><span>${sc.slide ? 'Slide ' + esc(sc.slide) : ''}</span></div>`;
+}
+function outroHTML(sc) {
+  const k = sc.outro.kicker || S.outroKicker, t = sc.outro.title || 'Try it yourself', ps = sc.outro.prompts ? promptsOf(sc).slice(0, 4) : [];
+  return `<div class="k">${esc(k)}</div><h1 class="ct sm">${esc(t)}</h1>${sc.outro.body ? `<div class="cs">${esc(sc.outro.body)}</div>` : ''}` +
+    (ps.length ? `<div class="cprompts n${ps.length}">${ps.map(p => `<div class="cp">“${esc(p)}”</div>`).join('')}</div>` : '') +
+    `<div class="cfoot"><span>${esc(S.cardBrand)}</span><span>${esc(S.footnote)}</span></div>`;
+}
+function showCard(kind, sc, now) {
+  const c = $('#card');
+  c.className = 'card ' + S.cardStyle + (now ? ' now' : '');
+  c.innerHTML = kind === 'intro' ? introHTML(sc) : outroHTML(sc);
+  void c.offsetWidth; c.classList.add('on');
+  if (now) { void c.offsetWidth; c.classList.remove('now'); }
+}
+function hideCard(now) { const c = $('#card'); if (now) { c.classList.add('now'); c.classList.remove('on'); void c.offsetWidth; c.classList.remove('now'); } else c.classList.remove('on'); }
+
+/* ---------- player ---------- */
+async function play(opt = {}) {
+  const sc = scene(), id = ++RUN.id;
+  RUN.paused = false; RUN.playing = true; RUN.instant = !!opt.instant; syncBar();
+  if (!opt.preset) resetUI(sc);
+  const cards = opt.cards != null ? opt.cards : S.cards;
+  let steps;
+  try { steps = parseScript(sc.script); } catch (e) { toast('Script error: ' + e.message); RUN.playing = false; syncBar(); return 'error'; }
+  try {
+    if (cards && sc.intro.on && !opt.instant) {
+      if (!opt.preset) showCard('intro', sc, true);
+      await wait(S.introMs, { real: true }); hideCard(); await wait(700, { real: true });
+    } else await wait(400);
+    for (const s of steps) await runStep(s);
+    RUN.instant = false;
+    if (!opt.instant) {
+      await wait(S.tailMs, { real: true });
+      if (cards && sc.outro.on) { showCard('outro', sc); await wait(S.outroMs + 550, { real: true }); }
+    }
+  } catch (e) {
+    if (e !== ABORT) { console.error(e); toast('Script error: ' + e.message); }
+    else return 'aborted';
+  }
+  if (id === RUN.id) { RUN.playing = false; RUN.instant = false; syncBar(); }
+  return 'done';
+}
+function stopPlay() { RUN.id++; RUN.playing = false; RUN.paused = false; RUN.instant = false; syncBar(); }
+function togglePlay() {
+  if (!RUN.playing) { play(); return; }
+  RUN.paused = !RUN.paused; syncBar();
+}
+function restart() { stopPlay(); resetUI(scene()); }
+function jumpToEnd() { stopPlay(); play({ instant: true, cards: false }); }
+function syncBar() { $('#bPlay').textContent = RUN.playing ? (RUN.paused ? '▶ Resume' : '❚❚ Pause') : '▶ Play'; }
+
+/* ---------- stage sizing ---------- */
+function fit() {
+  const [W, H] = frameSize(), vp = $('#viewport');
+  const pad = document.body.classList.contains('rec') ? 0 : 28;
+  const s = Math.min((vp.clientWidth - pad) / W, (vp.clientHeight - pad) / H);
+  stage.style.width = W + 'px'; stage.style.height = H + 'px';
+  stage.style.transform = `translate(${Math.round((vp.clientWidth - W * s) / 2)}px,${Math.round((vp.clientHeight - H * s) / 2)}px) scale(${s})`;
+  stage.style.setProperty('--u', H / 100 + 'px');
+  const z = (Number(S.zoom) || 1.25) * W / 1920;
+  ui.style.width = W / z + 'px'; ui.style.height = H / z + 'px'; ui.style.transform = `scale(${z})`;
+  $('#frameInfo').textContent = `${W} × ${H} · shown at ${Math.round(s * 100)}%`;
+}
+
+/* ---------- toolbar, scene list ---------- */
+function toast(msg, ms = 3000) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), ms); }
+const label = s => (s.slide ? s.slide + ' · ' : '') + s.title;
+function renderSceneList() {
+  $('#sceneSel').innerHTML = sections().map(sec => `<optgroup label="${esc(sec)}">${LIB.scenes.map((s, i) => s.section === sec ? `<option value="${i}">${esc(label(s))}</option>` : '').join('')}</optgroup>`).join('');
+  $('#sceneSel').value = String(CUR);
+  $('#sList').innerHTML = sections().map(sec => `<div class="sh">${esc(sec)}</div>` + LIB.scenes.map((s, i) => s.section === sec ? `<div class="si${i === CUR ? ' on' : ''}" data-i="${i}"><span class="no">${esc(s.slide || '')}</span><span>${esc(s.title)}</span></div>` : '').join('')).join('');
+  $('#secList').innerHTML = sections().map(s => `<option value="${esc(s)}">`).join('');
+  const n = LIB.scenes.filter(s => s.section === scene().section).length;
+  $('#bRecSec').textContent = `● Rec section (${n})`;
+}
+function selectScene(i, quiet) {
+  CUR = Math.max(0, Math.min(LIB.scenes.length - 1, i));
+  store.set('cur', scene().id);
+  stopPlay(); resetUI(scene()); renderSceneList(); syncForm();
+  if (!quiet) toast(label(scene()), 1500);
+}
+function getPath(o, p) { return p.split('.').reduce((a, k) => a == null ? a : a[k], o); }
+function setPath(o, p, v) { const ks = p.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+function syncForm() {
+  const sc = scene();
+  $$('[data-c]').forEach(inp => { const v = getPath(sc, inp.dataset.c); if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v == null ? '' : v; });
+  $$('[data-s]').forEach(inp => { const v = S[inp.dataset.s]; if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v == null ? '' : v; });
+  $('#sceneModel').value = sc.model || models()[0].name;
+  checkScript(); syncFmt();
+}
+function checkScript() {
+  const steps = parseScript(scene().script), unknown = steps.filter(s => s.t === 'cmd' && !CMDS[s.cmd]).map(s => '@' + s.cmd);
+  const p = steps.filter(s => s.t === 'prompt').length, r = steps.filter(s => s.t === 'resp').length;
+  const m = $('#scriptMsg');
+  m.className = 'msg' + (unknown.length ? ' err' : '');
+  m.textContent = unknown.length ? 'Unknown command: ' + [...new Set(unknown)].join(', ') : `${steps.length} steps · ${p} prompt${p === 1 ? '' : 's'} · ${r} answer${r === 1 ? '' : 's'}`;
+}
+function bindForm() {
+  $$('[data-c]').forEach(inp => {
+    const ev = inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'change' : 'input';
+    inp.addEventListener(ev, () => {
+      const p = inp.dataset.c, v = inp.type === 'checkbox' ? inp.checked : inp.value;
+      setPath(scene(), p, v); saveLib();
+      if (/^(title|section|slide)$/.test(p)) renderSceneList();
+      if (p === 'script') checkScript();
+      if (/^(theme|mode|model)$/.test(p) && !RUN.playing) resetUI(scene());
+    });
+  });
+  $$('[data-s]').forEach(inp => {
+    const ev = inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'change' : 'input';
+    inp.addEventListener(ev, () => {
+      const k = inp.dataset.s; let v = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (inp.type === 'number' || inp.dataset.num) v = Number(v);
+      S[k] = v; saveSettings(); applyChrome();
+      if (k === 'frame' || k === 'zoom') fit();
+      if (!RUN.playing) resetUI(scene());
+    });
+  });
+}
+
+/* ---------- recording ---------- */
+const CLIP = { active: false, stream: null, rec: null, clips: [] };
+function syncClipInfo() {
+  const mime = clipMime(), [w, h] = frameSize(), mbps = (Number(S.clipQuality) || 3e6) / 1e6;
+  $('#clipFormat').textContent = !mime ? 'This browser can’t record clips. Use a recent Chrome or Edge.'
+    : `Output: ${mime.startsWith('video/mp4') ? 'MP4 (H.264), PowerPoint-ready' : 'WebM. This browser has no H.264 recorder, so PowerPoint will need the clip converted. Use the latest Chrome or Edge'} · ${w} × ${h} · ≈ ${Math.round(mbps * 60 / 8)} MB per minute`;
+}
+function clipMsg(t, cls) { const m = $('#clipMsg'); m.className = 'msg' + (cls ? ' ' + cls : ''); m.textContent = t; if (cls === 'err') toast(t, 6000); }
+async function record(indexes) {
+  if (CLIP.active) { stopRecording(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || !window.MediaRecorder) { clipMsg('This browser can’t record the page. Open the HTML file directly in a recent Chrome or Edge.', 'err'); return; }
+  const pol = document.permissionsPolicy || document.featurePolicy;
+  if (pol && pol.allowsFeature && !pol.allowsFeature('display-capture')) { clipMsg('Recording is blocked because this page is inside a preview or frame. Open the HTML file directly in Chrome or Edge.', 'err'); return; }
+  const fps = Number(S.clipFps) || 30, [W, H] = frameSize();
+  stopPlay();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: fps, displaySurface: 'browser', cursor: 'never' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' });
+  } catch (e) {
+    clipMsg(e && e.name === 'NotAllowedError' ? 'Recording was cancelled or blocked. Open the HTML file directly in Chrome or Edge and choose this tab.' : 'Could not start capture: ' + (e && e.message || e), 'err');
+    return;
+  }
+  const track = stream.getVideoTracks()[0];
+  document.body.classList.add('rec'); document.body.classList.remove('drawer'); fit();
+  let cropped = false;
+  try { if (window.CropTarget && track.cropTo) { await track.cropTo(await CropTarget.fromElement(stage)); cropped = true; } } catch (e) {}
+  try { await track.applyConstraints({ width: W, height: H, frameRate: fps }); } catch (e) {}
+  Object.assign(CLIP, { active: true, stream, clips: [], cropped, title: document.title });
+  track.addEventListener('ended', () => stopRecording());
+  const mime = clipMime();
+  // show the first scene's title card before the "sharing" bar settles
+  CUR = indexes[0]; resetUI(scene()); if (S.cards && scene().intro.on) showCard('intro', scene(), true);
+  await sleep(1000);
+  for (const idx of indexes) {
+    if (!CLIP.active) break;
+    CUR = idx; renderSceneList();
+    const sc = scene();
+    document.title = `● REC ${indexes.indexOf(idx) + 1}/${indexes.length} · ${sc.title}`;
+    resetUI(sc); if (S.cards && sc.intro.on) showCard('intro', sc, true);
+    await sleep(350);
+    let rec;
+    try { rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Number(S.clipQuality) || 3e6 }); }
+    catch (e) { clipMsg('Could not start the recorder: ' + e.message, 'err'); break; }
+    CLIP.rec = rec;
+    const chunks = [], stopped = new Promise(r => { rec.onstop = r; });
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const t0 = performance.now(), size = track.getSettings();
+    rec.start(1000);
+    await sleep(250);
+    const result = await play({ preset: true, cards: S.cards });
+    await sleep(200);
+    if (rec.state !== 'inactive') rec.stop();
+    await stopped;
+    if (result === 'aborted' || !chunks.length) break;
+    await saveClip(new Blob(chunks, { type: rec.mimeType || mime || 'video/webm' }), sc, performance.now() - t0, size);
+  }
+  stream.getTracks().forEach(t => t.stop());
+  CLIP.active = false; CLIP.rec = null;
+  document.body.classList.remove('rec'); document.title = CLIP.title; fit();
+  stopPlay(); resetUI(scene()); renderSceneList(); syncForm();
+  if (CLIP.clips.length) showClips();
+  else clipMsg('Recording stopped before a clip finished. Nothing was saved.');
+}
+function stopRecording() { if (!CLIP.active) return; CLIP.active = false; stopPlay(); }
+const fmtTime = ms => { const s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+async function saveClip(raw, sc, ms, size) {
+  const fixed = await pptReady(raw), blob = fixed.blob;
+  const ext = /mp4/.test(raw.type) ? '.mp4' : '.webm';
+  const name = (sc.slide ? String(sc.slide).padStart(2, '0') + '-' : '') + slug(sc.title) + ext;
+  const url = URL.createObjectURL(blob);
+  try { const a = el('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
+  CLIP.clips.push({ name, url, mb: blob.size / 1048576, dur: fmtTime(ms), res: size && size.width ? `${size.width} × ${size.height}` : '', note: pptNote(fixed), ok: fixed.ok, codec: codecLabel(fixed.codec) });
+  clipMsg(`Saved ${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${pptNote(fixed)}`, fixed.ok ? 'ok' : 'err');
+}
+function showClips() {
+  const list = $('#clipList');
+  list.innerHTML = CLIP.clips.map((c, i) => `<div class="clipRow"><div class="nm">${esc(c.name)}<small>${c.mb.toFixed(1)} MB · ${esc(c.res)} · ${c.dur} · ${esc(c.codec)} · ${esc(c.note)}${CLIP.cropped ? '' : ' · whole tab (this browser can’t crop to the stage)'}</small></div><button data-v="${i}">Preview</button><a href="${c.url}" download="${esc(c.name)}">Save</a></div>`).join('');
+  $('#clipVid').src = CLIP.clips[CLIP.clips.length - 1].url;
+  $('#clips').classList.add('on');
+}
+$('#clipList').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { $('#clipVid').src = CLIP.clips[+b.dataset.v].url; $('#clipVid').play(); } });
+$('#clipsX').onclick = () => { $('#clips').classList.remove('on'); $('#clipVid').pause(); };
+async function fixClipFile(f) {
+  const m = $('#fixMsg'); m.className = 'msg'; m.textContent = 'Checking ' + f.name + '…';
+  openDrawer('pRec');
+  try {
+    const r = await pptReady(f);
+    if (!r.ok) { m.className = 'msg err'; m.textContent = f.name + ': ' + pptNote(r); return; }
+    if (!r.fixed) { m.className = 'msg ok'; m.textContent = f.name + ' is already PowerPoint-ready (H.264, standard MP4).'; return; }
+    const name = f.name.replace(/\.[^.]+$/, '') + '-ppt.mp4', a = el('a');
+    a.href = URL.createObjectURL(r.blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    m.className = 'msg ok'; m.textContent = `Saved ${name}: PowerPoint-ready ✓`;
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Could not read ' + f.name + ': ' + e.message; }
+}
+
+/* ---------- library actions ---------- */
+function download(name, text, type) { const a = el('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+function importLibrary(text) {
+  try {
+    let d, scenes;
+    try { d = JSON.parse(text); scenes = Array.isArray(d) ? d : d.scenes; } catch (e) { d = {}; scenes = jsonlToScenes(text); }
+    if (d && d.type) { d = {}; scenes = jsonlToScenes(text); }
+    if (!Array.isArray(scenes) || !scenes.length) throw new Error('no scenes found');
+    const add = scenes.map(s => normScene(Object.assign({}, s, { id: uid() })));
+    const append = $('#lAppend').checked, first = append ? LIB.scenes.length : 0;
+    LIB = { version: 1, scenes: append ? LIB.scenes.concat(add) : add };
+    if (d.look && confirm('This library includes a look (name, labels, cards). Use it too?')) { S = Object.assign({}, DEFAULTS, d.look); saveSettings(); applyChrome(); fit(); }
+    store.set(LIBKEY, LIB); selectScene(first, true);
+    $('#libMsg').className = 'msg ok'; $('#libMsg').textContent = `Imported ${add.length} scene${add.length > 1 ? 's' : ''}.`; toast($('#libMsg').textContent);
+  } catch (e) { $('#libMsg').className = 'msg err'; $('#libMsg').textContent = 'Could not import: ' + e.message; }
+}
+function standaloneHtml() {
+  const data = JSON.stringify({ version: 1, scenes: LIB.scenes, look: Object.assign({}, S, { speed: 1 }) }).replace(/</g, '\\u003c');
+  const re = new RegExp('(<script type="application/json" id="embedded-' + 'library">)[\\s\\S]*?(</' + 'script>)');
+  return ORIGINAL_HTML.replace(re, (m, a, b) => a + data + b);
+}
+function copyText(t, msg) {
+  const done = () => toast(msg, 4000);
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done, () => fallback());
+  else fallback();
+  function fallback() { const a = el('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); done(); } catch (e) { toast('Copy failed'); } a.remove(); }
+}
+function syncFmt() {
+  const j = S.scriptFmt === 'jsonl';
+  $$('.fmtSeg .btn').forEach(b => b.classList.toggle('on', b.dataset.f === (j ? 'jsonl' : 'script')));
+  $('#scriptBox').style.display = j ? 'none' : ''; $('#jsonlBox').style.display = j ? '' : 'none';
+  if (j && document.activeElement !== $('#jsonlBox')) $('#jsonlBox').value = sceneToJsonl(scene());
+}
+function openDrawer(pane) {
+  document.body.classList.add('drawer');
+  if (pane) { $$('.dtabs button').forEach(b => b.classList.toggle('on', b.dataset.p === pane)); $$('.dpane').forEach(p => p.classList.toggle('on', p.id === pane)); }
+  fit();
+}
+
+/* ---------- wiring ---------- */
+function init() {
+  paintIcons();
+  loadLibrary();
+  const want = store.get('cur', null), at = LIB.scenes.findIndex(s => s.id === want);
+  CUR = at >= 0 ? at : 0;
+  applyChrome(); fit(); bindForm(); renderSceneList(); syncForm(); resetUI(scene());
+  requestAnimationFrame(frameLoop);
+  addEventListener('resize', fit);
+  $('#sceneSel').onchange = e => selectScene(+e.target.value);
+  $('#bPrev').onclick = () => selectScene(CUR - 1);
+  $('#bNext').onclick = () => selectScene(CUR + 1);
+  $('#bPlay').onclick = togglePlay;
+  $('#bRestart').onclick = restart;
+  $('#bEnd').onclick = jumpToEnd;
+  $('#speedSel').onchange = e => { S.speed = Number(e.target.value); RUN.speed = S.speed; saveSettings(); };
+  $('#cardsTg').onchange = e => { S.cards = e.target.checked; saveSettings(); };
+  $('#bTheme').onclick = () => { S.theme = S.theme === 'dark' ? 'light' : 'dark'; saveSettings(); applyChrome(); syncForm(); if (!scene().theme) applyTheme(S.theme); else toast('This scene is pinned to ' + scene().theme + ' (Script → Theme)'); };
+  $('#bRec').onclick = () => record([CUR]);
+  $('#bRecSec').onclick = () => record(LIB.scenes.map((s, i) => s.section === scene().section ? i : -1).filter(i => i >= 0));
+  $('#bHide').onclick = () => { document.body.classList.add('nobar'); fit(); toast('Press H to show the toolbar again'); };
+  $('#bDrawer').onclick = () => { document.body.classList.toggle('drawer'); fit(); };
+  $$('.dtabs button').forEach(b => b.onclick = () => openDrawer(b.dataset.p));
+  $('#sList').onclick = e => { const r = e.target.closest('.si'); if (r) selectScene(+r.dataset.i, true); };
+  $('#sNew').onclick = () => { const s = normScene({ section: scene().section, title: 'New scene', script: '> Your prompt here\n~ Searching your files\n< Copilot\'s answer in **Markdown**.\n? A follow-up' }); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); openDrawer('pScript'); };
+  $('#sDup').onclick = () => { const s = normScene(Object.assign(clone(scene()), { id: uid(), title: scene().title + ' (copy)' })); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); };
+  $('#sDel').onclick = () => { if (LIB.scenes.length < 2 || !confirm(`Delete “${scene().title}”?`)) return; LIB.scenes.splice(CUR, 1); saveLib(); selectScene(Math.min(CUR, LIB.scenes.length - 1), true); };
+  $('#sUp').onclick = () => { if (CUR < 1) return; const [s] = LIB.scenes.splice(CUR, 1); LIB.scenes.splice(CUR - 1, 0, s); saveLib(); selectScene(CUR - 1, true); };
+  $('#sDown').onclick = () => { if (CUR >= LIB.scenes.length - 1) return; const [s] = LIB.scenes.splice(CUR, 1); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); };
+  $('#sPlay').onclick = () => play();
+  $$('.fmtSeg .btn').forEach(b => b.onclick = () => { S.scriptFmt = b.dataset.f; saveSettings(); syncFmt(); });
+  $('#jsonlBox').addEventListener('input', () => {
+    try {
+      const [sc] = jsonlToScenes($('#jsonlBox').value); if (!sc) throw new Error('add a {"type":"scene"} line first');
+      const cur = scene();
+      SCENE_KEYS.forEach(k => { if (sc[k] != null) cur[k] = (k === 'intro' || k === 'outro') ? Object.assign(cur[k], sc[k]) : sc[k]; });
+      cur.script = sc.script; saveLib(); renderSceneList(); checkScript();
+    } catch (e) { const m = $('#scriptMsg'); m.className = 'msg err'; m.textContent = 'JSONL: ' + e.message; }
+  });
+  $('#jCopy').onclick = () => copyText(sceneToJsonl(scene()), 'Scene copied as JSONL');
+  $('#jLLM').onclick = () => copyText(LLM_PROMPT, 'LLM prompt copied. Add your topic at the end, then paste the reply into the JSONL box or import it');
+  $('#lExportL').onclick = () => download('copilot-scenes.jsonl', LIB.scenes.map(sceneToJsonl).join('\n\n'), 'application/x-ndjson');
+  $('#sEnd').onclick = jumpToEnd;
+  $('#lExport').onclick = () => download('copilot-scenes.json', JSON.stringify({ version: 1, scenes: LIB.scenes, look: S }, null, 2), 'application/json');
+  $('#lImport').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(importLibrary); e.target.value = ''; };
+  $('#lStandalone').onclick = () => { download('copilot-chat-simulator.html', standaloneHtml(), 'text/html'); toast('Standalone HTML downloaded'); };
+  $('#lReset').onclick = () => { if (!confirm('Replace all scenes with the built-in set? Your edits will be lost (export first if you want to keep them).')) return; LIB = { version: 1, scenes: BUILTIN.map(normScene) }; store.set(LIBKEY, LIB); selectScene(0, true); };
+  $('#lookReset').onclick = () => { if (!confirm('Reset the look to its defaults?')) return; S = Object.assign({}, DEFAULTS); saveSettings(); applyChrome(); fit(); syncForm(); resetUI(scene()); };
+  $('#photoIn').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = new Image(); img.onload = () => { const c = document.createElement('canvas'); c.width = c.height = 96; const k = Math.max(96 / img.width, 96 / img.height), w = img.width * k, h = img.height * k; c.getContext('2d').drawImage(img, (96 - w) / 2, (96 - h) / 2, w, h); S.photo = c.toDataURL('image/jpeg', 0.85); saveSettings(); applyChrome(); URL.revokeObjectURL(img.src); };
+    img.src = URL.createObjectURL(f); e.target.value = '';
+  };
+  $('#photoClear').onclick = () => { S.photo = ''; saveSettings(); applyChrome(); };
+  $('#rScene').onclick = () => record([CUR]);
+  $('#rSection').onclick = () => $('#bRecSec').click();
+  $('#rAll').onclick = () => { if (confirm(`Record all ${LIB.scenes.length} scenes, one MP4 each? This takes a while; Esc stops.`)) record(LIB.scenes.map((s, i) => i)); };
+  $('#fixIn').onchange = e => { const f = e.target.files[0]; if (f) fixClipFile(f); e.target.value = ''; };
+  let depth = 0; const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  addEventListener('dragenter', e => { if (hasFiles(e)) { depth++; $('#dropzone').classList.add('on'); } });
+  addEventListener('dragleave', e => { if (hasFiles(e) && --depth <= 0) { depth = 0; $('#dropzone').classList.remove('on'); } });
+  addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+  addEventListener('drop', e => {
+    if (!hasFiles(e)) return; e.preventDefault(); depth = 0; $('#dropzone').classList.remove('on');
+    const f = e.dataTransfer.files[0]; if (!f) return;
+    if (/^video\//.test(f.type) || /\.(mp4|m4v|mov)$/i.test(f.name)) fixClipFile(f); else f.text().then(importLibrary);
+  });
+  addEventListener('keydown', e => {
+    if (e.target.closest('input,textarea,select') && e.key !== 'Escape') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'Escape') { if (CLIP.active) stopRecording(); else if ($('#clips').classList.contains('on')) $('#clipsX').click(); else if (document.body.classList.contains('drawer')) { document.body.classList.remove('drawer'); fit(); } else if (RUN.playing) restart(); e.preventDefault(); return; }
+    if (CLIP.active) return;
+    if (k === ' ') { togglePlay(); e.preventDefault(); }
+    else if (k === 'r' || k === 'R') restart();
+    else if (k === 'e' || k === 'E') jumpToEnd();
+    else if (k === 'ArrowRight') selectScene(CUR + 1);
+    else if (k === 'ArrowLeft') selectScene(CUR - 1);
+    else if (k === 't' || k === 'T') $('#bTheme').click();
+    else if (k === 'd' || k === 'D') $('#bDrawer').click();
+    else if (k === 'c' || k === 'C') record([CUR]);
+    else if (k === 'h' || k === 'H') { document.body.classList.toggle('nobar'); fit(); }
+    else if (k === 'f' || k === 'F') { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+  });
+}
+
+// Browsers' MediaRecorder writes fragmented MP4 (moov + moof/mdat pairs, often with no duration).
+// Players cope, but PowerPoint's importer does not, so we rebuild a plain MP4 with a full sample
+// table, a real duration and the moov before the media ("fast start"). Never re-encodes.
+const MP4 = (() => {
+  const CONTAINERS = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'mvex', 'moof', 'traf', 'edts', 'dinf']);
+  const str = (u8, o) => String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]);
+  function boxes(u8, dv, start, end) {
+    const out = [];
+    let o = start;
+    while (o + 8 <= end) {
+      let size = dv.getUint32(o), hdr = 8;
+      const type = str(u8, o + 4);
+      if (size === 1) { size = Number(dv.getBigUint64(o + 8)); hdr = 16; }
+      else if (size === 0) size = end - o;
+      if (size < hdr || o + size > end) break;
+      const b = { type, start: o, end: o + size, body: o + hdr, kids: null };
+      if (CONTAINERS.has(type)) b.kids = boxes(u8, dv, b.body, b.end);
+      out.push(b); o += size;
+    }
+    return out;
+  }
+  const find = (list, path) => { let cur = list, b = null; for (const t of path.split('/')) { b = (cur || []).find(x => x.type === t); if (!b) return null; cur = b.kids; } return b; };
+  const all = (list, t) => (list || []).filter(x => x.type === t);
+
+  function parse(buf) {
+    const u8 = new Uint8Array(buf), dv = new DataView(buf);
+    return { u8, dv, top: boxes(u8, dv, 0, u8.length) };
+  }
+  // First video sample-entry type (avc1, avc3, hvc1, vp09, av01 …)
+  function codecOf(buf) {
+    try {
+      const { u8, dv, top } = parse(buf);
+      for (const trak of all(find(top, 'moov').kids, 'trak')) {
+        const stsd = find(trak.kids, 'mdia/minf/stbl/stsd'); if (!stsd) continue;
+        const entry = str(u8, stsd.body + 8 + 4);
+        if (find(trak.kids, 'mdia/minf/vmhd')) return entry;
+      }
+    } catch (e) {}
+    return '';
+  }
+  function isFragmented(buf) { try { const { top } = parse(buf); return !!find(top, 'moov/mvex') || top.some(b => b.type === 'moof'); } catch (e) { return false; } }
+
+  // --- writers ---
+  const u32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const u16 = v => [(v >>> 8) & 255, v & 255];
+  const s4 = t => [...t].map(c => c.charCodeAt(0));
+  function box(type, ...parts) {
+    let len = 8; parts.forEach(p => { len += p.length; });
+    const out = new Uint8Array(len); const h = [...u32(len), ...s4(type)]; out.set(h, 0);
+    let o = 8; parts.forEach(p => { out.set(p, o); o += p.length; });
+    return out;
+  }
+  const full = (type, version, flags, ...parts) => box(type, new Uint8Array([version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255]), ...parts);
+  const bytes = arr => new Uint8Array(arr);
+  const MATRIX = [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000].flatMap(u32);
+
+  function defragment(buf) {
+    const { u8, dv, top } = parse(buf);
+    const moov = find(top, 'moov'); if (!moov) throw new Error('no moov box');
+    // Pick the video track
+    const trak = all(moov.kids, 'trak').find(t => find(t.kids, 'mdia/minf/vmhd')); if (!trak) throw new Error('no video track');
+    const tkhd = find(trak.kids, 'tkhd'), mdhd = find(trak.kids, 'mdia/mdhd'), hdlr = find(trak.kids, 'mdia/hdlr');
+    const vmhd = find(trak.kids, 'mdia/minf/vmhd'), dinf = find(trak.kids, 'mdia/minf/dinf'), stsd = find(trak.kids, 'mdia/minf/stbl/stsd');
+    const tkV = u8[tkhd.body], trackId = dv.getUint32(tkhd.body + (tkV === 1 ? 20 : 12));
+    const width = dv.getUint32(tkhd.end - 8), height = dv.getUint32(tkhd.end - 4);
+    const mdV = u8[mdhd.body], timescale = dv.getUint32(mdhd.body + (mdV === 1 ? 20 : 12));
+    // Track defaults from mvex/trex
+    let def = { dur: 0, size: 0, flags: 0 };
+    const mvex = find(moov.kids, 'mvex');
+    if (mvex) for (const trex of all(mvex.kids, 'trex')) if (dv.getUint32(trex.body + 4) === trackId) def = { dur: dv.getUint32(trex.body + 12), size: dv.getUint32(trex.body + 16), flags: dv.getUint32(trex.body + 20) };
+    // Walk every fragment and collect samples
+    const samples = [];
+    for (const moof of top.filter(b => b.type === 'moof')) {
+      for (const traf of all(moof.kids, 'traf')) {
+        const tfhd = find(traf.kids, 'tfhd'); if (!tfhd) continue;
+        const tf = dv.getUint32(tfhd.body) & 0xffffff; let p = tfhd.body + 4;
+        if (dv.getUint32(p) !== trackId) continue; p += 4;
+        let base = moof.start;
+        if (tf & 0x1) { base = Number(dv.getBigUint64(p)); p += 8; }
+        if (tf & 0x2) p += 4;
+        let dDur = def.dur, dSize = def.size, dFlags = def.flags;
+        if (tf & 0x8) { dDur = dv.getUint32(p); p += 4; }
+        if (tf & 0x10) { dSize = dv.getUint32(p); p += 4; }
+        if (tf & 0x20) { dFlags = dv.getUint32(p); p += 4; }
+        let pos = base;
+        for (const trun of all(traf.kids, 'trun')) {
+          const ver = u8[trun.body], fl = dv.getUint32(trun.body) & 0xffffff; let q = trun.body + 4;
+          const n = dv.getUint32(q); q += 4;
+          if (fl & 0x1) { pos = base + dv.getInt32(q); q += 4; }
+          let first = null; if (fl & 0x4) { first = dv.getUint32(q); q += 4; }
+          for (let i = 0; i < n; i++) {
+            const dur = fl & 0x100 ? dv.getUint32((q += 4) - 4) : dDur;
+            const size = fl & 0x200 ? dv.getUint32((q += 4) - 4) : dSize;
+            let flags = fl & 0x400 ? dv.getUint32((q += 4) - 4) : dFlags;
+            if (i === 0 && first !== null) flags = first;
+            const cto = fl & 0x800 ? (ver === 0 ? dv.getUint32((q += 4) - 4) : dv.getInt32((q += 4) - 4)) : 0;
+            samples.push({ off: pos, size, dur, sync: !(flags & 0x00010000), cto });
+            pos += size;
+          }
+        }
+      }
+    }
+    if (!samples.length) throw new Error('no samples found');
+    // Some recorders leave the last duration 0: use the typical frame duration instead
+    const typical = samples.map(s => s.dur).filter(Boolean).sort((a, b) => a - b)[Math.floor(samples.length / 2)] || Math.round(timescale / 30);
+    samples.forEach(s => { if (!s.dur) s.dur = typical; });
+    const mediaDur = samples.reduce((a, s) => a + s.dur, 0);
+    const movieTs = 1000, movieDur = Math.round(mediaDur * movieTs / timescale);
+
+    // Sample tables
+    const stts = []; samples.forEach(s => { const l = stts[stts.length - 1]; if (l && l[1] === s.dur) l[0]++; else stts.push([1, s.dur]); });
+    const syncIdx = samples.map((s, i) => s.sync ? i + 1 : 0).filter(Boolean);
+    const hasCto = samples.some(s => s.cto), negCto = samples.some(s => s.cto < 0);
+    const ctts = []; if (hasCto) samples.forEach(s => { const l = ctts[ctts.length - 1]; if (l && l[1] === s.cto) l[0]++; else ctts.push([1, s.cto]); });
+    const mdatSize = samples.reduce((a, s) => a + s.size, 0);
+
+    const build = chunkOffset => {
+      const stbl = box('stbl',
+        u8.slice(stsd.start, stsd.end),
+        full('stts', 0, 0, bytes([...u32(stts.length), ...stts.flatMap(([c, d]) => [...u32(c), ...u32(d)])])),
+        ...(syncIdx.length && syncIdx.length < samples.length ? [full('stss', 0, 0, bytes([...u32(syncIdx.length), ...syncIdx.flatMap(u32)]))] : []),
+        ...(hasCto ? [full('ctts', negCto ? 1 : 0, 0, bytes([...u32(ctts.length), ...ctts.flatMap(([c, o]) => [...u32(c), ...u32(o >>> 0)])]))] : []),
+        full('stsc', 0, 0, bytes([...u32(1), ...u32(1), ...u32(samples.length), ...u32(1)])),
+        full('stsz', 0, 0, bytes([...u32(0), ...u32(samples.length), ...samples.flatMap(s => u32(s.size))])),
+        full('stco', 0, 0, bytes([...u32(1), ...u32(chunkOffset)])));
+      const minf = box('minf', u8.slice(vmhd.start, vmhd.end), dinf ? u8.slice(dinf.start, dinf.end) : full('dinf', 0, 0), stbl);
+      const mdia = box('mdia',
+        full('mdhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(timescale), ...u32(mediaDur), ...u16(0x55c4), ...u16(0)])),
+        u8.slice(hdlr.start, hdlr.end), minf);
+      const tk = full('tkhd', 0, 3, bytes([...u32(0), ...u32(0), ...u32(1), ...u32(0), ...u32(movieDur), ...u32(0), ...u32(0), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...MATRIX, ...u32(width), ...u32(height)]));
+      const mvhd = full('mvhd', 0, 0, bytes([...u32(0), ...u32(0), ...u32(movieTs), ...u32(movieDur), ...u32(0x00010000), ...u16(0x0100), ...new Array(10).fill(0), ...MATRIX, ...new Array(24).fill(0), ...u32(2)]));
+      return box('moov', mvhd, box('trak', tk, mdia));
+    };
+    const ftyp = box('ftyp', bytes([...s4('isom'), ...u32(512), ...s4('isom'), ...s4('iso2'), ...s4('avc1'), ...s4('mp41')]));
+    let moovOut = build(0);
+    const firstSampleAt = ftyp.length + moovOut.length + 8;
+    moovOut = build(firstSampleAt);                       // same size, now with the real chunk offset
+    const out = new Uint8Array(firstSampleAt + mdatSize);
+    out.set(ftyp, 0); out.set(moovOut, ftyp.length);
+    out.set([...u32(8 + mdatSize), ...s4('mdat')], ftyp.length + moovOut.length);
+    let o = firstSampleAt; samples.forEach(s => { out.set(u8.subarray(s.off, s.off + s.size), o); o += s.size; });
+    return { buffer: out.buffer, seconds: mediaDur / timescale, frames: samples.length, width: width >>> 16, height: height >>> 16 };
+  }
+  return { codecOf, isFragmented, defragment };
+})();
+function clipMime() {
+  const c = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.4d0028', 'video/mp4;codecs=avc1.42e01f', 'video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  return (window.MediaRecorder && c.find(t => MediaRecorder.isTypeSupported(t))) || '';
+}
+async function pptReady(blob) {
+  const buf = await blob.arrayBuffer();
+  const codec = MP4.codecOf(buf);
+  if (!codec) return { blob, codec: /webm/.test(blob.type) ? 'webm' : '', ok: false };
+  const h264 = codec === 'avc1';
+  if (h264 && MP4.isFragmented(buf)) {
+    try { const r = MP4.defragment(buf); return { blob: new Blob([r.buffer], { type: 'video/mp4' }), codec, ok: true, fixed: true }; }
+    catch (e) { return { blob, codec, ok: false, error: e.message }; }
+  }
+  return { blob, codec, ok: h264 };
+}
+const codecLabel = c => ({ avc1: 'H.264', avc3: 'H.264 (avc3)', vp09: 'VP9', av01: 'AV1', hvc1: 'HEVC', webm: 'WebM' }[c] || c || 'unknown');
+const pptNote = r => r.ok ? 'PowerPoint-ready ✓' : `Not PowerPoint-ready (${codecLabel(r.codec)}${r.error ? ', ' + r.error : ''}). Convert it with Clipchamp or HandBrake, or record in the latest Chrome or Edge`;
+
+/* ---------- built-in scenes: Section C of the HD away day deck ---------- */
+// All names, figures and documents are invented for the demo.
+const BUILTIN = [
+{ id: 'tour', section: 'Controls', slide: '42', title: 'A quick tour of Copilot Chat',
+  outro: { title: 'Start in Copilot Chat. It sees everything the others see.', prompts: false },
+  script: `@caption Copilot Chat: one place that sees across mail, files, meetings and chats
+@pause 1200
+@highlight work | Work IQ: answers from our own files, mail, meetings and chats
+@pause 2600
+@highlight model | The model picker: choose how hard it thinks
+@pause 2600
+@highlight plus | Add files so it works on exactly what you mean
+@pause 2400
+@highlight notebooks | Notebooks: a workspace for one piece of work
+@pause 2400
+@highlight chips | Starting points, if you don't know what to ask
+@pause 2400
+@unhighlight
+@caption` },
+
+{ id: 'model-quick', section: 'Controls', slide: '43', title: 'Quick Response for everyday jobs',
+  outro: { title: 'Turning it up on a two-line question is not thoroughness.' },
+  script: `@caption There's a model picker in Copilot. Most people have never touched it.
+@highlight model | Choose how hard it thinks
+@pause 2200
+@unhighlight
+@model Quick Response
+@caption Quick Response: fast and light, for the everyday
+> Tidy this up so it reads well: "thanks all for coming, actions from today in the attached, can everyone confirm theirs by fri pls"
+< **Thanks, everyone, for your time today.** The actions we agreed are in the attached note. Could you each confirm your items by **Friday**?
+? Make it warmer
+? Make it shorter
+@caption` },
+
+{ id: 'model-deep', section: 'Controls', slide: '44', title: 'Think Deeper for the board paper',
+  outro: { title: 'Turning it up on a board paper is exactly right.', body: 'Deeper thinking takes longer. Use it deliberately rather than leaving it on.' },
+  script: `@model Think Deeper
+@caption Think Deeper: more reasoning before it answers
+@attach Theatre expansion business case v3.docx; Theatre utilisation FY26.xlsx
+> Stress-test this business case for a fourth theatre. Which assumptions carry the most risk, what happens to payback if utilisation is 10% lower, and what will the board challenge first?
+@caption
+~ Reading Theatre expansion business case v3.docx (24 pages) {1700}
+~ Extracting the financial assumptions and the payback model {1800}
+~ Cross-checking utilisation against Theatre utilisation FY26.xlsx {2000}
+~ Recalculating payback at 90% of forecast utilisation {2200}
+~ Ranking assumptions by sensitivity and evidence {1800}
+~= Thought for 38 seconds
+< ### The three assumptions carrying the most risk
+| Assumption | In the case | What the evidence says | Risk |
+|---|---|---|---|
+| Year-1 utilisation | 85% | The three current theatres averaged **74%** in FY26 [2] | High |
+| Anaesthetist cover | Recruited by month 3 | Two posts have been vacant for 7+ months [1] | High |
+| Self-pay growth | +12% a year | +6% a year over the last two years [2] | Medium |
+
+### Payback at 10% lower utilisation
+- Payback moves from **3.4 years to 4.6 years** [1]
+- Year-2 contribution falls by about **£410k**, which removes the planned surplus
+
+### What the board will challenge first
+1. Why year 1 is **11 points above** what the existing theatres achieve today
+2. The staffing plan, which assumes recruitment that hasn't happened yet
+3. Whether a phased opening (four days a week) gets most of the benefit for less risk
+
+*Worth checking before it goes:* the case uses a 6% tariff uplift. The latest contract letter says 4.5% [3].
+^ Theatre expansion business case v3.docx | docx | You attached this
+^ Theatre utilisation FY26.xlsx | xlsx | You attached this
+^ Tariff letter 2026-27.pdf | pdf | Email from Commercial · 2 Sep
+? Model a phased opening
+? Draft the risks section for the paper` },
+
+{ id: 'work-web', section: 'Controls', slide: '45', title: 'Work or Web: same prompt, two answers',
+  outro: { title: 'Both answers are useful. On this one, run both.', body: 'The gap between the two is often the interesting bit.' },
+  script: `@caption Work IQ: grounded in our files, mail, meetings and chats
+> What are the main risks in expanding our internal nursing bank?
+~ Searching your files and email for "nurse bank"
+~ Reading Workforce plan 2026-27.docx
+~ Reading Nursing bank expansion — SMT paper (Mar 2026).pptx
+< Based on our workforce plan and March's SMT paper, the main risks are:
+1. **Fill rate won't cover the gap.** The plan assumes the bank fills **70%** of shifts now covered by agency. Current bank fill is **52%** [1]
+2. **Pay competition with the local NHS trust.** The paper flags a **£2.10/hr** gap on band 5 weekend rates [2]
+3. **The same people, counted twice.** About **40%** of registered bank staff already work here, so growth may add fatigue rather than capacity [1]
+4. **Rostering capacity.** The current licence covers 250 bank workers. The plan targets 380 [2]
+
+**Net:** the savings case rests on fill rate more than anything else. £0.6m of the £0.9m saving assumes 70% [1].
+^ Workforce plan 2026-27.docx | docx | SharePoint · Workforce
+^ Nursing bank expansion — SMT paper (Mar 2026).pptx | pptx | You presented this
+@pause 2500
+@newchat
+@mode web
+@caption Web: the open web. None of our material in the conversation
+> What are the main risks in expanding our internal nursing bank?
+~ Searching the web
+< Risks organisations commonly report when expanding an internal staff bank:
+1. **Fill rates.** Bank workers choose their shifts, so nights and weekends stay hard to fill [1]
+2. **Fatigue and safety.** Extra shifts by permanent staff can breach working-time limits [2]
+3. **Pay competition.** Neighbouring providers' bank rates decide where people work [1]
+4. **Governance.** Checks, revalidation and induction have to scale with the bank [1]
+5. **Holiday pay.** Bank workers accrue holiday pay, and it is often missed in costings [3]
+6. **Systems.** Rostering and payroll need to handle more workers and faster payment
+
+A useful checklist to test your own plan against.
+^ Guide to running a staff bank | web | nhsemployers.org
+^ Working time limits | web | gov.uk
+^ Holiday pay for irregular hours | web | acas.org.uk
+@caption Same prompt. Ours, on our numbers, or the general checklist.` },
+
+{ id: 'inbox-thread', section: 'The inbox', slide: '47', title: 'Catch up on a thread',
+  outro: { title: 'Ask for the decision, not a summary.', body: 'Ask for a summary and you get a shorter version of the thread you didn’t want to read.' },
+  script: `> I have been copied on the endoscopy decontamination thread for three weeks. What is the decision I actually need to make, and what are the open points?
+~ Finding the thread "Endoscopy decon unit: options" (27 messages)
+~ Reading messages from 16 Sep to today
+~ Checking the attached options appraisal
+< **The decision:** approve one of two options for replacing the endoscopy decontamination unit before the **24 October** capital panel [1].
+
+| | Option 1: modular unit | Option 2: refurbish |
+|---|---|---|
+| Cost | £315k | £182k |
+| Endoscopy closed | 9 days | 6 weeks |
+| Activity lost (est.) | ~£45k | ~£240k |
+
+**Open points**
+- Estates haven't confirmed whether Option 1 needs planning permission. Mark Ellison asked on 30 Sep, no reply yet [2]
+- Finance want the lost-activity figure checked against the September list, not the plan [3]
+- Infection Prevention are happy with either, but want a validation slot booked now [1]
+
+**Where people are leaning:** most replies favour Option 1 on total cost. Nobody has said so formally.
+^ Endoscopy decon unit: options | email | 27 messages · latest today
+^ RE: planning position | email | Mark Ellison · 30 Sep
+^ Decon options appraisal v2.xlsx | xlsx | Attached by Priya Shah
+? Draft a reply
+? Who hasn't replied?` },
+
+{ id: 'inbox-reply', section: 'The inbox', slide: '47', title: 'Draft a reply',
+  outro: { title: 'Give it the position, not the words. It will find the words.' },
+  script: `@instant
+> I have been copied on the endoscopy decontamination thread for three weeks. What is the decision I actually need to make, and what are the open points?
+< **The decision:** approve Option 1 (modular unit, £315k, 9-day closure) or Option 2 (refurbish, £182k, 6-week closure) before the **24 October** capital panel [1]. Open points: Estates' planning answer, and Finance want lost activity re-checked [1].
+^ Endoscopy decon unit: options | email | 27 messages
+@live
+> Draft a reply agreeing to the first option but pushing the deadline to month end. My tone, short, no jargon.
+< **RE: Endoscopy decon unit: options**
+
+Hi all,
+
+Thanks for pulling this together. I'm happy to go with **Option 1, the modular unit**. It costs more up front, but the shorter closure protects nearly £200k of activity.
+
+Two things before it goes to panel:
+- Mark, can Estates confirm the planning position?
+- Priya, please re-run lost activity against the September list.
+
+Let's aim to close this by **31 October** rather than the 24th, so we're not rushing the planning answer.
+
+Thanks,
+Jason
+? Make it more formal
+? Shorten it to three lines` },
+
+{ id: 'inbox-waiting', section: 'The inbox', slide: '47', title: 'Find who is waiting on me',
+  outro: { title: 'Nobody thinks to ask this. It stops things sitting for a week.' },
+  script: `> Find emails from the past 48 hours where someone is waiting on a reply or a decision from me.
+~ Searching your mailbox for the past 48 hours
+~ Reading 64 messages addressed to you
+~ Looking for questions, requests and deadlines
+< **Six people are waiting on you.** Most urgent first:
+
+| From | What they need | Since | Deadline |
+|---|---|---|---|
+| Priya Shah | Sign-off on the Q3 forecast before it goes to region [1] | Mon 09:12 | **Today 5pm** |
+| Mark Ellison | A decision on Saturday theatre lists for November [2] | Mon 16:40 | Thu |
+| Sarah Whitlock | Approval to extend two agency nurses by four weeks [3] | Tue 08:05 | Fri |
+| Tom Reid | Whether to renew the laundry contract or tender [4] | Tue 11:30 | 31 Oct |
+| Amira Hassan | Your availability for two consultant interviews [5] | Tue 14:22 | None |
+| Dr Helen Okafor | A view on the revised MAC agenda [6] | Tue 17:58 | Next week |
+
+Priya and Sarah have both followed up once already.
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah · Mon
+^ November Saturday lists | email | Mark Ellison · Mon
+^ Agency extension request | email | Sarah Whitlock · Tue
+^ Laundry contract renewal | email | Tom Reid · Tue
+^ Consultant interviews | email | Amira Hassan · Tue
+^ MAC agenda (revised) | email | Dr Helen Okafor · Tue
+? Draft quick replies to the top three
+? Which of these could I delegate?` },
+
+{ id: 'inbox-morning', section: 'The inbox', slide: '47', title: 'Sort the morning',
+  outro: { title: 'Ninety seconds, before you open anything.', body: 'It runs on the same content every day. Nothing to set up.' },
+  script: `> Summarise my unread mail and flag anything that needs an action from me today.
+~ Reading 31 unread emails
+~ Checking today's calendar for related meetings
+< **31 unread. Four need you today.**
+
+### Action today
+- **Q3 forecast sign-off.** Priya needs it by 5pm to make the regional deadline [1]
+- **CQC information request.** The quality team need your sign-off on section 3 by noon [2]
+- **Agency extension.** Sarah's two nurses finish on Friday unless you approve [3]
+- **On-call swap.** Helen asks whether you can swap Saturday for the 15th [4]
+
+### Worth knowing
+- Theatre utilisation hit **81%** last week, the highest this year [5]
+- Regional finance moved the month-end deadline to **working day 4** [6]
+
+### Can wait
+19 newsletters, notifications and FYIs, and 4 meeting acceptances.
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah
+^ CQC provider information request | email | Quality team
+^ Agency extension request | email | Sarah Whitlock
+^ On-call swap? | email | Dr Helen Okafor
+^ Weekly theatre dashboard | email | Theatre office
+^ Month-end timetable change | email | Regional finance
+? Draft replies for the four actions
+? Block 30 minutes for these` },
+
+{ id: 'meet-prep', section: 'Meetings', slide: '48', title: 'Prepare before you walk in',
+  outro: { title: 'Ten seconds before you walk into a room.', body: 'It changes how you turn up.' },
+  script: `> What is the background to my meeting with Priya Shah tomorrow? What did we agree last time and what is outstanding?
+~ Finding your meeting with Priya Shah: Wed 10:00, Monthly finance review
+~ Reading the recap from the last review (11 Sep)
+~ Checking recent email and Teams chats with Priya
+< **Monthly finance review: Wednesday 10:00, 45 minutes, your office** [1]
+
+**Background.** Priya's agenda covers the Q3 forecast, agency spend and the theatre business case. Agency is **18% over budget** year to date [2].
+
+**Agreed last time (11 Sep)** [3]
+- You would decide on Saturday lists by the end of September. **Not done**
+- Priya would split agency spend by ward. **Done**, sent 2 Oct [2]
+- The theatre case goes back to region with a phased option. **In progress**
+
+**Outstanding**
+- Q3 forecast sign-off. She has chased once [4]
+- She asked in Teams whether the bank expansion savings are in the forecast. No reply yet [5]
+
+**Suggested opener:** confirm the Saturday-lists decision. It's the one you owe her.
+^ Monthly finance review | meeting | Wed 10:00
+^ Agency spend by ward | email | Priya Shah · 2 Oct
+^ Monthly finance review: recap | meeting | 11 Sep
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah
+^ Chat with Priya Shah | teams | Yesterday
+? Draft an agenda
+? What numbers should I have to hand?` },
+
+{ id: 'meet-recap', section: 'Meetings', slide: '48', title: 'Recap one you missed',
+  outro: { title: 'Recall is the feature people end up using most.', body: 'It just does not feel like AI.' },
+  script: `> Recap the November capacity planning meeting and list what was agreed, who owns each action, and anything left unresolved.
+~ Finding "November capacity planning": Tue 14:00, Teams, transcribed
+~ Reading the transcript (52 minutes, 7 people)
+< **November capacity planning: Tuesday 14:00, 52 minutes** [1]
+
+### Agreed
+- Run **Saturday theatre lists on three of the four** November weekends
+- Hold day-case beds at **18**, flexing to 22 only when pre-assessment confirms demand
+- Pause new self-pay marketing until anaesthetic cover is confirmed
+
+### Actions
+| Action | Owner | Due |
+|---|---|---|
+| Confirm the anaesthetist rota for Saturdays | Mark Ellison | Fri 10 Oct |
+| Cost the fourth-weekend option | Priya Shah | Wed 15 Oct |
+| Update pre-assessment booking rules | Sarah Whitlock | Mon 13 Oct |
+| Brief consultants at MAC | Dr Helen Okafor | 21 Oct |
+
+### Unresolved
+- **Who covers recovery on Saturdays.** Raised twice, no owner [1]
+- Whether the plan needs regional sign-off
+^ November capacity planning | meeting | Tue 14:00 · transcript
+? Draft the recap email
+? List only my actions` },
+
+{ id: 'meet-actions', section: 'Meetings', slide: '48', title: 'Pick up your own actions',
+  outro: { title: '“Anything I committed to that isn’t written down.”', body: 'That last clause is the bit people miss, and usually the bit that bites.' },
+  script: `> From the November capacity planning meeting, list the actions assigned to me with dates, and anything I committed to that is not written down.
+~ Reading the transcript of November capacity planning
+~ Matching commitments to the action list
+< **Assigned to you** [1]
+
+| Action | Due |
+|---|---|
+| Check whether the November plan needs regional sign-off | Fri 10 Oct |
+| Approve overtime rates for Saturday lists | Mon 13 Oct |
+
+**Things you said you'd do that aren't in the action list**
+- *"I'll speak to the recovery team myself"*, at 31:40 [1]
+- *"Leave the self-pay comms with me, I'll talk to marketing"*, at 44:12 [1]
+- You offered to send Priya last year's winter plan. Not sent yet [2]
+
+**Tip:** recovery cover is also unresolved in the meeting. Picking it up yourself closes both.
+^ November capacity planning | meeting | Tue 14:00 · transcript
+^ Chat with Priya Shah | teams | Tue 15:10
+? Add these to my To Do
+? Draft a note to the recovery team` },
+
+{ id: 'meet-confirm', section: 'Meetings', slide: '48', title: 'Confirm it in writing',
+  outro: { title: 'Getting agreements in writing quickly is a control, not an admin task.' },
+  script: `> Draft a message to the team confirming what we agreed in November capacity planning. Short, neutral, no blame.
+~ Reading the transcript of November capacity planning
+< **November capacity: what we agreed**
+
+Hi all,
+
+Thanks for yesterday. To confirm what we agreed:
+- Saturday theatre lists on **three of the four** November weekends
+- Day-case beds stay at **18**, flexing to 22 when pre-assessment confirms demand
+- New self-pay marketing is **paused** until anaesthetic cover is confirmed
+
+| Action | Owner | Due |
+|---|---|---|
+| Anaesthetist rota for Saturdays | Mark | Fri 10 Oct |
+| Cost the fourth weekend | Priya | Wed 15 Oct |
+| Pre-assessment booking rules | Sarah | Mon 13 Oct |
+| Brief consultants at MAC | Helen | 21 Oct |
+
+Recovery cover on Saturdays still needs an owner. I'll pick that up and come back to you by Friday.
+
+Thanks,
+Jason
+^ November capacity planning | meeting | Tue 14:00 · transcript
+? Post it in the Teams channel instead
+? Make it shorter` },
+
+{ id: 'doc-policy', section: 'Documents', slide: '49', title: 'Read the long thing',
+  outro: { title: 'Ask for page references. It makes checking possible.', body: 'It is summarising, which it is good at. It is not verifying.' },
+  script: `@attach Infection Prevention and Control Policy v7.pdf
+> Summarise this 40-page policy into the five things that change what my hospital has to do, with the page references.
+~ Reading Infection Prevention and Control Policy v7.pdf (40 pages) {1600}
+~ Comparing it with the previous version (v6) on SharePoint {1500}
+< **Five things that change what Northfield has to do**
+1. **Hand-hygiene audits move from monthly to fortnightly** in theatres and endoscopy (p. 12) [1]
+2. **A named IPC link practitioner on every ward**, with two hours of protected time a week (p. 9) [1]
+3. **Water-safety flushing records** must be kept digitally and reviewed weekly by Estates (p. 27) [1]
+4. **MRSA screening for elective orthopaedics** within **12 weeks** of surgery, down from 18 (p. 18) [1]
+5. **Outbreaks reported** to the regional IPC lead within **24 hours**, not 72 (p. 33) [1]
+
+*Everything else is clarification or rewording of v6* [2].
+^ Infection Prevention and Control Policy v7.pdf | pdf | You attached this · 40 pages
+^ Infection Prevention and Control Policy v6.pdf | pdf | SharePoint · Quality
+? Draft a briefing for ward managers
+? What do we need to change by when?` },
+
+{ id: 'doc-exec', section: 'Documents', slide: '49', title: 'Make the summary',
+  outro: { title: 'Lead with the decision and the ask.', body: 'That is a board-paper instruction, not an AI instruction.' },
+  script: `@attach Day-case unit redesign — options paper.docx
+> Turn this paper into a one-page executive summary for the board. Lead with the decision and the ask.
+~ Reading Day-case unit redesign — options paper.docx (18 pages)
+< ## Executive summary: day-case unit redesign
+**Decision required:** approve **Option B**, reconfiguring the existing unit, at a capital cost of **£1.2m**, for completion by June 2027 [1].
+
+**Why now.** The unit runs at 96% occupancy on Tuesdays and Thursdays, and 1 list in 12 starts late because no bed is free [1].
+
+| Option | Cost | Extra capacity | Disruption |
+|---|---|---|---|
+| A: do minimum | £0.3m | None | Low |
+| **B: reconfigure** | **£1.2m** | **+6 trolleys** | 8 weeks, partial |
+| C: new build | £3.4m | +14 trolleys | Low |
+
+**Benefits of B.** About 1,100 extra day cases a year, paying back in 2.8 years [1].
+**Risks.** Construction overrun (10% contingency held), and three trolleys lost during the works [1].
+**The ask.** Approve £1.2m from the 2026/27 capital programme and delegate contractor selection to the Hospital Director.
+@file Day-case redesign — executive summary.docx | Word document · 1 page
+^ Day-case unit redesign — options paper.docx | docx | You attached this
+? Make it shorter
+? Add a risk table` },
+
+{ id: 'doc-audience', section: 'Documents', slide: '49', title: 'Change the audience',
+  outro: { title: 'Same content, different reader.', body: 'That is most of a hospital director’s writing week.' },
+  script: `@attach Q2 variance commentary.docx
+> Rewrite this for a non-financial audience. Keep every number. Remove every piece of jargon or explain it in brackets.
+~ Reading Q2 variance commentary.docx
+< ## How we did, July to September
+We spent **£412k more** than planned on staff over the three months. Most of that, **£296k**, was agency nurses (temporary staff from outside agencies), who cost about **twice as much** per shift as our own staff [1].
+
+Income was **£180k higher** than planned, because we treated more self-pay patients (people paying for their own treatment) than expected [1].
+
+Overall, we finished **£232k behind plan** (we spent more, compared with what we earned, than the budget allowed) [1].
+
+The biggest single fix is filling more shifts from our own nurse bank (our internal pool of staff who pick up extra shifts) instead of agencies [1].
+
+*Changed from the original:* "adverse variance", "run-rate", "EBITDA" and "WTE" removed or explained. All the figures are kept.
+^ Q2 variance commentary.docx | docx | You attached this
+? Make it even simpler
+? Turn it into three bullet points` },
+
+{ id: 'doc-compare', section: 'Documents', slide: '49', title: 'Compare versions',
+  outro: { title: 'Without the second clause you get a list. With it, you get a view.' },
+  script: `@attach Laundry services agreement v4.docx; Laundry services agreement v5 (supplier markup).docx
+> Compare these two versions of the contract and list what changed, flagging anything that shifts risk or cost to us.
+~ Reading both versions (31 and 33 pages)
+~ Comparing clause by clause
+< **11 changes between v4 and v5. Four shift risk or cost to us.**
+
+### Shifts risk or cost to us
+| Clause | v4 | v5 | Why it matters |
+|---|---|---|---|
+| 6.2 Price review | Annual, capped at CPI | **CPI + 2%, no cap** | Uncapped increases [2] |
+| 9.1 Lost linen | Supplier pays | **We pay** above 3% loss | A new cost line [2] |
+| 12.4 Liability cap | £1m | **£250k** | Less protection [2] |
+| 15.1 Termination | 3 months' notice | **12 months** | Harder to exit [2] |
+
+### Neutral or in our favour
+- Collection window extended to 07:00–19:00 (cl. 4.3)
+- A named account manager added (cl. 3.2)
+- Five wording and formatting changes
+
+**Suggested response:** accept the operational changes, and push back on 6.2, 9.1, 12.4 and 15.1.
+^ Laundry services agreement v4.docx | docx | You attached this
+^ Laundry services agreement v5 (supplier markup).docx | docx | You attached this
+? Draft a reply to the supplier
+? Show the exact wording of each change` },
+
+{ id: 'xl-explain', section: 'Excel', slide: '50', title: 'Understand a model you inherited',
+  outro: { title: 'Ask where the hard-coded numbers are.', body: 'The most useful question you can put to a model you did not build.' },
+  script: `@attach Agency cost model FY27.xlsx
+> Explain what this workbook does, sheet by sheet. Where are the hard-coded numbers and which assumptions drive the output?
+~ Reading Agency cost model FY27.xlsx (5 sheets)
+~ Tracing formulas from Summary back to Inputs
+< **What it does:** forecasts agency nursing cost for FY27 by ward and month, and compares it with budget [1].
+
+| Sheet | What it does |
+|---|---|
+| Inputs | Shift rates, agency premiums and vacancy rates by ward |
+| Demand | Shifts needed per ward per month, from bed occupancy |
+| Supply | Shifts covered by permanent staff and the bank |
+| Gap | Demand minus supply, priced at agency rates |
+| Summary | Totals, the chart and variance to budget |
+
+### Hard-coded numbers to check
+- **Supply!D4:D15**: bank fill rate typed in as **0.7** every month, not linked to Inputs [1]
+- **Demand!H22**: Ward 3 occupancy overwritten as **92%**. The rest are formulas [1]
+- **Summary!C9**: the budget is typed in as **£2,140,000** rather than linked [1]
+
+### What drives the answer
+1. Bank fill rate: each 5 points is worth about **£118k** a year
+2. The agency premium, currently 95% over permanent staff
+3. Ward 3 occupancy
+^ Agency cost model FY27.xlsx | xlsx | You attached this
+? Show me the formulas on the Gap sheet
+? What if bank fill is 60%?` },
+
+{ id: 'xl-formula', section: 'Excel', slide: '50', title: 'Build the formula',
+  outro: { title: 'Describe the edge cases. Check the formula, not the answer.' },
+  script: `@attach Site agency costs Sep.xlsx
+> I need a formula that returns the agency cost per bed-day by site, handling blanks and dividing by zero safely.
+~ Reading the Data sheet in Site agency costs Sep.xlsx
+< With **sites in column A**, **agency cost in column C** and **bed-days in column D** on the *Data* sheet, put this next to each site name in your summary table (site in A2):
+
+\`\`\`
+=LET(cost, SUMIFS(Data!C:C, Data!A:A, A2),
+     days, SUMIFS(Data!D:D, Data!A:A, A2),
+     IF(days=0, "", cost/days))
+\`\`\`
+
+**How it works**
+- SUMIFS adds up cost and bed-days for that site, so **blank cells count as zero** instead of breaking the sum
+- LET names each part, which makes it easier to check
+- IF(days=0, "", …) returns a blank instead of **#DIV/0!** for a site with no bed-days
+
+**Check it:** Northfield should come out at **£38.40** per bed-day (£41,856 ÷ 1,090) [1].
+^ Site agency costs Sep.xlsx | xlsx | You attached this
+? Add it to the workbook for me
+? Format the result as currency` },
+
+{ id: 'xl-odd', section: 'Excel', slide: '50', title: 'Find what is odd',
+  outro: { title: 'Its explanations are hypotheses to test, not findings.' },
+  script: `@attach Ward costs Apr–Sep.xlsx
+> Highlight the rows where this month is more than 20% away from the three-month average, and suggest what might explain each.
+~ Reading Ward costs Apr–Sep.xlsx (214 rows)
+~ Comparing September with the June–August average
+< **Five rows are more than 20% away from their three-month average** [1]
+
+| Ward / cost line | Sep | 3-month avg | Change | Possible explanation |
+|---|---|---|---|---|
+| Ward 2 · Agency nursing | £48.2k | £31.0k | **+55%** | Two long-term sickness absences from mid-August |
+| Theatres · Implants | £212k | £168k | **+26%** | Three extra orthopaedic lists. Check against activity |
+| Endoscopy · Consumables | £9.1k | £14.6k | **−38%** | Possibly a missed invoice. Worth checking accruals |
+| Ward 3 · Bank nursing | £22.7k | £17.9k | **+27%** | Bank replacing agency, which may be good news |
+| Pharmacy · Drugs | £61.0k | £79.4k | **−23%** | A drug credit, or the timing of a bulk order |
+
+*These are hypotheses, not findings.* Check the source before acting on any of them.
+^ Ward costs Apr–Sep.xlsx | xlsx | You attached this
+? Highlight these rows in the workbook
+? Chart Ward 2 agency spend` },
+
+{ id: 'xl-clean', section: 'Excel', slide: '50', title: 'Clean it up',
+  outro: { title: 'Boring, and it will save someone an afternoon this month.' },
+  script: `@attach Payroll export raw.xlsx
+> This export has merged cells, inconsistent dates and trailing spaces. Turn it into a clean table I can pivot.
+~ Reading Payroll export raw.xlsx (1,162 rows)
+~ Unmerging headers, fixing dates and trimming text
+< Done. Here's what I changed [1]:
+- **Unmerged** 14 header cells and filled each department name down its block
+- **Dates:** converted three formats (12/09/2026, 2026-09-12, 12 Sep) into one real date column
+- **Trimmed** trailing spaces from 1,284 cells
+- **Removed** 6 subtotal rows and 2 blank rows, so the pivot won't double-count
+- **Formatted** it as a table called *Payroll_Sep*
+
+| Cost centre | Department | Employee ID | Date | Hours | Cost |
+|---|---|---|---|---|---|
+| 4102 | Theatres | E10233 | 12/09/2026 | 37.5 | £1,312.50 |
+| 4102 | Theatres | E10871 | 12/09/2026 | 30.0 | £1,020.00 |
+| 4207 | Ward 2 | E11420 | 13/09/2026 | 11.5 | £402.50 |
+@file Payroll export clean.xlsx | Excel workbook · 1,148 rows
+^ Payroll export raw.xlsx | xlsx | You attached this
+? Build the pivot for me
+? Total cost by department` },
+
+{ id: 'deck-make', section: 'Decks, and finding things', slide: '51', title: 'Paper into deck',
+  outro: { title: 'Give it the constraint: one message per slide, thirty words.', body: 'Without a limit it moves your paragraphs onto slides and calls it a deck.' },
+  script: `@attach Day-case unit redesign — options paper.docx
+> Turn this board paper into an eight-slide deck. One message per slide, no slide with more than thirty words.
+~ Reading Day-case unit redesign — options paper.docx
+~ Planning eight slides, one message each
+~ Building the presentation {1800}
+< Here's your deck. Eight slides, one message each:
+1. **We need to decide on the day-case unit this month**
+2. **The unit is full two days a week**
+3. **Late starts cost us one list in twelve**
+4. **Three options, one clear balance of cost and benefit**
+5. **Option B adds six trolleys for £1.2m**
+6. **It pays back in under three years**
+7. **The risks are known and manageable**
+8. **The ask: approve £1.2m today**
+@file Day-case unit redesign — board deck.pptx | PowerPoint · 8 slides
+^ Day-case unit redesign — options paper.docx | docx | You attached this
+? Write speaker notes
+? Make it six slides` },
+
+{ id: 'deck-notes', section: 'Decks, and finding things', slide: '51', title: 'Speaker notes',
+  outro: { title: 'Best for a deck someone else built that you have to present.' },
+  script: `@attach Q3 performance review.pptx
+> Write speaker notes for this deck, in my voice, assuming the audience has not read the paper.
+~ Reading Q3 performance review.pptx (6 slides)
+~ Matching the tone of your recent emails
+< Speaker notes for **Q3 performance review** [1]:
+
+**Slide 1: Q3 at a glance**
+"Three numbers to hold on to. Activity up 7%, agency spend down for the first time this year, and we're still £232k behind plan. I'll take each in turn."
+
+**Slide 2: Activity**
+"We did more than planned, mostly orthopaedics. The extra Saturday lists in August did most of the work."
+
+**Slide 3: Workforce**
+"Agency is still our biggest problem, but it's moving the right way. The bank is doing what we hoped."
+
+*Notes for slides 4–6 are in the deck.*
+@file Q3 performance review (with notes).pptx | PowerPoint · 6 slides
+^ Q3 performance review.pptx | pptx | You attached this
+? Make the notes shorter
+? Add likely questions and answers` },
+
+{ id: 'find-project', section: 'Decks, and finding things', slide: '51', title: 'Find it across everything',
+  outro: { title: 'It only ever shows you what you already have permission to see.', body: 'Ask it the question, not the search term.' },
+  script: `> Find everything about the theatre expansion project from the last quarter (documents, emails and Teams messages) and tell me where it stands.
+~ Searching files, email, meetings and Teams chats for "theatre expansion"
+~ Found 37 items from 11 people, July to October
+~ Reading the most recent and most referenced items
+< **Where it stands: the business case is on v3, waiting on a phased option before it goes back to region** [1][2].
+
+### Timeline
+- **July.** v1 shared. Region asked for a stronger staffing plan [3]
+- **August.** v2 added an anaesthetist recruitment plan. Estates confirmed the old outpatients space works [4]
+- **September.** v3 circulated. Priya flagged 85% utilisation as optimistic [1]
+- **October.** Regional finance asked for a **phased-opening option** by 31 October [2]
+
+### Open issues
+- Two anaesthetist vacancies are still unfilled [5]
+- No decision yet on phasing the opening
+
+**Who's involved:** Priya Shah (finance), Mark Ellison (theatres), Estates and regional finance.
+^ Theatre expansion business case v3.docx | docx | Priya Shah · Sep
+^ RE: Theatre expansion: phased option | email | Regional finance · Oct
+^ Theatre expansion | teams | Channel · 41 messages
+^ Estates walkthrough: recap | meeting | 14 Aug
+^ Anaesthetist recruitment update | email | Amira Hassan · Oct
+? What's the next deadline?
+? Draft an update for the region` },
+
+{ id: 'find-version', section: 'Decks, and finding things', slide: '51', title: 'Which version is current?',
+  outro: { title: 'Every month somebody works from the wrong version. This takes ten seconds.' },
+  script: `> What is the latest version of the agency cost model, who changed it last, and what did they change?
+~ Searching files for "agency cost model"
+~ Comparing versions and edit history
+< **Latest: Agency cost model FY27.xlsx**, in *Finance > Forecasting* on SharePoint [1]
+- **Last changed:** yesterday at 16:42 by **Priya Shah**
+- **What changed:** the bank fill-rate assumption went from **70% to 62%** on the Inputs sheet, and Ward 3 occupancy was relinked to the Demand formulas [1]
+- **Effect:** the FY27 agency forecast goes up by **£188k** [2]
+
+**Two older copies are in circulation:** *Agency model v2 FINAL.xlsx*, attached to an email on 3 Sep [3], and a copy in your OneDrive from August [4]. Both use the old 70% assumption.
+^ Agency cost model FY27.xlsx | xlsx | SharePoint · Finance
+^ RE: revised agency forecast | email | Priya Shah · yesterday
+^ Agency model v2 FINAL.xlsx | xlsx | Email attachment · 3 Sep
+^ Agency model (copy).xlsx | xlsx | Your OneDrive · Aug
+? Summarise the effect on the forecast
+? Tell the team which version to use` },
+
+{ id: 'day-morning', section: 'A day', slide: '52', title: '08:30 · Before you open anything',
+  outro: { title: 'Two asks, one prompt. A full morning briefing.', body: 'It works because the context for both lives in the same place.' },
+  script: `@caption 08:30. Two asks stacked into one prompt
+> Summarise my emails flagging anything that needs an action from me today, and prepare notes for my 10:00 with Priya Shah.
+@caption
+~ Reading 31 unread emails
+~ Finding your 10:00: Monthly finance review with Priya Shah
+~ Reading last month's recap and recent threads with Priya
+< ### Your inbox: four actions today
+- **Q3 forecast sign-off** for Priya, by 5pm [1]
+- **CQC information request**: section 3 sign-off by noon [2]
+- **Agency extension**: approve, or it lapses on Friday [3]
+- **On-call swap** for Helen on 15 November [4]
+
+### 10:00 · Monthly finance review with Priya
+- **Her agenda:** Q3 forecast, agency spend, theatre business case [5]
+- **You owe her:** the Saturday-lists decision, due at the end of September [6]
+- **Expect:** a question on whether bank savings are in the forecast [7]
+- **Good news to open with:** agency spend fell for the first time this year [1]
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah
+^ CQC provider information request | email | Quality team
+^ Agency extension request | email | Sarah Whitlock
+^ On-call swap? | email | Dr Helen Okafor
+^ Monthly finance review | meeting | Today 10:00
+^ Monthly finance review: recap | meeting | 11 Sep
+^ Chat with Priya Shah | teams | Yesterday
+? Draft the four replies
+? What should I decide before 10:00?` },
+
+{ id: 'day-chase', section: 'A day', slide: '52', title: '16:30 · The chase',
+  outro: { title: 'Who is waiting on me, and what is the shortest reply that unblocks each one?' },
+  script: `@caption 16:30. The chase
+> Who is waiting on me, and what is the shortest reply that unblocks each one?
+@caption
+~ Searching today's email and Teams messages addressed to you
+~ Drafting the shortest useful reply for each
+< **Three people are waiting. Each needs one line.**
+
+| Who | Waiting for | Shortest reply |
+|---|---|---|
+| Priya Shah | Q3 forecast sign-off [1] | "Signed off. Go ahead and send it to region." |
+| Sarah Whitlock | Agency extension [2] | "Approved for four weeks. Please review again on 7 Nov." |
+| Mark Ellison | Saturday lists [3] | "Yes to three of four weekends, as agreed on Tuesday." |
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah
+^ Agency extension request | email | Sarah Whitlock
+^ November Saturday lists | email | Mark Ellison
+? Send all three as drafts
+? Make them a little warmer` },
+
+{ id: 'day-close', section: 'A day', slide: '52', title: '17:30 · Close the loop',
+  outro: { title: 'None of these takes longer than making a coffee.', body: 'This is what a very good assistant would do for you. You have one now.' },
+  script: `@caption 17:30. Close the loop
+> What did I not get to today that cannot slip, and what should be first tomorrow?
+@caption
+~ Checking today's email, meetings and the actions you were assigned
+< **Didn't get to today, and can't slip**
+- **CQC information request.** Section 3 sign-off was due at noon. The quality team chased at 15:20 [1]
+- **Regional sign-off question** from capacity planning, due Friday [2]
+
+**Can wait:** the MAC agenda (next week) and the laundry contract (31 October).
+
+**First thing tomorrow**
+1. Sign off CQC section 3 (20 minutes), before your 09:00
+2. Email region about sign-off for the November plan
+3. Speak to the recovery team about Saturday cover [2]
+^ RE: CQC information request | email | Quality team · 15:20
+^ November capacity planning | meeting | Tue · transcript
+? Block 08:30 to 09:00 for this
+? Draft the email to region` },
+
+{ id: 'one-task', section: 'One task, start to finish', slide: '53', title: 'Month end, handed along',
+  outro: { title: 'Not four clever prompts. One piece of work that keeps its context.' },
+  script: `@caption 1 · Start with the question
+> What are the budget holders actually asking me, and what is still outstanding from last month?
+~ Reading 18 emails from budget holders since 1 October
+< **Three questions, and one carry-over from September**
+- Theatres: why implant costs are over budget [1]
+- Ward 2: whether agency cover is funded to December [2]
+- Estates: when the backlog-maintenance budget is released [3]
+- **Outstanding from September:** pharmacy's credit note is still not reflected [4]
+^ RE: implant costs | email | Mark Ellison
+^ Ward 2 agency cover | email | Sarah Whitlock
+^ Backlog maintenance | email | Estates
+^ Pharmacy credit note | email | Pharmacy
+@caption 2 · Get to the numbers
+@attach Month-end pack Sep.xlsx
+> Which sites moved more than 10% against budget, and what does the detail suggest is driving it?
+~ Reading Month-end pack Sep.xlsx
+< | Site | Against budget | What the detail suggests |
+|---|---|---|
+| Northfield | **−12%** | Agency nursing on Ward 2, and implants on extra lists [1] |
+| Riverside | **+14%** | Self-pay income ahead of plan [1] |
+
+*Hypotheses. Check Northfield's implant coding before you rely on it.*
+^ Month-end pack Sep.xlsx | xlsx | You attached this
+@caption 3 · Draft the commentary
+> Draft the monthly commentary from this analysis, in our house format: driver, amount, action, owner.
+< | Driver | Amount | Action | Owner |
+|---|---|---|---|
+| Northfield agency nursing | −£48k | Convert two lines to bank | Sarah Whitlock |
+| Northfield implants | −£44k | Check coding against activity | Priya Shah |
+| Riverside self-pay income | +£61k | Hold the forecast until Q3 is confirmed | Jason |
+@caption 4 · Land it in the meeting
+> Three slides from this commentary. One message each. What moved, why, and what we are doing.
+< 1. **Northfield is 12% over: agency and implants**
+2. **Riverside is 14% ahead on self-pay**
+3. **Two actions this month: bank conversion and implant coding**
+@file September month end.pptx | PowerPoint · 3 slides
+@caption` },
+
+{ id: 'nb-find', section: 'Notebooks', slide: '57', title: 'Notebooks: where to find it',
+  outro: { title: 'Name it after the job, not the month.', body: 'Two minutes to set up. Then it is there every month.', prompts: false },
+  script: `@caption Copilot Chat, left-hand navigation. It has probably been there for weeks.
+@highlight notebooks | Notebooks
+@pause 2200
+@unhighlight
+@notebooks
+@caption Create one, and name it after the job
+@create Month End
+@caption Add your material: drag files in, or pick them from SharePoint and OneDrive
+@refs Month-end pack Sep.xlsx; Commentary — August.docx; Commentary format rules.docx; Budget holder queries | email
+@caption` },
+
+{ id: 'nb-context', section: 'Notebooks', slide: '58', title: 'Notebooks: set the context once',
+  outro: { title: 'This is the C, pinned down. Set it once.', body: 'Instead of re-attaching the same four documents every Monday.' },
+  script: `@instant
+@notebooks
+@create Month End
+@refs Month-end pack Sep.xlsx; Commentary — August.docx; Commentary format rules.docx; Budget holder queries | email
+@live
+@caption Set instructions, and it replies in your format every time
+@instructions Reply in our house format: driver, amount, action, owner. UK spelling. Lead with the biggest variance. No more than 200 words.
+@caption
+> Draft this month's commentary for Northfield.
+~ Reading the 4 references in this notebook
+~ Applying the notebook instructions
+< **Northfield: September commentary**
+
+| Driver | Amount | Action | Owner |
+|---|---|---|---|
+| Agency nursing above plan (Ward 2 sickness) | −£48k | Convert two lines to bank. Review sickness cases | Sarah Whitlock |
+| Implant costs on extra orthopaedic lists | −£44k | Check against activity income | Priya Shah |
+| Self-pay income above plan | +£61k | Hold marketing until anaesthetic cover is confirmed | Jason |
+| Endoscopy consumables below run-rate | +£5k | Confirm the missing invoice accrual | Finance |
+
+**Net: £26k behind plan for the month** [1][2].
+^ Month-end pack Sep.xlsx | xlsx | In this notebook
+^ Commentary format rules.docx | docx | In this notebook
+? Now do Riverside
+? Make it shorter` },
+
+{ id: 'gallery', section: 'Prompt Gallery', slide: '59', title: 'Save what works, share it with the team',
+  outro: { title: 'Save the prompt that worked. Share it with the team.', body: 'That is how one person’s good idea becomes everyone’s default.', prompts: false },
+  script: `@instant
+> Summarise my unread mail and flag anything that needs an action from me today.
+< **31 unread. Four need you today:** the Q3 forecast sign-off by 5pm [1], the CQC request by noon [2], Sarah's agency extension [3] and Helen's on-call swap [4].
+^ RE: Q3 forecast: sign-off needed | email | Priya Shah
+^ CQC provider information request | email | Quality team
+^ Agency extension request | email | Sarah Whitlock
+^ On-call swap? | email | Dr Helen Okafor
+@live
+@caption When a prompt lands, save it. Don't leave it in chat history.
+@save Morning triage
+@caption It's waiting in your Prompt Gallery
+@gallery Saved
+@pause 1200
+@caption Share it, and it becomes the team's standard
+@share
+@gallery Team
+@pause 2200
+@close
+@caption` }
+];
+
+init();
+</script>
+</body>
+</html>

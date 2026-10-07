@@ -73,6 +73,7 @@ Other commands: `@mode web`, `@type` / `@send`, `@newchat`, `@caption text | ms`
   - Both use the deck's navy, Cambria and Calibri by default. You can switch them to light, or to match Copilot.
 - Files are named by slide, such as `47-catch-up-on-a-thread.mp4`, and saved to your downloads folder. A **Clips ready** panel offers preview and Save.
 - Chrome and Edge record H.264. The tool then rebuilds the file as a standard MP4, without re-encoding, so PowerPoint accepts it: Insert → Video → This Device. Browsers without H.264 save WebM, which needs converting (Clipchamp or HandBrake). **Make a clip PowerPoint-ready** fixes an earlier MP4.
+- Quality: Standard 4 Mbps (≈ 30 MB/min), **High 8 Mbps (≈ 60 MB/min, default)** or Very high 12 Mbps. The recorder asks for a keyframe every second and favours sharp text. Keyframes are read from the video data itself, so PowerPoint can start or seek anywhere without smearing.
 - Video size is 1920 × 1080 by default, with 1280 × 720, 2560 × 1440 and 4:3 options. **UI zoom** (125% by default) makes the interface large enough to read on a slide. Make the browser window large (F11) for the sharpest clip.
 - Open the file directly. Previews and embedded frames block screen capture.
 

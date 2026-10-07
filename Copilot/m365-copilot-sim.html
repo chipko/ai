@@ -1405,6 +1405,7 @@ function syncBar() { $('#bPlay').textContent = RUN.playing ? (RUN.paused ? '▶ 
 
 /* ---------- stage sizing ---------- */
 function fit() {
+  if (CLIP.lockFit) return;   // a size change mid-recording would corrupt the video
   const [W, H] = frameSize(), vp = $('#viewport');
   const pad = document.body.classList.contains('rec') ? 0 : 28;
   const s = Math.min((vp.clientWidth - pad) / W, (vp.clientHeight - pad) / H);
@@ -1503,9 +1504,22 @@ async function record(indexes) {
   Object.assign(CLIP, { active: true, stream, clips: [], cropped, title: document.title });
   track.addEventListener('ended', () => stopRecording());
   const mime = clipMime();
-  // show the first scene's title card before the "sharing" bar settles
+  // show the first scene's title card while the "sharing this tab" bar appears and the page resizes
   CUR = indexes[0]; resetUI(scene()); if (S.cards && scene().intro.on) showCard('intro', scene(), true);
-  await sleep(1000);
+  await sleep(1300);
+  fit(); CLIP.lockFit = true;
+  // Record from a fixed-size canvas, not the capture itself: the capture follows the stage's on-screen
+  // size, and a size change mid-clip leaves an MP4 whose later frames decode as smears.
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { alpha: false }); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  const vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.srcObject = new MediaStream([track]);
+  try { await vid.play(); } catch (e) {}
+  CLIP.drawing = true;
+  const draw = () => { if (!CLIP.drawing) return; if (vid.videoWidth) g.drawImage(vid, 0, 0, W, H); requestAnimationFrame(draw); };
+  draw();
+  const out = cv.captureStream(fps), outTrack = out.getVideoTracks()[0];
+  try { outTrack.contentHint = 'detail'; } catch (e) {}
+  await sleep(200);
   for (const idx of indexes) {
     if (!CLIP.active) break;
     CUR = idx; renderSceneList();
@@ -1514,12 +1528,12 @@ async function record(indexes) {
     resetUI(sc); if (S.cards && sc.intro.on) showCard('intro', sc, true);
     await sleep(350);
     let rec;
-    try { rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Number(S.clipQuality) || 8e6, videoKeyFrameIntervalDuration: 1000 }); }
+    try { rec = new MediaRecorder(out, { mimeType: mime || undefined, videoBitsPerSecond: Number(S.clipQuality) || 8e6, videoKeyFrameIntervalDuration: 1000 }); }
     catch (e) { clipMsg('Could not start the recorder: ' + e.message, 'err'); break; }
     CLIP.rec = rec;
     const chunks = [], stopped = new Promise(r => { rec.onstop = r; });
     rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-    const t0 = performance.now(), size = track.getSettings();
+    const t0 = performance.now(), size = { width: W, height: H, src: track.getSettings() };
     rec.start(1000);
     await sleep(250);
     const result = await play({ preset: true, cards: S.cards });
@@ -1529,8 +1543,9 @@ async function record(indexes) {
     if (result === 'aborted' || !chunks.length) break;
     await saveClip(new Blob(chunks, { type: rec.mimeType || mime || 'video/webm' }), sc, performance.now() - t0, size);
   }
+  CLIP.drawing = false; out.getTracks().forEach(t => t.stop()); vid.srcObject = null;
   stream.getTracks().forEach(t => t.stop());
-  CLIP.active = false; CLIP.rec = null;
+  CLIP.active = false; CLIP.rec = null; CLIP.lockFit = false;
   document.body.classList.remove('rec'); document.title = CLIP.title; fit();
   stopPlay(); resetUI(scene()); renderSceneList(); syncForm();
   if (CLIP.clips.length) showClips();
@@ -1544,7 +1559,7 @@ async function saveClip(raw, sc, ms, size) {
   const name = (sc.slide ? String(sc.slide).padStart(2, '0') + '-' : '') + slug(sc.title) + ext;
   const url = URL.createObjectURL(blob);
   try { const a = el('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) {}
-  CLIP.clips.push({ name, url, mb: blob.size / 1048576, dur: fmtTime(ms), res: size && size.width ? `${size.width} × ${size.height}` : '', note: pptNote(fixed), ok: fixed.ok, codec: codecLabel(fixed.codec) });
+  CLIP.clips.push({ name, url, mb: blob.size / 1048576, dur: fmtTime(ms), res: `${size.width} × ${size.height}` + (size.src && size.src.width ? ` (captured at ${size.src.width} × ${size.src.height}${size.src.width < size.width * 0.8 ? ', make the window bigger for a sharper clip' : ''})` : ''), note: pptNote(fixed), ok: fixed.ok, codec: codecLabel(fixed.codec) });
   clipMsg(`Saved ${name} · ${(blob.size / 1048576).toFixed(1)} MB · ${pptNote(fixed)}`, fixed.ok ? 'ok' : 'err');
 }
 function showClips() {

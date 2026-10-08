@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="150" viewBox="0 0 800 150" font-family="Calibri, Carlito, 'Segoe UI', Arial, sans-serif">
+  <!-- Work IQ: on -->
+  <g transform="translate(0,0)">
+    <text x="0" y="22" font-size="14" font-weight="700" fill="#0091D5" letter-spacing="2.6">WORK IQ ON</text>
+    <rect x="0" y="38" width="330" height="72" rx="36" fill="#DCE8F2"/>
+    <rect x="6" y="44" width="150" height="60" rx="30" fill="#FFFFFF"/>
+    <text x="81" y="83" text-anchor="middle" font-size="26" font-weight="700" fill="#0A2A4E">Work IQ</text>
+    <text x="243" y="82" text-anchor="middle" font-size="24" fill="#6B8CA8">Auto</text>
+    <path d="M281 74 l7 7 7-7" fill="none" stroke="#6B8CA8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="0" y="140" font-size="16" font-style="italic" fill="#14406E">Grounded in our tenant.</text>
+  </g>
+  <!-- Work IQ: off (crossed out) -->
+  <g transform="translate(450,0)">
+    <text x="0" y="22" font-size="14" font-weight="700" fill="#0091D5" letter-spacing="2.6">WORK IQ OFF</text>
+    <rect x="0" y="38" width="330" height="72" rx="36" fill="#DCE8F2"/>
+    <rect x="6" y="44" width="150" height="60" rx="30" fill="#DCE8F2" stroke="#B8CCDD" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="81" y="83" text-anchor="middle" font-size="26" font-weight="700" fill="#6B8CA8">Work IQ</text>
+    <line x1="34" y1="75" x2="128" y2="75" stroke="#6B8CA8" stroke-width="3.2" stroke-linecap="round"/>
+    <text x="243" y="82" text-anchor="middle" font-size="24" fill="#6B8CA8">Auto</text>
+    <path d="M281 74 l7 7 7-7" fill="none" stroke="#6B8CA8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="0" y="140" font-size="16" font-style="italic" fill="#14406E">Crossed out. None of our material is used.</text>
+  </g>
+</svg>

@@ -5,7 +5,7 @@
 Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes and editor, and **C** to record.
 
 ## What it looks like
-- Copilot Chat on the web: the sidebar (New chat, Search, Library, Notebooks), the **Work IQ** toggle (crossed out when off; the older Work / Web segments are an option under Look), the model picker (Auto, Quick Response, Think Deeper), the message box with **+**, the home chips, and your name and plan.
+- Copilot Chat on the web: the sidebar (New chat, Search, Library, Notebooks), the **Work IQ** toggle (crossed out when off; the older Work / Web segments are an option under Look), the model picker (Auto, Quick response, Think deeper, and the GPT flyout with its own models), the message box with **+**, the home chips, and your name and plan.
 - **Light or dark.** The ◐ button or **T** switches the whole interface. A scene can also be pinned to light or dark.
 - **Looks live.** An animated pointer moves to each control and clicks it. Prompts are typed character by character. Copilot shows reasoning steps (*Reading Board paper.docx…*) with a realistic pause for each one, then streams its answer with tables, citations, references, created files and follow-up chips. Think Deeper thinks for longer and Quick Response barely pauses. If a script has no thinking steps, they're generated from the sources the answer cites.
 - **Documents.** Attach one or more files to a prompt. They appear as file chips with icons in the message box and above the sent prompt.
@@ -16,7 +16,7 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 ## Built-in scenes (Section C of the away-day deck)
 | Section | Slide | Scenes |
 |---|---|---|
-| Controls | 42–45 | Quick tour · Quick Response · Think Deeper on a business case · The Work IQ toggle · Work IQ on and off, same prompt |
+| Controls | 42–45 | Quick tour · Quick response · Think deeper on a business case · Set the effort, and the model (the GPT flyout) · The Work IQ toggle · Work IQ on and off, same prompt |
 | The inbox | 47 | Catch up on a thread · Draft a reply · Who is waiting on me · Sort the morning |
 | Meetings | 48 | Prepare · Recap one you missed · Your own actions · Confirm it in writing |
 | Documents | 49 | Read the long policy · Executive summary · Change the audience · Compare versions |

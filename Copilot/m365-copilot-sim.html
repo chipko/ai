@@ -70,6 +70,14 @@ body.rec #stage{box-shadow:none}
 .mi small{color:var(--mut);font-size:13px}
 .mi .ck{margin-left:auto;opacity:0;width:18px;height:18px}
 .mi.on .ck{opacity:1}
+.mdiv{height:1px;background:var(--line);margin:6px 6px}
+.mi.grp{position:relative}
+.mi.grp .chev{margin-left:auto;width:18px;height:18px;color:var(--fg2)}
+.mi.grp .ck{display:none}
+.menu.sub{left:calc(100% + 4px);top:-6px;min-width:300px;padding:10px 6px}
+.menu.sub .mi{padding:11px 14px}
+.menu.sub .mi.on{outline:2px solid var(--fg);outline-offset:-2px;border-radius:9px}
+.menu.sub .mi .ck{display:none}
 
 /* views */
 #views{flex:1;position:relative;min-height:0}
@@ -575,7 +583,8 @@ A file with several "scene" lines imports as several scenes.</pre></details>
     <div class="row"><label>Greeting</label><input type="text" data-s="greeting"></div>
     <div class="row"><label>Placeholder</label><input type="text" data-s="placeholder"></div>
     <div class="row"><label>Disclaimer</label><input type="text" data-s="disclaimer"></div>
-    <div class="row"><label>Models</label><textarea rows="3" data-s="models" title="One per line: Name | description"></textarea></div>
+    <div class="row"><label>Models</label><textarea rows="8" data-s="models" title="One per line: Name | description. A line of --- is a divider. Lines starting with > are a submenu under the line above."></textarea></div>
+    <p class="msg">One per line: <code>Name | description</code>. <code>---</code> draws a divider. Lines starting with <code>&gt;</code> are a submenu under the line above (the GPT flyout).</p>
     <div class="row"><label>Home chips</label><textarea rows="4" data-s="chips"></textarea></div>
     <div class="row"><label>Notebooks</label><textarea rows="3" data-s="notebooks" title="Existing notebooks shown in the list"></textarea></div>
     <div class="row"><label>Team name</label><input type="text" data-s="team"></div>
@@ -709,7 +718,7 @@ const DEFAULTS = {
   name: 'Jason', tag: 'Work', plan: 'M365 Copilot (Premium)', initials: 'J', photo: '',
   workLabel: 'Work IQ', webLabel: 'Web', showWeb: false, modeStyle: 'toggle',
   greeting: 'What can I help with?', placeholder: 'Message Copilot', disclaimer: 'AI-generated content may be incorrect',
-  models: 'Auto | Decides how long to think\nQuick Response | Answers right away\nThink Deeper | Thinks longer for better answers',
+  models: 'Auto | Decides how long to think\nQuick response | Answers right away\nThink deeper | Think longer for better answers\n---\nGPT | OpenAI\n> GPT-5.6 Sol Quick response\n> GPT-5.6 Sol Think deeper\n> GPT-6.1 Sol',
   chips: 'File Insights\nInbox Triage\nPeople Search\nMeeting Prep',
   notebooks: 'Board — November\nTheatre expansion\nCQC readiness',
   team: 'Hospital Directors',
@@ -721,8 +730,22 @@ const DEFAULTS = {
 let S = Object.assign({}, DEFAULTS, store.get('settings', {}));
 // v2: higher bitrates; move older saved settings onto the new default
 if (S.clipV !== 3) { S.clipQuality = DEFAULTS.clipQuality; S.clipV = 3; }
+if (S.models === 'Auto | Decides how long to think\nQuick Response | Answers right away\nThink Deeper | Thinks longer for better answers') S.models = DEFAULTS.models;   // unedited older default
 const saveSettings = () => store.set('settings', S);
-const models = () => S.models.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [n, d] = l.split('|').map(x => x.trim()); return { name: n, desc: d || '' }; });
+// Models: "Name | description" per line; "---" is a divider; "> Name" lines are a submenu under the line above
+function modelTree() {
+  const out = [];
+  for (const raw of S.models.split('\n')) {
+    const l = raw.trim(); if (!l) continue;
+    if (/^-{3,}$/.test(l)) { out.push({ divider: true }); continue; }
+    if (l.startsWith('>')) { const parent = [...out].reverse().find(m => !m.divider); if (parent) (parent.kids = parent.kids || []).push(item(l.slice(1))); continue; }
+    out.push(item(l));
+  }
+  function item(s) { const [n, d] = s.split('|').map(x => x.trim()); return { name: n, desc: d || '' }; }
+  return out;
+}
+// Everything that can be chosen, flat
+const models = () => modelTree().flatMap(m => m.divider ? [] : m.kids ? m.kids.map(k => Object.assign({}, k, { group: m.name })) : [m]);
 const frameSize = () => { const [w, h] = String(S.frame).split('x').map(Number); return [w || 1920, h || 1080]; };
 
 /* ---------- library of saved scenes ---------- */
@@ -980,7 +1003,10 @@ function applyChrome() {
   $('#mWork').textContent = S.workLabel; $('#mWeb').textContent = S.webLabel;
   $('#greet').textContent = S.greeting; $('#disc').textContent = S.disclaimer;
   $('#chips').innerHTML = S.chips.split('\n').map(c => c.trim()).filter(Boolean).map(c => `<span class="chip">${esc(c)}</span>`).join('') + `<span class="chip dots" id="chipMore">${ic('more')}</span>`;
-  $('#modelMenu').innerHTML = models().map(m => `<div class="mi" data-m="${esc(m.name)}"><div><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></div>${ic('check', 'ck')}</div>`).join('');
+  const mi = m => `<div class="mi" data-m="${esc(m.name)}"><div><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></div>${ic('check', 'ck')}</div>`;
+  $('#modelMenu').innerHTML = modelTree().map(m => m.divider ? '<div class="mdiv"></div>'
+    : m.kids ? `<div class="mi grp" data-g="${esc(m.name)}"><div><b>${esc(m.name)}</b><small>${esc(m.desc)}</small></div>${ic('chevR', 'chev')}<div class="menu sub">${m.kids.map(mi).join('')}</div></div>`
+    : mi(m)).join('');
   $('#nblGrid').innerHTML = S.notebooks.split('\n').map(n => n.trim()).filter(Boolean).map((n, i) => `<div class="nbc"><div class="fi">${ic('folder')}</div><div><b>${esc(n)}</b><small>Edited ${['yesterday', '3 days ago', 'last week', '2 weeks ago'][i % 4]}</small></div></div>`).join('');
   $('#badge').classList.toggle('on', !!S.badge);
   $('#cardsTg').checked = !!S.cards;
@@ -1160,7 +1186,7 @@ async function doSend() {
   await wait(450);
 }
 // Think Deeper takes longer, Quick Response barely pauses (matched by position in the model list)
-function modelPace() { const i = models().findIndex(m => m.name === ST.model); return i === 2 ? 1.7 : i === 1 ? 0.55 : 1; }
+function modelPace() { return /deep/i.test(ST.model) ? 1.7 : /quick/i.test(ST.model) ? 0.55 : 1; }
 // A response with no ~ lines gets reasoning steps made up from what it cites
 function autoThink(resp) {
   if (!S.autoThink || modelPace() < 1) return null;
@@ -1182,7 +1208,7 @@ async function doThink(s) {
   a.appendChild(th);
   const lab = $('.shim', th), list = $('.thl', th);
   let total = 0;
-  lab.textContent = ST.model === models()[2]?.name ? 'Thinking deeply' : 'Thinking';
+  lab.textContent = /deep/i.test(ST.model) ? 'Thinking deeply' : 'Thinking';
   await wait(700 * modelPace());
   for (const line of s.lines) {
     lab.textContent = line.text;
@@ -1264,11 +1290,17 @@ const CMDS = {
     const btn = $('#modelBtn'), menu = $('#modelMenu');
     menu.style.left = btn.offsetLeft + 'px';
     await clickOn(btn); btn.classList.add('open'); menu.classList.add('on'); await wait(700);
+    let grp = null;
     if (m) {
+      if (m.group) {                              // a submenu: rest on the group first, then pick from the flyout
+        grp = $(`.mi.grp[data-g="${CSS.escape(m.group)}"]`, menu);
+        await moveTo(grp, 0.3); grp.classList.add('hover'); $('.sub', grp).classList.add('on'); await wait(650);
+      }
       const item = $(`.mi[data-m="${CSS.escape(m.name)}"]`, menu);
       await moveTo(item, 0.3); item.classList.add('hover'); await wait(350); await clickOn(item, 0.3);
       ST.model = m.name; renderTop(); await wait(250); item.classList.remove('hover');
     }
+    if (grp) { $('.sub', grp).classList.remove('on'); grp.classList.remove('hover'); }
     menu.classList.remove('on'); btn.classList.remove('open'); await wait(300);
   },
   async mode(arg) {
@@ -2211,6 +2243,26 @@ const BUILTIN = [
 ^ Tariff letter 2026-27.pdf | pdf | Email from Commercial · 2 Sep
 ? Model a phased opening
 ? Draft the risks section for the paper` },
+
+{ id: 'effort-model', section: 'Controls', slide: '44', title: 'Set the effort, and the model',
+  outro: { title: 'Auto is right most of the time. Turn it up on purpose.', body: 'Deeper thinking takes longer. Use it deliberately rather than leaving it on.', prompts: false },
+  script: `@caption One picker. How hard it thinks, and which model does the thinking.
+@highlight model | Click to choose
+@pause 2200
+@unhighlight
+@model Think deeper
+@caption Think deeper: more reasoning before it answers. For the board paper, not the two-line question.
+@pause 3200
+@model Quick response
+@caption Quick response: fast and light. Most of what you do.
+@pause 2800
+@model GPT-6.1 Sol
+@caption Under GPT: a choice of model. Same licence, same Work IQ, a different brain.
+@pause 3200
+@model Auto
+@caption Auto: the default. It decides how much thinking the question deserves.
+@pause 2800
+@caption` },
 
 { id: 'workiq-toggle', section: 'Controls', slide: '45', title: 'Work IQ: the toggle at the top',
   outro: { title: 'One click, and it changes the answer completely.', prompts: false },

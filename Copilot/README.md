@@ -75,6 +75,7 @@ Other commands: `@mode web`, `@type` / `@send`, `@newchat`, `@caption text | ms`
 - Files are named by slide, such as `47-catch-up-on-a-thread.mp4`, and saved to your downloads folder. A **Clips ready** panel offers preview and Save.
 - **How the video is made.** Every captured frame is drawn into a canvas of exactly the video size, so the picture can never change size mid-clip (that is what smeared earlier clips). In Chrome and Edge the frames are encoded as H.264 with WebCodecs at a constant frame rate, with a keyframe every second, and written as a standard MP4 by the page itself. Then the finished file is decoded and compared with what was on screen, and the Clips ready panel says **Verified** (or explains why not). Insert it with Insert → Video → This Device. A browser without WebCodecs falls back to its own recorder; if it has no H.264, the clip is WebM and needs converting (Clipchamp or HandBrake). **Make a clip PowerPoint-ready** rebuilds an older fragmented MP4.
 - Quality: Standard 3 Mbps (≈ 22 MB/min), **High 6 Mbps (≈ 45 MB/min, default)** or Very high 10 Mbps. Static screens use much less than the maximum.
+- **UI zoom** (🔍 on the toolbar, or **+** / **−**) sets how big Copilot appears in the video, from 90% to 200%; 125% is the default and reads well on a slide. It is saved in the browser with the rest of the look, and because clips are always rendered at the chosen video size rather than the window size, the same zoom gives identical output on any machine. Export the library to carry the look to another computer.
 - Video size is 1920 × 1080 by default, with 1280 × 720, 2560 × 1440 and 4:3 options. **UI zoom** (125% by default) makes the interface large enough to read on a slide. Make the browser window large (F11) for the sharpest clip.
 - Open the file directly. Previews and embedded frames block screen capture.
 
@@ -82,4 +83,4 @@ Other commands: `@mode web`, `@type` / `@send`, `@newchat`, `@caption text | ms`
 **📷 Frame** (or **P**) pauses playback and saves the Copilot window as a PNG at the video size, for a still on a slide such as the tour. The first snapshot asks to share this tab; the capture then stays open for two minutes so you can take several. In a script, `@snapshot name` saves a frame mid-scene, and during a recording it needs no extra prompt.
 
 ## Keys
-Space play/pause · R reset · E jump to the finished screen · ← → previous/next scene · T light/dark · D scenes and editor · C record · P snapshot · H hide the toolbar · F fullscreen · Esc stop
+Space play/pause · R reset · E jump to the finished screen · ← → previous/next scene · T light/dark · + / − UI zoom · D scenes and editor · C record · P snapshot · H hide the toolbar · F fullscreen · Esc stop

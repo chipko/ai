@@ -305,7 +305,10 @@ body.rec #stage{box-shadow:none}
 
 /* ---------- toolbar ---------- */
 #bar{position:fixed;left:0;right:0;bottom:0;height:54px;background:#202327;border-top:1px solid #33373d;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:13.5px;z-index:100}
-#bar button,#bar select{background:#2d3238;border:1px solid #3c4249;border-radius:8px;height:34px;padding:0 11px;color:#e8e8e8;font-size:13.5px}
+#bar button,#bar select{background:#2d3238;border:1px solid #3c4249;border-radius:8px;height:34px;padding:0 11px;color:#e8e8e8;font-size:13.5px;white-space:nowrap;flex:none}
+#bar select{flex:0 1 auto}
+@media (max-width:1500px){#frameInfo{display:none}}
+@media (max-width:1300px){#bar .tg span{display:none}}
 #bar select{padding:0 6px;max-width:330px}
 #bar button:hover{background:#383e45}
 #bar .pri{background:#0f6cbd;border-color:#0f6cbd;font-weight:600;min-width:86px}

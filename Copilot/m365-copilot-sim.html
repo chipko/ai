@@ -56,6 +56,8 @@ body.rec #stage{box-shadow:none}
 .modeSeg span{padding:5px 12px;border-radius:12px;font-size:15px;color:var(--fg);transition:background .15s}
 .modeSeg .on{background:var(--pill)}
 .modeSeg.solo span:not(.on){display:none}
+.modeSeg.toggle #mWeb{display:none}
+.modeSeg.toggle #mWork.off{background:none;color:var(--fg2);text-decoration:line-through;text-decoration-thickness:1.5px}
 #modelBtn{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:10px;font-size:15px;transition:background .15s}
 #modelBtn .i{width:16px;height:16px}
 #modelBtn.open{background:var(--hover)}
@@ -532,7 +534,7 @@ A file with several "scene" lines imports as several scenes.</pre></details>
 @file Name.pptx | 8 slides   a file Copilot made
 
 @model Think Deeper    open the model picker and choose
-@mode web              Work IQ / Web toggle (work | web)
+@mode off / @mode on   the Work IQ toggle (crossed out when off)
 @attach A.docx; B.xlsx pick files with the + button
 @type text / @send     type without sending, then send
 @newchat               start a new chat
@@ -567,6 +569,7 @@ A file with several "scene" lines imports as several scenes.</pre></details>
     <div class="row"><label>Plan</label><input type="text" data-s="plan"></div>
     <div class="row"><label>Initials</label><input type="text" data-s="initials" style="max-width:70px"><label class="btn" style="cursor:pointer;width:auto">Photo…<input type="file" id="photoIn" accept="image/*" hidden></label><button class="btn" id="photoClear">No photo</button></div>
     <div class="row"><label>Work label</label><input type="text" data-s="workLabel"></div>
+    <div class="row"><label>Mode control</label><select data-s="modeStyle"><option value="toggle">Work IQ toggle, crossed out when off (current)</option><option value="segments">Work / Web segments (older layout)</option></select></div>
     <div class="row"><label>Web label</label><input type="text" data-s="webLabel"></div>
     <div class="row"><label></label><label class="chk"><input type="checkbox" data-s="showWeb"> Always show the Web option</label></div>
     <div class="row"><label>Greeting</label><input type="text" data-s="greeting"></div>
@@ -704,7 +707,7 @@ const DEFAULTS = {
   theme: 'light', frame: '1920x1080', zoom: 1.25, speed: 1, cards: true,
   typeCps: 38, streamWps: 14, thinkMs: 1400, autoThink: true, scriptFmt: 'script', cursor: true, refsOpen: true,
   name: 'Jason', tag: 'Work', plan: 'M365 Copilot (Premium)', initials: 'J', photo: '',
-  workLabel: 'Work IQ', webLabel: 'Web', showWeb: false,
+  workLabel: 'Work IQ', webLabel: 'Web', showWeb: false, modeStyle: 'toggle',
   greeting: 'What can I help with?', placeholder: 'Message Copilot', disclaimer: 'AI-generated content may be incorrect',
   models: 'Auto | Decides how long to think\nQuick Response | Answers right away\nThink Deeper | Thinks longer for better answers',
   chips: 'File Insights\nInbox Triage\nPeople Search\nMeeting Prep',
@@ -738,8 +741,23 @@ function loadLibrary() {
   const saved = store.get(LIBKEY, null);
   const src = saved || (EMBEDDED && EMBEDDED.scenes ? EMBEDDED : null) || { version: 1, scenes: BUILTIN };
   if (!saved && EMBEDDED && EMBEDDED.look && !store.get('settings.' + LIBKEY, null)) { S = Object.assign({}, DEFAULTS, EMBEDDED.look); store.set('settings.' + LIBKEY, 1); saveSettings(); }
-  LIB = { version: 1, scenes: (src.scenes || []).map(normScene) };
+  LIB = { version: 1, scenes: (src.scenes || []).map(normScene), removed: src.removed || [] };
   if (!LIB.scenes.length) LIB.scenes = BUILTIN.map(normScene);
+  if (saved) mergeBuiltins();
+}
+// Built-in scenes that were rewritten: the hash of the old script, so an unedited copy is replaced
+const BUILTIN_UPDATED = { 'work-web': ['w2n2b9'] };
+function mergeBuiltins() {
+  let added = 0, updated = 0;
+  BUILTIN.forEach((b, i) => {
+    const at = LIB.scenes.findIndex(s => s.id === b.id);
+    if (at < 0) {
+      if ((LIB.removed || []).includes(b.id)) return;
+      const after = i > 0 ? LIB.scenes.findIndex(s => s.id === BUILTIN[i - 1].id) : -1;
+      LIB.scenes.splice(after + 1, 0, normScene(clone(b))); added++;
+    } else if ((BUILTIN_UPDATED[b.id] || []).includes(hash(LIB.scenes[at].script))) { LIB.scenes[at] = normScene(Object.assign(clone(b), { id: b.id })); updated++; }
+  });
+  if (added || updated) { store.set(LIBKEY, LIB); setTimeout(() => toast(`${added ? added + ' new built-in scene' + (added > 1 ? 's' : '') : ''}${added && updated ? ', ' : ''}${updated ? updated + ' updated' : ''}`, 4000), 500); }
 }
 const saveLib = (() => { let t; return () => { clearTimeout(t); t = setTimeout(() => store.set(LIBKEY, LIB), 300); }; })();
 let CUR = 0;
@@ -839,7 +857,7 @@ const LLM_PROMPT = `Write a scripted Microsoft 365 Copilot Chat demo as JSONL (o
 First line: {"type":"scene","title":"…","section":"…","slide":"47","mode":"work","model":"Auto","outro":{"title":"one-line takeaway"}}
 Then, in order, any of:
 {"type":"model","value":"Think Deeper"}            // Auto | Quick Response | Think Deeper
-{"type":"mode","value":"web"}                      // work (Work IQ) | web
+{"type":"mode","value":"off"}                      // Work IQ on | off
 {"type":"caption","text":"Lower-third caption","ms":4000}
 {"type":"prompt","text":"What the user types","context":["Board paper.docx","Pack.xlsx",{"name":"Budget queries","kind":"email"}]}   // context is optional: documents attached to this prompt
 {"type":"think","steps":["Searching your email","Reading Board paper.docx",{"text":"Comparing versions","ms":2500}],"summary":"Thought for 20 seconds"}
@@ -974,8 +992,11 @@ function applyChrome() {
   syncClipInfo();
 }
 function renderTop() {
-  $('#mWork').classList.toggle('on', ST.mode === 'work'); $('#mWeb').classList.toggle('on', ST.mode === 'web');
-  $('#modeSeg').classList.toggle('solo', !S.showWeb && !ST.webShown && ST.mode === 'work');
+  const toggle = S.modeStyle !== 'segments';
+  $('#modeSeg').classList.toggle('toggle', toggle);
+  $('#mWork').classList.toggle('on', ST.mode === 'work'); $('#mWork').classList.toggle('off', toggle && ST.mode !== 'work');
+  $('#mWeb').classList.toggle('on', ST.mode === 'web');
+  $('#modeSeg').classList.toggle('solo', !toggle && !S.showWeb && !ST.webShown && ST.mode === 'work');
   $('#modelName').textContent = ST.model;
   $$('#modelMenu .mi').forEach(m => m.classList.toggle('on', m.dataset.m === ST.model));
 }
@@ -1026,7 +1047,7 @@ function uiRect(target) {
   const u = ui.getBoundingClientRect(), r = target.getBoundingClientRect(), k = u.width / ui.offsetWidth || 1;
   return { x: (r.left - u.left) / k, y: (r.top - u.top) / k, w: r.width / k, h: r.height / k };
 }
-const TIPS = { cPlus: 'Add content', cMic: 'Talk to Copilot', cSend: 'Send', cPrompts: 'Prompt Gallery', modelBtn: 'Choose how Copilot responds', mWork: 'Grounded in your work data', mWeb: 'Grounded in the web', navNew: 'New chat', navSearch: 'Search', navLib: 'Library', navNb: 'Notebooks', gear: 'Settings', chipMore: 'More prompts', nbAdd: 'Add references', nbCreate: 'Create a notebook' };
+const TIPS = { cPlus: 'Add content', cMic: 'Talk to Copilot', cSend: 'Send', cPrompts: 'Prompt Gallery', modelBtn: 'Choose how Copilot responds', mWork: 'Work IQ: grounded in your work data', mWeb: 'Grounded in the web', navNew: 'New chat', navSearch: 'Search', navLib: 'Library', navNb: 'Notebooks', gear: 'Settings', chipMore: 'More prompts', nbAdd: 'Add references', nbCreate: 'Create a notebook' };
 const tipFor = t => { const o = t.closest('[data-tip]'); return (o && o.dataset.tip) || TIPS[t.id] || ''; };
 function showTip(target, text) {
   const tip = $('#tip');
@@ -1212,7 +1233,7 @@ async function doResp(s) {
 
 /* ---------- commands ---------- */
 const TARGETS = {
-  model: '#modelBtn', work: '#mWork', web: '#mWeb', mode: '#modeSeg', notebooks: '#navNb', newchat: '#navNew', search: '#navSearch', library: '#navLib',
+  model: '#modelBtn', work: '#mWork', web: () => S.modeStyle === 'segments' ? $('#mWeb') : $('#mWork'), workiq: '#mWork', mode: '#modeSeg', notebooks: '#navNb', newchat: '#navNew', search: '#navSearch', library: '#navLib',
   plus: '#cPlus', send: '#cSend', composer: '#composer', mic: '#cMic', prompts: '#cPrompts', chips: '#chips', more: '#chipMore', sidebar: '#side', top: '#top',
   create: '#nbCreate', add: '#nbAdd', instructions: '#nbInstr', references: '#nbRefs', avatar: '.sfoot', settings: '#gear',
   last: () => $$('.msg.a', thread()).pop(), lastprompt: () => { const u = $$('.msg.u', thread()).pop(); return u && ($('.bub', u) || u); },
@@ -1251,11 +1272,15 @@ const CMDS = {
     menu.classList.remove('on'); btn.classList.remove('open'); await wait(300);
   },
   async mode(arg) {
-    const web = /web/i.test(arg);
+    const web = /web|off|false/i.test(arg), want = web ? 'web' : 'work';
+    if (S.modeStyle !== 'segments') {           // one pill: a click flips it, and it is crossed out when off
+      if (ST.mode !== want) { await clickOn($('#mWork')); ST.mode = want; renderTop(); }
+      await wait(400); return;
+    }
     if ($('#modeSeg').classList.contains('solo')) { await clickOn($('#mWork')); ST.webShown = true; renderTop(); await wait(350); }
     ST.webShown = true; renderTop();
     await clickOn(web ? $('#mWeb') : $('#mWork'));
-    ST.mode = web ? 'web' : 'work'; renderTop(); await wait(400);
+    ST.mode = want; renderTop(); await wait(400);
   },
   async attach(arg) {
     const files = parseFiles(arg); if (!files.length) return;
@@ -1847,7 +1872,7 @@ function init() {
   $('#sList').onclick = e => { const r = e.target.closest('.si'); if (r) selectScene(+r.dataset.i, true); };
   $('#sNew').onclick = () => { const s = normScene({ section: scene().section, title: 'New scene', script: '> Your prompt here\n~ Searching your files\n< Copilot\'s answer in **Markdown**.\n? A follow-up' }); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); openDrawer('pScript'); };
   $('#sDup').onclick = () => { const s = normScene(Object.assign(clone(scene()), { id: uid(), title: scene().title + ' (copy)' })); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); };
-  $('#sDel').onclick = () => { if (LIB.scenes.length < 2 || !confirm(`Delete “${scene().title}”?`)) return; LIB.scenes.splice(CUR, 1); saveLib(); selectScene(Math.min(CUR, LIB.scenes.length - 1), true); };
+  $('#sDel').onclick = () => { if (LIB.scenes.length < 2 || !confirm(`Delete “${scene().title}”?`)) return; (LIB.removed = LIB.removed || []).push(scene().id); LIB.scenes.splice(CUR, 1); saveLib(); selectScene(Math.min(CUR, LIB.scenes.length - 1), true); };
   $('#sUp').onclick = () => { if (CUR < 1) return; const [s] = LIB.scenes.splice(CUR, 1); LIB.scenes.splice(CUR - 1, 0, s); saveLib(); selectScene(CUR - 1, true); };
   $('#sDown').onclick = () => { if (CUR >= LIB.scenes.length - 1) return; const [s] = LIB.scenes.splice(CUR, 1); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); };
   $('#sPlay').onclick = () => play();
@@ -1867,7 +1892,7 @@ function init() {
   $('#lExport').onclick = () => download('copilot-scenes.json', JSON.stringify({ version: 1, scenes: LIB.scenes, look: S }, null, 2), 'application/json');
   $('#lImport').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(importLibrary); e.target.value = ''; };
   $('#lStandalone').onclick = () => { download('copilot-chat-simulator.html', standaloneHtml(), 'text/html'); toast('Standalone HTML downloaded'); };
-  $('#lReset').onclick = () => { if (!confirm('Replace all scenes with the built-in set? Your edits will be lost (export first if you want to keep them).')) return; LIB = { version: 1, scenes: BUILTIN.map(normScene) }; store.set(LIBKEY, LIB); selectScene(0, true); };
+  $('#lReset').onclick = () => { if (!confirm('Replace all scenes with the built-in set? Your edits will be lost (export first if you want to keep them).')) return; LIB = { version: 1, scenes: BUILTIN.map(normScene), removed: [] }; store.set(LIBKEY, LIB); selectScene(0, true); };
   $('#lookReset').onclick = () => { if (!confirm('Reset the look to its defaults?')) return; S = Object.assign({}, DEFAULTS); saveSettings(); applyChrome(); fit(); syncForm(); resetUI(scene()); };
   $('#photoIn').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -2187,9 +2212,25 @@ const BUILTIN = [
 ? Model a phased opening
 ? Draft the risks section for the paper` },
 
-{ id: 'work-web', section: 'Controls', slide: '45', title: 'Work or Web: same prompt, two answers',
+{ id: 'workiq-toggle', section: 'Controls', slide: '45', title: 'Work IQ: the toggle at the top',
+  outro: { title: 'One click, and it changes the answer completely.', prompts: false },
+  script: `@caption A toggle at the top of Copilot Chat. Most people have never touched it.
+@highlight work | Work IQ: on
+@pause 2400
+@unhighlight
+@caption On: grounded in our tenant. Our files, mail, meetings and chats.
+@pause 2600
+@mode off
+@caption Off: crossed out. General knowledge and the web, and none of our material in the conversation.
+@pause 3400
+@mode on
+@caption Back on. For most of what you do, this is what you want.
+@pause 2600
+@caption` },
+
+{ id: 'work-web', section: 'Controls', slide: '45', title: 'Work IQ on and off: same prompt, two answers',
   outro: { title: 'Both answers are useful. On this one, run both.', body: 'The gap between the two is often the interesting bit.' },
-  script: `@caption Work IQ: grounded in our files, mail, meetings and chats
+  script: `@caption Work IQ on: grounded in our files, mail, meetings and chats
 > What are the main risks in expanding our internal nursing bank?
 ~ Searching your files and email for "nurse bank"
 ~ Reading Workforce plan 2026-27.docx
@@ -2205,8 +2246,8 @@ const BUILTIN = [
 ^ Nursing bank expansion — SMT paper (Mar 2026).pptx | pptx | You presented this
 @pause 2500
 @newchat
-@mode web
-@caption Web: the open web. None of our material in the conversation
+@mode off
+@caption Work IQ off: general knowledge and the web. None of our material in the conversation
 > What are the main risks in expanding our internal nursing bank?
 ~ Searching the web
 < Risks organisations commonly report when expanding an internal staff bank:
@@ -2221,7 +2262,8 @@ A useful checklist to test your own plan against.
 ^ Guide to running a staff bank | web | nhsemployers.org
 ^ Working time limits | web | gov.uk
 ^ Holiday pay for irregular hours | web | acas.org.uk
-@caption Same prompt. Ours, on our numbers, or the general checklist.` },
+@caption Same prompt. Ours, on our numbers, or the general checklist.
+@mode on` },
 
 { id: 'inbox-thread', section: 'The inbox', slide: '47', title: 'Catch up on a thread',
   outro: { title: 'Ask for the decision, not a summary.', body: 'Ask for a summary and you get a shorter version of the thread you didn’t want to read.' },

@@ -26,6 +26,28 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 | One task | 53 | Month end, handed from question to numbers to commentary to slides |
 | Notebooks | 57–58 | Where to find it · Set the context once |
 | Prompt Gallery | 59 | Save what works, share it with the team |
+| Mrs Smith · Copilot basics | V3–V7 | The five training-video scenes described below |
+
+## Mrs Smith: Copilot basics (training videos 3 to 7)
+A second built-in section, played as **Mrs Smith** on a standard Copilot Chat licence (a blank avatar; no Work IQ). Each scene carries its own *look override*, so your own name and product are untouched outside it.
+
+| Video | Scene | What it shows |
+|---|---|---|
+| 3 | Improve your writing with GCSE | A charity bake-sale email. As the prompt is typed, the **Goal, Context, Source and Expectation** parts are highlighted in four colours, with a legend. |
+| 4 | Summarise a long document | A warning banner (*only publicly available documents should be uploaded onto Copilot*), an upload from this device, a GCSE prompt, and a Word document of bullet points. |
+| 5 | Ideas and solutions: the Excel problem | A struggling face, a mock Excel sheet with dates stored as numbers and a total of 0, Copilot's fixes, the sheet fixed, a happy face. Swap the faces for your own cartoons with `@slide`. |
+| 6 | Copilot makes mistakes: the certificates | Two generated certificates with deliberate mistakes (spelling, an impossible date, the wrong level) for viewers to spot. |
+| 7 | When Copilot is confidently wrong | Basic facts about Ramsay UK, all obviously wrong, with confident citations. |
+
+**GCSE highlighting** works in any prompt: wrap the parts as `[G:…] [C:…] [S:…] [E:…]`. The markers never appear on screen; the text inside is highlighted as it is typed and in the sent message, and the legend appears at the top right (`@gcse off` hides it). The end card lists the prompt without the markers.
+
+**Scene tools used by these videos** (all usable in your own scripts):
+- `@banner text | ms`: a warning banner at the top of the window.
+- `@upload File.pdf`: the + menu, *Upload from this device*, then the file chip.
+- `@mood 😩 | “Speech bubble” | ms`: a full-screen face and speech bubble, a stand-in for a cartoon.
+- `@slide id | caption | ms`: a full-screen image from the scene's assets, for a real cartoon or screenshot.
+- `@excel Title | A,B,C ; 1,2,3 ; … | ms`: a mock Excel window; `!cell` marks a problem (text stored as a number, with the green triangle), `+cell` marks a fix. `@excel hide` closes it.
+- **Look override** (Script tab): JSON applied only while the scene plays, for example `{"product":"chat","name":"Mrs Smith","plan":"Microsoft 365 Copilot Chat","photo":"blank"}`.
 
 ## Two products
 Under Look → Product, choose **Microsoft 365 Copilot** (Work IQ: it can see files, mail, meetings and chats) or **standard Copilot Chat** (web-grounded; the Work IQ toggle disappears). The choice also goes into the prompt the Ideas tab writes for an LLM, so generated scenes cite the right kinds of source.

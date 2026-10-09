@@ -286,6 +286,49 @@ body.rec #stage{box-shadow:none}
 #hl.right .lab{left:auto;right:-3px}
 
 /* ---------- presentation overlays (not zoomed; sized by --u = 1% of frame height) ---------- */
+mark.gcse{background:none;color:inherit;border-radius:4px;padding:1px 3px;border-bottom:2.5px solid;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+mark.gcse .gl{display:inline-block;font-size:10px;font-weight:800;line-height:1;padding:2px 4px;border-radius:4px;color:#fff;margin-right:4px;vertical-align:2px;font-family:"Segoe UI",Arial,sans-serif}
+mark.gcse.G{background:rgba(15,108,189,.14);border-color:#0f6cbd}mark.gcse.G .gl{background:#0f6cbd}
+mark.gcse.C{background:rgba(16,124,16,.14);border-color:#107c10}mark.gcse.C .gl{background:#107c10}
+mark.gcse.S{background:rgba(193,156,0,.2);border-color:#b88a00}mark.gcse.S .gl{background:#b88a00}
+mark.gcse.E{background:rgba(134,97,197,.16);border-color:#8661c5}mark.gcse.E .gl{background:#8661c5}
+#gcseLegend{position:absolute;top:66px;right:16px;display:flex;gap:8px;z-index:14;opacity:0;transition:opacity .3s;pointer-events:none;flex-wrap:wrap;justify-content:flex-end;max-width:70%}
+#gcseLegend.on{opacity:1}
+#gcseLegend span{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:4px 10px 4px 5px;font-size:12.5px;color:var(--fg2);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#gcseLegend i{font-style:normal;font-weight:800;font-size:11px;color:#fff;border-radius:4px;padding:2px 5px}
+.av.blank{background:#d4d4d4 !important;color:#8a8a8a}
+.av.blank svg{width:22px;height:22px;fill:#8a8a8a}
+#banner{position:absolute;left:50%;top:calc(var(--u)*9);transform:translate(-50%,calc(var(--u)*-1.2));background:#fff4ce;color:#5c3b00;border:2px solid #f2c94c;font:600 calc(var(--u)*2.3)/1.3 Calibri,"Segoe UI",sans-serif;padding:calc(var(--u)*1.2) calc(var(--u)*2.4);border-radius:calc(var(--u)*1.1);opacity:0;transition:opacity .35s,transform .35s;max-width:80%;text-align:center;z-index:86;box-shadow:0 calc(var(--u)*.6) calc(var(--u)*2.4) rgba(0,0,0,.25);pointer-events:none;display:flex;gap:calc(var(--u)*1.4);align-items:center}
+#banner.on{opacity:1;transform:translate(-50%,0)}
+#banner .wi{font-size:calc(var(--u)*3.2);line-height:1}
+#inter{position:absolute;inset:0;background:#0a2a4e;z-index:88;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .4s;font-family:Calibri,Carlito,"Segoe UI",sans-serif;color:#fff;padding:calc(var(--u)*6)}
+#inter.on{opacity:1}
+#inter .emo{font-size:calc(var(--u)*22);line-height:1.1}
+#inter .bub{margin-top:calc(var(--u)*4);background:#fff;color:#0a2a4e;font-size:calc(var(--u)*3.4);font-weight:600;padding:calc(var(--u)*2) calc(var(--u)*3.6);border-radius:calc(var(--u)*2.4);position:relative;max-width:80%;text-align:center;line-height:1.3}
+#inter .bub::before{content:"";position:absolute;left:50%;top:calc(var(--u)*-2.2);margin-left:calc(var(--u)*-1.2);border:calc(var(--u)*1.2) solid transparent;border-bottom-color:#fff}
+#inter img{max-width:88%;max-height:74%;border-radius:calc(var(--u)*1.2);box-shadow:0 calc(var(--u)*1) calc(var(--u)*4) rgba(0,0,0,.4)}
+#inter .capt{margin-top:calc(var(--u)*2.4);font-size:calc(var(--u)*2.8);color:#c4daea}
+/* mock Excel window */
+#xl{position:absolute;inset:0;background:#fff;z-index:60;display:none;flex-direction:column;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:#222}
+#xl.on{display:flex}
+#xl .tb{background:#107c41;color:#fff;height:40px;display:flex;align-items:center;padding:0 14px;font-size:14px;gap:14px}
+#xl .tb b{font-weight:600}
+#xl .rb{height:38px;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;gap:20px;padding:0 16px;font-size:14px;color:#333;background:#f3f3f3}
+#xl .rb span.on{color:#107c41;font-weight:600;border-bottom:2px solid #107c41;padding-bottom:4px}
+#xl .fb{height:30px;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;font-size:12.5px;color:#444}
+#xl .fb .nb{width:70px;border-right:1px solid #d9d9d9;padding-left:8px;height:100%;display:flex;align-items:center}
+#xl .fb .fx{padding-left:10px}
+#xl table{border-collapse:collapse;font-size:16px;margin:0}
+#xl th{background:#f3f3f3;color:#555;font-weight:400;border:1px solid #d9d9d9;min-width:40px;height:30px;text-align:center}
+#xl td{border:1px solid #e1e1e1;height:32px;padding:0 8px;min-width:170px;white-space:nowrap;position:relative}
+#xl td.num{text-align:right}
+#xl td.bad{text-align:left;color:#1a1a1a}
+#xl td.bad::before{content:"";position:absolute;left:0;top:0;border:6px solid transparent;border-top-color:#107c41;border-left-color:#107c41}
+#xl td.fix{text-align:right;background:#e8f5e9}
+#xl td.hd{font-weight:600;background:#fafafa}
+#xl .sheet{flex:1;overflow:hidden;padding:0}
+#xl .tabs{height:28px;border-top:1px solid #d9d9d9;display:flex;align-items:center;font-size:12.5px;padding-left:12px;gap:14px;color:#555}
+#xl .tabs span.on{color:#107c41;font-weight:600;border-bottom:2px solid #107c41}
 #cap{position:absolute;left:50%;bottom:calc(var(--u)*17);transform:translate(-50%,calc(var(--u)*1.2));background:rgba(10,42,78,.95);color:#fff;font:600 calc(var(--u)*2.5)/1.3 Calibri,"Segoe UI",sans-serif;padding:calc(var(--u)*1.25) calc(var(--u)*2.6);border-radius:calc(var(--u)*1.3);opacity:0;transition:opacity .35s,transform .35s;max-width:78%;text-align:center;z-index:85;box-shadow:0 calc(var(--u)*.6) calc(var(--u)*2.4) rgba(0,0,0,.25);pointer-events:none}
 #cap.on{opacity:1;transform:translate(-50%,0)}
 #badge{position:absolute;right:calc(var(--u)*1.6);top:calc(var(--u)*1.4);background:rgba(10,42,78,.9);color:#fff;font:700 calc(var(--u)*1.3)/1 Calibri,"Segoe UI",sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:calc(var(--u)*.7) calc(var(--u)*1.1);border-radius:calc(var(--u)*.6);z-index:86;display:none}
@@ -426,6 +469,7 @@ details.cheat pre{white-space:pre-wrap;font-family:"Cascadia Mono",Consolas,mono
           <div class="tright"><span class="ib" data-i="shield"></span><span class="ib" data-i="bubble"></span><span class="ib" data-i="more"></span></div>
           <div class="menu" id="modelMenu"></div>
         </header>
+        <div id="gcseLegend"></div>
         <div id="views">
           <div class="view on" id="vHome">
             <div class="homeCol">
@@ -471,12 +515,15 @@ details.cheat pre{white-space:pre-wrap;font-family:"Cascadia Mono",Consolas,mono
       </section>
       <div class="modal" id="nbModal"><div class="mbox"><h3>Create a notebook</h3><div class="field" id="nbField"></div><div class="mact"><button class="btnG mx">Cancel</button><button class="btnP" id="nbGo">Create</button></div></div></div>
       <div class="modal" id="gal"><div class="gbox"><div class="gh"><h3>Prompt Gallery</h3><button class="ib mx" data-i="close"></button></div><div class="gtabs" id="galTabs"></div><div class="ggrid" id="galGrid"></div></div></div>
+      <div id="xl"><div class="tb"><b id="xlTitle">Book1.xlsx</b><span>·</span><span>Excel</span></div><div class="rb"><span>File</span><span class="on">Home</span><span>Insert</span><span>Page Layout</span><span>Formulas</span><span>Data</span><span>Review</span><span>View</span><span>Help</span></div><div class="fb"><div class="nb">A1</div><div class="fx" id="xlFx"></div></div><div class="sheet" id="xlSheet"></div><div class="tabs"><span class="on">Sheet1</span><span>+</span></div></div>
       <div id="utoast"></div>
       <div id="hl"><div class="lab"></div></div>
       <div id="tip"></div>
       <div id="cursor"><svg viewBox="0 0 24 24"><path d="M4 2.5v17.2l4.6-4.3 2.9 6.6 3-1.3-2.9-6.5h6.3z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg><span class="rip"></span></div>
     </div>
     <div id="cap"></div>
+    <div id="banner"><span class="wi">⚠️</span><span class="bt"></span></div>
+    <div id="inter"></div>
     <div id="badge">Simulated</div>
     <div id="card" class="card navy"></div>
   </div>
@@ -526,6 +573,7 @@ details.cheat pre{white-space:pre-wrap;font-family:"Cascadia Mono",Consolas,mono
     <div class="row"><label>Theme</label><select data-c="theme"><option value="">Follow the light/dark toggle</option><option value="light">Always light</option><option value="dark">Always dark</option></select></div>
     <div class="row"><label>Starts in</label><select data-c="mode"><option value="work">Work IQ</option><option value="web">Web</option></select></div>
     <div class="row"><label>Starting model</label><select data-c="model" id="sceneModel"></select></div>
+    <div class="row"><label>Look override</label><textarea rows="2" data-c="look" id="lookJson" title='JSON applied while this scene plays, e.g. {"product":"chat","name":"Mrs Smith","photo":"blank"}' placeholder='{"product":"chat","name":"Mrs Smith","plan":"Microsoft 365 Copilot Chat","photo":"blank"}'></textarea></div>
     <h4>Title card (header)</h4>
     <div class="row"><label class="chk"><input type="checkbox" data-c="intro.on"> Show</label></div>
     <div class="row"><label>Kicker</label><input type="text" data-c="intro.kicker" class="phK"></div>
@@ -587,6 +635,14 @@ A file with several "scene" lines imports as several scenes.</pre></details>
 @tooltips on|off       tooltips when the pointer rests on a control
 @tip plus | Add content   show one tooltip
 @snapshot name         save the current frame as a PNG
+[G:…] [C:…] [S:…] [E:…]  inside a prompt: highlight Goal, Context,
+                       Source, Expectation as it is typed (@gcse off)
+@banner text | ms      warning banner at the top
+@upload File.pdf       upload from this device (via the + menu)
+@mood 😩 | text | ms   full-screen emoji and speech bubble
+@slide id | caption | ms   full-screen image (an asset or cartoon)
+@excel Title | A,B,C ; 1,2,3 ; … | ms   mock Excel window
+                       (!cell = problem, +cell = fixed; @excel hide)
 // comment</pre></details>
   </div>
 
@@ -794,7 +850,14 @@ let S = Object.assign({}, DEFAULTS, store.get('settings', {}));
 // v2: higher bitrates; move older saved settings onto the new default
 if (S.clipV !== 3) { S.clipQuality = DEFAULTS.clipQuality; S.clipV = 3; }
 if (S.models === 'Auto | Decides how long to think\nQuick Response | Answers right away\nThink Deeper | Thinks longer for better answers') S.models = DEFAULTS.models;   // unedited older default
-const saveSettings = () => store.set('settings', S);
+const saveSettings = () => store.set('settings', S.__base || S);
+// A scene can carry a look override ({product, name, plan, photo…}) that applies only while it is selected
+function applyLook(sc) {
+  if (S.__base) S = S.__base;
+  const o = sc && sc.look && typeof sc.look === 'object' && Object.keys(sc.look).length ? sc.look : null;
+  if (o) { const base = S; S = Object.assign({}, base, o); Object.defineProperty(S, '__base', { value: base, enumerable: false }); }
+  applyChrome();
+}
 // Models: "Name | description" per line; "---" is a divider; "> Name" lines are a submenu under the line above
 function modelTree() {
   const out = [];
@@ -814,8 +877,8 @@ const frameSize = () => { const [w, h] = String(S.frame).split('x').map(Number);
 /* ---------- library of saved scenes ---------- */
 function normScene(s) {
   s = s || {};
-  return Object.assign({ id: uid(), section: 'Scenes', slide: '', title: 'Untitled scene', theme: '', mode: 'work', model: '', script: '', assets: {} }, s, {
-    assets: Object.assign({}, s.assets || {}),
+  return Object.assign({ id: uid(), section: 'Scenes', slide: '', title: 'Untitled scene', theme: '', mode: 'work', model: '', script: '', assets: {}, look: {} }, s, {
+    assets: Object.assign({}, s.assets || {}), look: (s.look && typeof s.look === 'object') ? s.look : {},
     intro: Object.assign({ on: true, kicker: '', title: '', subtitle: '' }, s.intro || {}),
     outro: Object.assign({ on: true, kicker: '', title: '', body: '', prompts: true }, s.outro || {})
   });
@@ -885,7 +948,7 @@ function parseScript(src) {
   return steps;
 }
 /* ---------- JSONL: one JSON object per line, converted to and from the script ---------- */
-const SCENE_KEYS = ['title', 'section', 'slide', 'theme', 'mode', 'model', 'intro', 'outro', 'assets'];
+const SCENE_KEYS = ['title', 'section', 'slide', 'theme', 'mode', 'model', 'intro', 'outro', 'assets', 'look'];
 function sceneToJsonl(sc) {
   const head = { type: 'scene' }; SCENE_KEYS.forEach(k => { head[k] = clone(sc[k]); });
   const out = [JSON.stringify(head)];
@@ -966,7 +1029,7 @@ function promptsOf(sc) {
   for (const s of parseScript(sc.script)) {
     if (s.t === 'cmd' && s.cmd === 'instant') instant = true;
     else if (s.t === 'cmd' && s.cmd === 'live') instant = false;
-    else if (!instant && (s.t === 'prompt' || (s.t === 'cmd' && s.cmd === 'type')) && (s.text || s.arg) && !out.includes(s.text || s.arg)) out.push(s.text || s.arg);
+    else if (!instant && (s.t === 'prompt' || (s.t === 'cmd' && s.cmd === 'type')) && (s.text || s.arg) && !out.includes(stripMarks(s.text || s.arg))) out.push(stripMarks(s.text || s.arg));
   }
   return out;
 }
@@ -1069,7 +1132,9 @@ const sceneTheme = sc => sc.theme || S.theme;
 function applyChrome() {
   $('#pName').textContent = S.name; $('#pTag').textContent = S.tag; $('#pTag').style.display = S.tag ? '' : 'none'; $('#pPlan').textContent = S.plan;
   const av = $('#avatar');
-  if (S.photo) { av.style.backgroundImage = `url("${S.photo}")`; av.textContent = ''; } else { av.style.backgroundImage = ''; av.textContent = (S.initials || S.name.slice(0, 1)).toUpperCase(); }
+  av.classList.toggle('blank', S.photo === 'blank');
+  if (S.photo === 'blank') { av.style.backgroundImage = ''; av.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>'; }
+  else if (S.photo) { av.style.backgroundImage = `url("${S.photo}")`; av.textContent = ''; } else { av.style.backgroundImage = ''; av.textContent = (S.initials || S.name.slice(0, 1)).toUpperCase(); }
   $('#mWork').textContent = S.workLabel; $('#mWeb').textContent = S.webLabel;
   $('#greet').textContent = S.greeting; $('#disc').textContent = S.disclaimer;
   $('#chips').innerHTML = S.chips.split('\n').map(c => c.trim()).filter(Boolean).map(c => `<span class="chip">${esc(c)}</span>`).join('') + `<span class="chip dots" id="chipMore">${ic('more')}</span>`;
@@ -1099,7 +1164,7 @@ function renderTop() {
 }
 function renderComposer(caret) {
   const ph = ST.view === 'nb' ? 'Ask about this notebook' : S.placeholder;
-  $('#cText').innerHTML = ST.typed ? esc(ST.typed) + (caret ? '<span class="caret"></span>' : '') : (caret ? '<span class="caret"></span>' : '') + `<span class="ph">${esc(ph)}</span>`;
+  $('#cText').innerHTML = ST.typed ? markup(ST.typed) + (caret ? '<span class="caret"></span>' : '') : (caret ? '<span class="caret"></span>' : '') + `<span class="ph">${esc(ph)}</span>`;
   const key = ST.attach.map(f => f.name).join('|'), row = $('#attRow');
   if (row.dataset.key !== key) { row.dataset.key = key; row.innerHTML = ST.attach.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join(''); }
   $('#composer').classList.toggle('tall', ST.attach.length > 0);
@@ -1122,7 +1187,9 @@ const thread = () => ST.view === 'nb' ? $('#nbCol') : $('#chatCol');
 const scroller = () => ST.view === 'nb' ? $('#nbThread') : ST.view === 'chat' ? $('#chatThread') : null;
 
 function resetUI(sc) {
-  ST = freshState(sc); seed = 1;
+  applyLook(sc);
+  ST = freshState(sc); seed = 1; legend(false); ST.gcse = null;
+  $('#banner').classList.remove('on'); $('#inter').classList.remove('on'); $('#xl').classList.remove('on');
   applyTheme(sceneTheme(sc));
   $$('.menu.on,.pop.on,.modal.on').forEach(e => e.classList.remove('on'));
   $('#modelBtn').classList.remove('open');
@@ -1217,6 +1284,8 @@ async function typeText(render, text) {
   const per = 1000 / (S.typeCps || 38);
   let i = 0; render('', true);
   while (i < text.length) {
+    const mk = text.slice(i).match(/^(\[[GCSE]:|\])/);
+    if (mk) { i += mk[0].length; render(text.slice(0, i), true); continue; }
     const n = text.length > 160 ? 2 : 1;
     i = Math.min(text.length, i + n);
     render(text.slice(0, i), true);
@@ -1227,11 +1296,58 @@ async function typeText(render, text) {
   render(text, true);
 }
 
+/* ---------- generated artefacts: certificates with deliberate mistakes ---------- */
+const GEN = {
+  'certificate-1': () => drawCertificate({ org: 'Ramsey Health Care UK', title: 'Certficate of Achievment', to: 'Awared to', name: 'Sarah Whitlok', line: 'for completng Infection Prevention and Control Level 2', date: '31 September 2026', signed: 'Ward Manger' }),
+  'certificate-2': () => drawCertificate({ org: 'Ramsay Health Care UK', title: 'Certificate of Achievement', to: 'Awarded to', name: 'Sarah Whitlock', line: 'for completing Infection Prevention and Controll Level 3', date: '3 October 2062', signed: 'Ward Manager', accent: '#6b2d5c' })
+};
+function assetFor(id) { const a = (scene().assets || {})[id]; if (a) return a; if (GEN[id]) { GEN[id].cache = GEN[id].cache || { name: id + '.png', data: GEN[id]() }; return GEN[id].cache; } return null; }
+function drawCertificate(o) {
+  const c = document.createElement('canvas'); c.width = 1400; c.height = 990; const g = c.getContext('2d'); const ac = o.accent || '#0a2a4e';
+  g.fillStyle = '#fdfbf5'; g.fillRect(0, 0, 1400, 990);
+  g.strokeStyle = ac; g.lineWidth = 14; g.strokeRect(40, 40, 1320, 910); g.lineWidth = 3; g.strokeRect(68, 68, 1264, 854);
+  g.fillStyle = ac; g.font = '700 30px Georgia, "Times New Roman", serif'; g.textAlign = 'center'; g.fillText(o.org.toUpperCase(), 700, 170);
+  g.font = 'italic 700 74px Georgia, "Times New Roman", serif'; g.fillText(o.title, 700, 300);
+  g.fillStyle = '#555'; g.font = '28px Georgia, serif'; g.fillText(o.to, 700, 400);
+  g.fillStyle = '#111'; g.font = '700 64px Georgia, serif'; g.fillText(o.name, 700, 490);
+  g.strokeStyle = '#999'; g.lineWidth = 2; g.beginPath(); g.moveTo(400, 515); g.lineTo(1000, 515); g.stroke();
+  g.fillStyle = '#333'; g.font = '32px Georgia, serif'; g.fillText(o.line, 700, 590);
+  g.fillText('on ' + o.date, 700, 650);
+  g.fillStyle = ac; g.beginPath(); g.arc(300, 800, 62, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.font = '700 22px Georgia, serif'; g.fillText('SEAL', 300, 808);
+  g.strokeStyle = '#333'; g.beginPath(); g.moveTo(820, 790); g.lineTo(1180, 790); g.stroke();
+  g.fillStyle = '#333'; g.font = 'italic 34px "Brush Script MT", "Segoe Script", cursive'; g.fillText('J. Patel', 1000, 775);
+  g.font = '22px Georgia, serif'; g.fillText(o.signed, 1000, 825);
+  return c.toDataURL('image/jpeg', 0.88);
+}
+
+/* ---------- GCSE markup in prompts: [G:…] [C:…] [S:…] [E:…] ---------- */
+const GCSE = { G: 'Goal', C: 'Context', S: 'Source', E: 'Expectation' };
+const hasMarks = t => /\[[GCSE]:/.test(t || '');
+const stripMarks = t => String(t || '').replace(/\[([GCSE]):([^\]]*)\]?/g, '$2');
+function markup(text) {
+  let out = '', i = 0;
+  while (i < text.length) {
+    const m = text.slice(i).match(/\[([GCSE]):/);
+    if (!m) { out += esc(text.slice(i)); break; }
+    out += esc(text.slice(i, i + m.index));
+    const start = i + m.index + 3, close = text.indexOf(']', start), end = close < 0 ? text.length : close;
+    out += `<mark class="gcse ${m[1]}"><span class="gl">${m[1]}</span>${esc(text.slice(start, end))}</mark>`;
+    i = close < 0 ? text.length : close + 1;
+  }
+  return out;
+}
+function legend(on) {
+  ST.gcse = on;
+  const l = $('#gcseLegend');
+  if (on && !l.innerHTML) l.innerHTML = Object.entries(GCSE).map(([k, v]) => `<span><i style="background:${{ G: '#0f6cbd', C: '#107c10', S: '#b88a00', E: '#8661c5' }[k]}">${k}</i>${v}</span>`).join('');
+  l.classList.toggle('on', !!on);
+}
+
 /* ---------- conversation ---------- */
 function userMsg(text, files) {
   const u = el('div', 'msg u');
   if (files.length) u.appendChild(el('div', 'uatt', files.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join('')));
-  if (text) u.appendChild(el('div', 'bub', esc(text)));
+  if (text) u.appendChild(el('div', 'bub', markup(text)));
   u.appendChild(el('div', 'uact', `<span class="ib sm">${ic('copy')}</span><span class="ib sm">${ic('edit')}</span><span class="ib sm save">${ic('bookmark')}</span>`));
   u.dataset.text = text;
   return u;
@@ -1242,6 +1358,7 @@ function ensureA() {
 }
 async function doType(text) {
   if (ST.view === 'nblist') return;
+  if (hasMarks(text) && ST.gcse == null) legend(true);
   await clickOn($('#cText'), 0.08, 0.5);
   const base = ST.typed ? ST.typed + ' ' : '';
   await typeText((t, caret) => { ST.typed = base + t; renderComposer(caret); }, text);
@@ -1313,7 +1430,7 @@ async function doResp(s) {
     body.innerHTML = md(s.md);
   }
   for (const f of s.files) { await wait(250); body.appendChild(el('div', 'fcard', `${tile(f.kind)}<div class="fx"><b>${esc(f.name)}</b><small>${esc(f.meta)}</small></div><span class="open">Open</span>`)); }
-  for (const im of s.images) { const a = (scene().assets || {})[im.id]; if (!a) continue; await wait(250); body.appendChild(el('figure', 'rimg', `<img src="${a.data}" alt="${esc(a.name)}">${im.caption ? `<figcaption>${esc(im.caption)}</figcaption>` : ''}`)); }
+  for (const im of s.images) { const a = assetFor(im.id); if (!a) continue; await wait(250); body.appendChild(el('figure', 'rimg', `<img src="${a.data}" alt="${esc(a.name)}">${im.caption ? `<figcaption>${esc(im.caption)}</figcaption>` : ''}`)); }
   if (s.refs.length) {
     await wait(200);
     const r = el('div', 'refs' + (S.refsOpen ? ' open' : ''), `<span class="refT">${s.refs.length} reference${s.refs.length > 1 ? 's' : ''} ${ic('chevD')}</span><div class="refL">${s.refs.map((x, i) => `<div class="ref"><span class="cite">${i + 1}</span>${tile(x.kind)}<span>${esc(x.title)}</span>${x.meta ? `<span class="meta">· ${esc(x.meta)}</span>` : ''}</div>`).join('')}</div>`);
@@ -1480,6 +1597,50 @@ const CMDS = {
     await moveTo(target); showTip(target, text); await wait(1300);
   },
   async snapshot(arg) { await snapshot(arg); },
+  async gcse(arg) { legend(!/off|hide|no/i.test(arg)); await wait(300); },
+  async banner(arg) {
+    const [t, ms] = arg.split('|').map(x => x.trim()); const b = $('#banner');
+    if (!t) { b.classList.remove('on'); return; }
+    $('.bt', b).textContent = t; b.classList.add('on'); await wait(Number(ms) || 5000); b.classList.remove('on'); await wait(300);
+  },
+  async upload(arg) {
+    const files = parseFiles(arg); if (!files.length) return;
+    const pop = $('#attPop');
+    pop.innerHTML = `<div class="pi" data-u="1">${ic('up')}<span class="n">Upload from this device</span></div><div class="pi">${ic('folder')}<span class="n">Add from OneDrive and SharePoint</span></div>`;
+    await clickOn($('#cPlus')); pop.classList.add('on'); await wait(600);
+    const item = $('[data-u]', pop); await moveTo(item, 0.3); item.classList.add('hover'); await wait(300); await clickOn(item, 0.3);
+    pop.classList.remove('on'); await wait(400);
+    for (const f of files) { ST.attach.push(Object.assign({}, f, { name: f.name })); renderComposer(false); const chip = $$('.fchip', $('#attRow')).pop(); if (chip) { chip.style.opacity = '.55'; await wait(1400); chip.style.opacity = ''; } }
+    await wait(300);
+  },
+  async mood(arg) {
+    const [emo, text, ms] = arg.split('|').map(x => x.trim()); const n = $('#inter');
+    n.innerHTML = `<div class="emo">${esc(emo)}</div>${text ? `<div class="bub">${esc(text)}</div>` : ''}`;
+    n.classList.add('on'); await wait(Number(ms) || 3500); n.classList.remove('on'); await wait(450);
+  },
+  async slide(arg) {
+    const [id, caption, ms] = arg.split('|').map(x => x.trim()); const a = assetFor(id); if (!a) { toast('No image called ' + id); return; }
+    const n = $('#inter'); n.innerHTML = `<img src="${a.data}" alt="">${caption ? `<div class="capt">${esc(caption)}</div>` : ''}`;
+    n.classList.add('on'); await wait(Number(ms) || 4000); n.classList.remove('on'); await wait(450);
+  },
+  async excel(arg) {
+    const x = $('#xl');
+    if (/^(hide|off|close)$/i.test(arg)) { x.classList.remove('on'); await wait(400); return; }
+    const [title, grid, ms] = arg.split('|').map(s => s.trim());
+    const rows = (grid || '').split(';').map(r => r.split(',').map(c => c.trim()));
+    const cols = Math.max(...rows.map(r => r.length), 3);
+    const cell = (c, ri, ci) => {
+      let cls = ''; let v = c;
+      if (v.startsWith('!')) { cls = 'bad'; v = v.slice(1); } else if (v.startsWith('+')) { cls = 'fix'; v = v.slice(1); } else if (ri === 0) cls = 'hd'; else if (/^-?[\d.,]+$/.test(v)) cls = 'num';
+      return `<td class="${cls}">${esc(v)}</td>`;
+    };
+    $('#xlTitle').textContent = title || 'Book1.xlsx'; $('#xlFx').textContent = rows[0] && rows[0][0] ? rows[0][0].replace(/^[!+]/, '') : '';
+    $('#xlSheet').innerHTML = '<table><tr><th></th>' + Array.from({ length: cols }, (_, i) => `<th>${String.fromCharCode(65 + i)}</th>`).join('') + '</tr>' +
+      rows.map((r, ri) => `<tr><th>${ri + 1}</th>${Array.from({ length: cols }, (_, ci) => cell(r[ci] || '', ri, ci)).join('')}</tr>`).join('') +
+      Array.from({ length: 14 }, (_, k) => `<tr><th>${rows.length + k + 1}</th>${'<td></td>'.repeat(cols)}</tr>`).join('') + '</table>';
+    x.classList.add('on'); await wait(Number(ms) || 3500);
+    if (ms) { x.classList.remove('on'); await wait(400); }
+  },
   async cursor(arg) { const on = !/off|hide|no/i.test(arg); $('#cursor').classList.toggle('on', on && S.cursor); }
 };
 const SUGGESTED = [
@@ -1607,7 +1768,7 @@ function getPath(o, p) { return p.split('.').reduce((a, k) => a == null ? a : a[
 function setPath(o, p, v) { const ks = p.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
 function syncForm() {
   const sc = scene();
-  $$('[data-c]').forEach(inp => { const v = getPath(sc, inp.dataset.c); if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v == null ? '' : v; });
+  $$('[data-c]').forEach(inp => { const v = getPath(sc, inp.dataset.c); if (inp.type === 'checkbox') inp.checked = !!v; else if (inp.dataset.c === 'look') inp.value = v && Object.keys(v).length ? JSON.stringify(v) : ''; else inp.value = v == null ? '' : v; });
   $$('[data-s]').forEach(inp => { const v = S[inp.dataset.s]; if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v == null ? '' : v; });
   $('#sceneModel').value = sc.model || models()[0].name;
   checkScript(); syncFmt();
@@ -1624,8 +1785,10 @@ function bindForm() {
   $$('[data-c]').forEach(inp => {
     const ev = inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'change' : 'input';
     inp.addEventListener(ev, () => {
-      const p = inp.dataset.c, v = inp.type === 'checkbox' ? inp.checked : inp.value;
+      const p = inp.dataset.c; let v = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (p === 'look') { try { v = inp.value.trim() ? JSON.parse(inp.value) : {}; inp.style.borderColor = ''; } catch (e) { inp.style.borderColor = '#ff8a80'; return; } }
       setPath(scene(), p, v); saveLib();
+      if (p === 'look' && !RUN.playing) resetUI(scene());
       if (/^(title|section|slide)$/.test(p)) renderSceneList();
       if (p === 'script') checkScript();
       if (/^(theme|mode|model)$/.test(p) && !RUN.playing) resetUI(scene());
@@ -1637,7 +1800,7 @@ function bindForm() {
       const k = inp.dataset.s; let v = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (inp.type === 'number' || inp.dataset.num) v = Number(v);
       if (k === 'product') { const plans = { m365: 'M365 Copilot (Premium)', chat: 'Microsoft 365 Copilot Chat' }; if (Object.values(plans).includes(S.plan)) S.plan = plans[v]; $('[data-s="plan"]').value = S.plan; }
-      S[k] = v; saveSettings(); applyChrome();
+      S[k] = v; if (S.__base) S.__base[k] = v; saveSettings(); applyChrome();
       if (k === 'frame' || k === 'zoom') fit();
       if (!RUN.playing) resetUI(scene());
     });
@@ -3189,6 +3352,135 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 @gallery Team
 @pause 2200
 @close
+@caption` },
+/* ---------- Mrs Smith: Copilot basics (standard Copilot Chat licence) ---------- */
+{ id: 'ms-writing', section: 'Mrs Smith · Copilot basics', slide: 'V3', title: 'Improve your writing with GCSE',
+  look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
+  intro: { kicker: 'COPILOT BASICS · VIDEO 3', subtitle: 'Using Copilot to improve writing' },
+  outro: { kicker: 'THE GCSE FRAMEWORK', title: 'Goal. Context. Source. Expectation.', body: 'Four parts in one prompt, and the first draft is nearly there.', prompts: true },
+  script: `@caption A good prompt has four parts: Goal, Context, Source, Expectation.
+@gcse on
+@pause 1500
+> [G:Draft an email inviting my colleagues to our charity bake sale on Friday 24 October.] [C:I am the ward administrator. The sale is in the main reception from 12 to 2pm, raising money for the hospital's chosen charity, and people can bring a cake or just come and buy one.] [S:Use only the details in this message.] [E:Friendly and short, under 150 words, with a clear subject line and one call to action.]
+@caption
+~ Drafting the email
+< **Subject: Bake sale this Friday — bring a cake, or just bring yourself**
+
+Hi everyone,
+
+Our charity bake sale is on **Friday 24 October, 12–2pm, in the main reception**, raising money for the hospital's chosen charity.
+
+Bring a cake if you can, or simply come along and buy a slice. Every penny goes to the charity.
+
+If you are baking, let me know by Thursday so we know how many tables to set up.
+
+See you there,
+Mrs Smith
+? Make it more playful
+? Add a line about allergens
+@caption Goal, Context, Source, Expectation. Four parts, one good email.
+@pause 2500
+@caption` },
+
+{ id: 'ms-summarise', section: 'Mrs Smith · Copilot basics', slide: 'V4', title: 'Summarise a long document',
+  look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
+  intro: { kicker: 'COPILOT BASICS · VIDEO 4', subtitle: 'Summarising long documents' },
+  outro: { kicker: 'REMEMBER', title: 'Only publicly available documents go into Copilot.', body: 'Then GCSE does the rest: what you want, for whom, from what, in what shape.', prompts: true },
+  script: `@caption Mrs Smith has a long, publicly available NHS document to summarise.
+@pause 1200
+@banner Only publicly available documents should be uploaded onto Copilot. | 5500
+@upload NHS Long Term Workforce Plan.pdf
+@gcse on
+> [G:Summarise this document into bullet points I can share with my team.] [C:We are a ward team in a private hospital, so we need the points that affect nursing staffing, training and new roles.] [S:Use only the attached document.] [E:A Word document with 8 to 10 bullet points in plain English, with the page number after each point.]
+~ Reading NHS Long Term Workforce Plan.pdf {2200}
+~ Picking out the staffing, training and new-roles sections {1800}
+~ Writing the summary as a Word document {1500}
+< Here is the summary, saved as a Word document for you.
+
+**NHS Long Term Workforce Plan: what it means for a ward team**
+- The plan sets out how the NHS workforce should grow and change over the next fifteen years, built on three themes: train, retain and reform (p. 7)
+- Nurse training places are to expand substantially by the end of the decade, with a larger share through apprenticeships (p. 42)
+- Retention gets equal weight with recruitment: flexible working, better occupational health and support in the first years of a career (p. 68)
+- New and expanded roles, including nursing associates and advanced practitioners, are expected to take on more of the ward workload (p. 81)
+- Reliance on international recruitment is planned to fall as domestic training grows (p. 49)
+- Technology and new ways of working are expected to free up clinical time, with digital skills built into training (p. 96)
+- The plan will be refreshed regularly, so the numbers are a direction rather than a fixed target (p. 12)
+- For a private provider, the signal is competition for the same nurses, and the same case for growing our own (p. 55)
+@file Workforce plan - summary.docx | Word document · 1 page
+^ NHS Long Term Workforce Plan.pdf | pdf | You uploaded this
+? Shorten it to five points
+? What does it mean for recruitment?
+@caption The Word document is ready to share. Check it against the source before you send it.
+@pause 2500
+@caption` },
+
+{ id: 'ms-excel', section: 'Mrs Smith · Copilot basics', slide: 'V5', title: 'Ideas and solutions: the Excel problem',
+  look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
+  intro: { kicker: 'COPILOT BASICS · VIDEO 5', subtitle: 'Generating ideas and solutions' },
+  outro: { kicker: 'TRY IT', title: 'Stuck in an app? Describe the problem to Copilot.', body: 'What you see, what you expected, and what you have tried.', prompts: true },
+  script: `@mood 😩 | “Why won't these dates sort? And the total says zero.” | 3500
+@excel Ward budget.xlsx | Date,Item,Amount ; !45321,Agency nursing,!1200 ; !45324,Consumables,!340 ; !45330,Bank shifts,!980 ; Total,,!0 | 4500
+@caption So Mrs Smith asks Copilot.
+@gcse on
+> [G:Help me fix my Excel sheet: it won't sort by date and the total shows 0.] [C:The dates were pasted from an email and show as numbers like 45321, and the amounts have a green triangle in the corner.] [S:Based on how Excel stores dates and numbers.] [E:Step-by-step fixes I can do in a minute, no macros.]
+@caption
+~ Working out what Excel is doing
+< Two common problems, and both are quick to fix.
+
+**1. The dates are stored as numbers.** 45321 is Excel's count of days since 1900, so it is a date without the formatting.
+- Select the Date column, then **Home → Number Format → Short Date**. They become real dates and will sort properly.
+
+**2. The amounts are stored as text.** That is what the green triangle means, and why SUM gives 0.
+- Select the Amount column, then **Data → Text to Columns → Finish**. Or click the warning icon and choose **Convert to Number**.
+- Then **Home → Number Format → Number** to show them neatly.
+
+After that, SUM will add them up and Sort will order the rows by date.
+? Show me a formula that does it instead
+? Why did Excel do this?
+@caption Back to Excel: Short Date, Convert to Number…
+@excel Ward budget.xlsx | Date,Item,Amount ; +07/03/2024,Agency nursing,+1200 ; +10/03/2024,Consumables,+340 ; +16/03/2024,Bank shifts,+980 ; Total,,+2520 | 4500
+@mood 😊 | Sorted. The dates sort, and the total is right. | 3000
+@caption` },
+
+{ id: 'ms-mistakes', section: 'Mrs Smith · Copilot basics', slide: 'V6', title: 'Copilot makes mistakes: the certificates',
+  look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
+  intro: { kicker: 'COPILOT BASICS · VIDEO 6', subtitle: 'Copilot making mistakes' },
+  outro: { kicker: 'LOOK CLOSELY', title: 'How many mistakes can you spot?', body: 'Copilot drafts. You check, every time, before anything goes out.', prompts: false },
+  script: `@gcse on
+> [G:Create a certificate of achievement for a colleague who has completed our infection prevention training.] [C:It is for Sarah Whitlock, who completed Infection Prevention and Control Level 2 on 3 October 2026.] [S:Use only the details here.] [E:A simple landscape certificate with the hospital name at the top, signed by the Ward Manager.]
+@caption
+~ Generating two versions of the certificate {2600}
+< Here are two versions. Check the details before you print.
+@image certificate-1 | Version 1
+@image certificate-2 | Version 2
+? Change the colours
+? Make the name larger
+@caption Look closely at both. Spot the mistakes before you print.
+@pause 5000
+@caption` },
+
+{ id: 'ms-hallucination', section: 'Mrs Smith · Copilot basics', slide: 'V7', title: 'When Copilot is confidently wrong',
+  look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
+  intro: { kicker: 'COPILOT BASICS · VIDEO 7', subtitle: 'Copilot can hallucinate' },
+  outro: { kicker: 'THE RULE', title: 'Confident is not the same as correct.', body: 'If a fact matters, check it against a source you trust.', prompts: true },
+  script: `> Give me some basic facts about Ramsay Health Care UK: when it was founded, where its head office is, how many hospitals it has, and who runs it.
+~ Searching the web
+< Here are the key facts about Ramsay Health Care UK [1][2]:
+- **Founded:** 1066, by William the Conqueror, as a chain of field hospitals after the Battle of Hastings
+- **Head office:** Reykjavik, Iceland, in a converted lighthouse
+- **Hospitals:** 3,000 across the UK, including four on the Isle of Man and one on the Moon
+- **Chief Executive:** Mrs Smith, who also founded Microsoft in 1975
+- **Best known for:** inventing the stethoscope and the Friday bake sale
+
+Let me know if you would like a timeline or a map of the hospitals.
+^ Ramsay Health Care UK: a complete history | web | encyclopedia.example
+^ Hospital groups in the UK, ranked | web | news.example
+? Give me a timeline
+? Which hospital is nearest to me?
+@caption Every line of that is wrong. It still sounds sure of itself, and it still cites sources.
+@pause 3500
+@caption Confident is not the same as correct. Check anything that matters.
+@pause 3000
 @caption` }
 ];
 

@@ -13,33 +13,37 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 - **Tooltips** (optional, under Look): when the pointer rests on a control, a Copilot-style tooltip appears, such as *Add content* on the **+** button. `@tooltips on` or `off` changes this mid-scene, and `@tip plus | Add content` shows one tooltip.
 - All names, numbers and documents in the built-in scenes are invented.
 
-## Built-in scenes (Section C of the away-day deck)
-| Section | Slide | Scenes |
-|---|---|---|
-| Controls | 42–45 | Quick tour · Quick response · Think deeper on a business case · Set the effort, and the model (the GPT flyout) · The Work IQ toggle · Work IQ on and off, same prompt |
-| The inbox | 47 | Catch up on a thread · Draft a reply · Who is waiting on me · Sort the morning |
-| Meetings | 48 | Prepare · Recap one you missed · Your own actions · Confirm it in writing |
-| Documents | 49 | Read the long policy · Executive summary · Change the audience · Compare versions |
-| Excel | 50 | Explain an inherited model · Build the formula · Find what is odd · Clean it up |
-| Decks, and finding things | 51 | Paper into deck · Speaker notes · Find it across everything · Which version is current |
-| A day | 52 | 08:30 morning briefing · 16:30 the chase · 17:30 close the loop |
-| One task | 53 | Month end, handed from question to numbers to commentary to slides |
-| Notebooks | 57–58 | Where to find it · Set the context once |
-| Prompt Gallery | 59 | Save what works, share it with the team |
-| Mrs Smith · Copilot basics | V3–V7 | The five training-video scenes described below |
+## Built-in scenes
+Grouped by app, with generic titles so they can be reused anywhere:
+
+| Group | Scenes |
+|---|---|
+| Copilot Chat | A quick tour · Quick response · Think deeper on a business case · Set the effort and the model · The Work IQ toggle · Work IQ on and off |
+| Outlook | Catch me up on a thread · Draft a reply · Who is waiting on me? · Sort the morning |
+| Teams and meetings | Prepare before you walk in · Recap a meeting I missed · My actions from a meeting · Confirm it in writing |
+| Word and documents | Read the long thing · Make the executive summary · Change the audience · Compare two versions |
+| Excel | Explain a model I inherited · Build the formula · Find what is odd · Clean it up |
+| PowerPoint | Paper into deck · Speaker notes |
+| Search | Find everything about a project · Which version is current? |
+| A day with Copilot | 08:30 Before you open anything · 16:30 The chase · 17:30 Close the loop · Month end, one task start to finish |
+| Notebooks | Where to find it · Set the context once |
+| Prompt Gallery | Save and share a prompt |
+| Copilot basics (Mrs Smith) | The five training-video scenes described below |
+
+The slide field on a scene is optional; when it is set it prefixes the clip's file name and shows on the title card.
 
 ## Mrs Smith: Copilot basics (training videos 3 to 7)
 A second built-in section, played as **Mrs Smith** on a standard Copilot Chat licence (a blank avatar; no Work IQ). Each scene carries its own *look override*, so your own name and product are untouched outside it.
 
 | Video | Scene | What it shows |
 |---|---|---|
-| 3 | Improve your writing with GCSE | A charity bake-sale email. As the prompt is typed, the **Goal, Context, Source and Expectation** parts are highlighted in four colours, with a legend. |
+| 3 | Writing · Improve an email with GCSE | A charity bake-sale email. After the prompt is sent, its **Goal, Context, Source and Expectation** parts light up in turn, in four colours, with a legend. |
 | 4 | Summarise a long document | A warning banner (*only publicly available documents should be uploaded onto Copilot*), an upload from this device, a GCSE prompt, and a Word document of bullet points. |
 | 5 | Ideas and solutions: the Excel problem | A struggling face, a mock Excel sheet with dates stored as numbers and a total of 0, Copilot's fixes, the sheet fixed, a happy face. Swap the faces for your own cartoons with `@slide`. |
 | 6 | Copilot makes mistakes: the certificates | Two generated certificates with deliberate mistakes (spelling, an impossible date, the wrong level) for viewers to spot. |
 | 7 | When Copilot is confidently wrong | Basic facts about Ramsay UK, all obviously wrong, with confident citations. |
 
-**GCSE highlighting** works in any prompt: wrap the parts as `[G:…] [C:…] [S:…] [E:…]`. The markers never appear on screen; the text inside is highlighted as it is typed and in the sent message, and the legend appears at the top right (`@gcse off` hides it). The end card lists the prompt without the markers.
+**GCSE highlighting** works in any prompt: wrap the parts as `[G:…] [C:…] [S:…] [E:…]`. The markers never appear on screen. The prompt is typed plainly as one prompt; once it is sent, the Goal, Context, Source and Expectation parts light up one at a time in the sent message, with a legend at the top right. `@gcse live` colours the parts while typing instead; `@gcse off` turns it off. The end card lists the prompt without the markers.
 
 **Scene tools used by these videos** (all usable in your own scripts):
 - `@banner text | ms`: a warning banner at the top of the window.

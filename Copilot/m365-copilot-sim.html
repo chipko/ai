@@ -287,6 +287,9 @@ body.rec #stage{box-shadow:none}
 
 /* ---------- presentation overlays (not zoomed; sized by --u = 1% of frame height) ---------- */
 mark.gcse{background:none;color:inherit;border-radius:4px;padding:1px 3px;border-bottom:2.5px solid;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+mark.gcse{transition:background .4s,border-color .4s}
+mark.gcse.pend{background:none !important;border-color:transparent !important}
+mark.gcse.pend .gl{display:none}
 mark.gcse .gl{display:inline-block;font-size:10px;font-weight:800;line-height:1;padding:2px 4px;border-radius:4px;color:#fff;margin-right:4px;vertical-align:2px;font-family:"Segoe UI",Arial,sans-serif}
 mark.gcse.G{background:rgba(15,108,189,.14);border-color:#0f6cbd}mark.gcse.G .gl{background:#0f6cbd}
 mark.gcse.C{background:rgba(16,124,16,.14);border-color:#107c10}mark.gcse.C .gl{background:#107c10}
@@ -635,8 +638,9 @@ A file with several "scene" lines imports as several scenes.</pre></details>
 @tooltips on|off       tooltips when the pointer rests on a control
 @tip plus | Add content   show one tooltip
 @snapshot name         save the current frame as a PNG
-[G:…] [C:…] [S:…] [E:…]  inside a prompt: highlight Goal, Context,
-                       Source, Expectation as it is typed (@gcse off)
+[G:…] [C:…] [S:…] [E:…]  inside a prompt: after it is sent, Goal,
+                       Context, Source and Expectation light up in
+                       turn (@gcse live = colour while typing; off)
 @banner text | ms      warning banner at the top
 @upload File.pdf       upload from this device (via the + menu)
 @mood 😩 | text | ms   full-screen emoji and speech bubble
@@ -842,7 +846,7 @@ const DEFAULTS = {
   notebooks: 'Board — November\nTheatre expansion\nCQC readiness',
   team: 'Hospital Directors',
   cardStyle: 'navy', introMs: 3500, tailMs: 2500, outroMs: 6500,
-  kicker: 'C · Microsoft 365 Copilot', outroKicker: 'Try it in Copilot Chat', cardBrand: 'Microsoft 365 Copilot · Chat',
+  kicker: 'Microsoft 365 Copilot', outroKicker: 'Try it in Copilot Chat', cardBrand: 'Microsoft 365 Copilot · Chat',
   footnote: 'Simulated demonstration · illustrative content, not real data', badge: false,
   clipQuality: 6000000, clipFps: 30, clipV: 3, tooltips: false
 };
@@ -891,14 +895,19 @@ function loadLibrary() {
   const saved = store.get(LIBKEY, null);
   const src = saved || (EMBEDDED && EMBEDDED.scenes ? EMBEDDED : null) || { version: 1, scenes: BUILTIN };
   if (!saved && EMBEDDED && EMBEDDED.look && !store.get('settings.' + LIBKEY, null)) { S = Object.assign({}, DEFAULTS, EMBEDDED.look); store.set('settings.' + LIBKEY, 1); saveSettings(); }
-  LIB = { version: 1, scenes: (src.scenes || []).map(normScene), removed: src.removed || [] };
+  LIB = { version: 1, scenes: (src.scenes || []).map(normScene), removed: src.removed || [], metaV: src.metaV };
   if (!LIB.scenes.length) LIB.scenes = BUILTIN.map(normScene);
-  if (saved) mergeBuiltins();
+  if (saved) mergeBuiltins(); else LIB.metaV = META_V;
 }
 // Built-in scenes that were rewritten: the hash of the old script, so an unedited copy is replaced
 const BUILTIN_UPDATED = { 'work-web': ['w2n2b9'] };
+const META_V = 3;   // bump when built-in sections or titles change: saved copies pick up the new names
 function mergeBuiltins() {
   let added = 0, updated = 0;
+  if (LIB.metaV !== META_V) {
+    BUILTIN.forEach(b => { const s = LIB.scenes.find(x => x.id === b.id); if (s) { s.section = b.section; s.title = b.title; s.slide = b.slide; if (s.intro && b.intro && s.intro.kicker && s.intro.kicker.startsWith('COPILOT BASICS')) s.intro.kicker = b.intro.kicker; } });
+    LIB.metaV = META_V; store.set(LIBKEY, LIB);
+  }
   BUILTIN.forEach((b, i) => {
     const at = LIB.scenes.findIndex(s => s.id === b.id);
     if (at < 0) {
@@ -1122,7 +1131,7 @@ function freshState(sc) {
     mode: sc.mode === 'web' ? 'web' : 'work',
     model: (ms.find(m => m.name === sc.model) || ms[0] || { name: 'Auto' }).name,
     view: 'home', typed: '', attach: [], busy: false, pendingA: null,
-    saved: [], shared: [], nb: null, galTab: 'Suggested', hl: null, scrollTo: null
+    saved: [], shared: [], nb: null, galTab: 'Suggested', hl: null, scrollTo: null, gcseMode: 'reveal'
   };
 }
 const ui = $('#ui'), stage = $('#stage');
@@ -1164,7 +1173,7 @@ function renderTop() {
 }
 function renderComposer(caret) {
   const ph = ST.view === 'nb' ? 'Ask about this notebook' : S.placeholder;
-  $('#cText').innerHTML = ST.typed ? markup(ST.typed) + (caret ? '<span class="caret"></span>' : '') : (caret ? '<span class="caret"></span>' : '') + `<span class="ph">${esc(ph)}</span>`;
+  $('#cText').innerHTML = ST.typed ? markup(ST.typed, ST.gcseMode === 'live' ? 'marks' : 'plain') + (caret ? '<span class="caret"></span>' : '') : (caret ? '<span class="caret"></span>' : '') + `<span class="ph">${esc(ph)}</span>`;
   const key = ST.attach.map(f => f.name).join('|'), row = $('#attRow');
   if (row.dataset.key !== key) { row.dataset.key = key; row.innerHTML = ST.attach.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join(''); }
   $('#composer').classList.toggle('tall', ST.attach.length > 0);
@@ -1324,14 +1333,16 @@ function drawCertificate(o) {
 const GCSE = { G: 'Goal', C: 'Context', S: 'Source', E: 'Expectation' };
 const hasMarks = t => /\[[GCSE]:/.test(t || '');
 const stripMarks = t => String(t || '').replace(/\[([GCSE]):([^\]]*)\]?/g, '$2');
-function markup(text) {
+function markup(text, mode) {
+  if (mode === 'plain') return esc(stripMarks(text));
+  const pend = mode === 'pending' ? ' pend' : '';
   let out = '', i = 0;
   while (i < text.length) {
     const m = text.slice(i).match(/\[([GCSE]):/);
     if (!m) { out += esc(text.slice(i)); break; }
     out += esc(text.slice(i, i + m.index));
     const start = i + m.index + 3, close = text.indexOf(']', start), end = close < 0 ? text.length : close;
-    out += `<mark class="gcse ${m[1]}"><span class="gl">${m[1]}</span>${esc(text.slice(start, end))}</mark>`;
+    out += `<mark class="gcse ${m[1]}${pend}"><span class="gl">${m[1]}</span>${esc(text.slice(start, end))}</mark>`;
     i = close < 0 ? text.length : close + 1;
   }
   return out;
@@ -1347,7 +1358,7 @@ function legend(on) {
 function userMsg(text, files) {
   const u = el('div', 'msg u');
   if (files.length) u.appendChild(el('div', 'uatt', files.map(f => `<span class="fchip">${tile(f.kind)}<span class="n">${esc(f.name)}</span></span>`).join('')));
-  if (text) u.appendChild(el('div', 'bub', markup(text)));
+  if (text) u.appendChild(el('div', 'bub', markup(text, ST.gcseMode === 'off' ? 'plain' : ST.gcseMode === 'live' ? 'marks' : 'pending')));
   u.appendChild(el('div', 'uact', `<span class="ib sm">${ic('copy')}</span><span class="ib sm">${ic('edit')}</span><span class="ib sm save">${ic('bookmark')}</span>`));
   u.dataset.text = text;
   return u;
@@ -1358,7 +1369,7 @@ function ensureA() {
 }
 async function doType(text) {
   if (ST.view === 'nblist') return;
-  if (hasMarks(text) && ST.gcse == null) legend(true);
+  if (hasMarks(text) && ST.gcseMode === 'live' && ST.gcse == null) legend(true);
   await clickOn($('#cText'), 0.08, 0.5);
   const base = ST.typed ? ST.typed + ' ' : '';
   await typeText((t, caret) => { ST.typed = base + t; renderComposer(caret); }, text);
@@ -1369,9 +1380,15 @@ async function doSend() {
   await wait(300);
   await clickOn($('#cSend'));
   if (ST.view === 'home') showView('chat');
-  thread().appendChild(userMsg(ST.typed, ST.attach));
+  const sent = userMsg(ST.typed, ST.attach); thread().appendChild(sent);
+  const marks = $$('mark.gcse.pend', sent);
   ST.typed = ''; ST.attach = []; ST.busy = true; ST.scrollTo = null; renderComposer(false);
   await wait(450);
+  if (marks.length) {                         // one prompt, then its Goal, Context, Source and Expectation light up in turn
+    legend(true); await wait(500);
+    for (const m of marks) { m.classList.remove('pend'); await wait(1100); }
+    await wait(600);
+  }
 }
 // Think Deeper takes longer, Quick Response barely pauses (matched by position in the model list)
 function modelPace() { return /deep/i.test(ST.model) ? 1.7 : /quick/i.test(ST.model) ? 0.55 : 1; }
@@ -1597,7 +1614,12 @@ const CMDS = {
     await moveTo(target); showTip(target, text); await wait(1300);
   },
   async snapshot(arg) { await snapshot(arg); },
-  async gcse(arg) { legend(!/off|hide|no/i.test(arg)); await wait(300); },
+  async gcse(arg) {
+    if (/off|hide|no/i.test(arg)) { ST.gcseMode = 'off'; legend(false); }
+    else if (/live|typing/i.test(arg)) ST.gcseMode = 'live';
+    else { ST.gcseMode = 'reveal'; if (/legend/i.test(arg)) legend(true); }
+    renderComposer(false); await wait(200);
+  },
   async banner(arg) {
     const [t, ms] = arg.split('|').map(x => x.trim()); const b = $('#banner');
     if (!t) { b.classList.remove('on'); return; }
@@ -2302,7 +2324,7 @@ function init() {
   $('#lExport').onclick = () => download('copilot-scenes.json', JSON.stringify({ version: 1, scenes: LIB.scenes, look: S }, null, 2), 'application/json');
   $('#lImport').onchange = e => { const f = e.target.files[0]; if (f) f.text().then(importLibrary); e.target.value = ''; };
   $('#lStandalone').onclick = () => { download('copilot-chat-simulator.html', standaloneHtml(), 'text/html'); toast('Standalone HTML downloaded'); };
-  $('#lReset').onclick = () => { if (!confirm('Replace all scenes with the built-in set? Your edits will be lost (export first if you want to keep them).')) return; LIB = { version: 1, scenes: BUILTIN.map(normScene), removed: [] }; store.set(LIBKEY, LIB); selectScene(0, true); };
+  $('#lReset').onclick = () => { if (!confirm('Replace all scenes with the built-in set? Your edits will be lost (export first if you want to keep them).')) return; LIB = { version: 1, scenes: BUILTIN.map(normScene), removed: [], metaV: META_V }; store.set(LIBKEY, LIB); selectScene(0, true); };
   $('#lookReset').onclick = () => { if (!confirm('Reset the look to its defaults?')) return; S = Object.assign({}, DEFAULTS); saveSettings(); applyChrome(); fit(); syncForm(); resetUI(scene()); };
   $('#photoIn').onchange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -2555,7 +2577,7 @@ const pptNote = r => r.ok ? 'PowerPoint-ready ✓' : `Not PowerPoint-ready (${co
 /* ---------- built-in scenes: Section C of the HD away day deck ---------- */
 // All names, figures and documents are invented for the demo.
 const BUILTIN = [
-{ id: 'tour', section: 'Controls', slide: '42', title: 'A quick tour of Copilot Chat',
+{ id: 'tour', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · A quick tour',
   outro: { title: 'Start in Copilot Chat. It sees everything the others see.', prompts: false },
   script: `@caption Copilot Chat: one place that sees across mail, files, meetings and chats
 @pause 1200
@@ -2572,7 +2594,7 @@ const BUILTIN = [
 @unhighlight
 @caption` },
 
-{ id: 'model-quick', section: 'Controls', slide: '43', title: 'Quick Response for everyday jobs',
+{ id: 'model-quick', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · Quick response',
   outro: { title: 'Turning it up on a two-line question is not thoroughness.' },
   script: `@caption There's a model picker in Copilot. Most people have never touched it.
 @highlight model | Choose how hard it thinks
@@ -2586,7 +2608,7 @@ const BUILTIN = [
 ? Make it shorter
 @caption` },
 
-{ id: 'model-deep', section: 'Controls', slide: '44', title: 'Think Deeper for the board paper',
+{ id: 'model-deep', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · Think deeper on a business case',
   outro: { title: 'Turning it up on a board paper is exactly right.', body: 'Deeper thinking takes longer. Use it deliberately rather than leaving it on.' },
   script: `@model Think Deeper
 @caption Think Deeper: more reasoning before it answers
@@ -2622,7 +2644,7 @@ const BUILTIN = [
 ? Model a phased opening
 ? Draft the risks section for the paper` },
 
-{ id: 'effort-model', section: 'Controls', slide: '44', title: 'Set the effort, and the model',
+{ id: 'effort-model', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · Set the effort and the model',
   outro: { title: 'Auto is right most of the time. Turn it up on purpose.', body: 'Deeper thinking takes longer. Use it deliberately rather than leaving it on.', prompts: false },
   script: `@caption One picker. How hard it thinks, and which model does the thinking.
 @highlight model | Click to choose
@@ -2642,7 +2664,7 @@ const BUILTIN = [
 @pause 2800
 @caption` },
 
-{ id: 'workiq-toggle', section: 'Controls', slide: '45', title: 'Work IQ: the toggle at the top',
+{ id: 'workiq-toggle', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · The Work IQ toggle',
   outro: { title: 'One click, and it changes the answer completely.', prompts: false },
   script: `@caption A toggle at the top of Copilot Chat. Most people have never touched it.
 @highlight work | Work IQ: on
@@ -2658,7 +2680,7 @@ const BUILTIN = [
 @pause 2600
 @caption` },
 
-{ id: 'work-web', section: 'Controls', slide: '45', title: 'Work IQ on and off: same prompt, two answers',
+{ id: 'work-web', section: 'Copilot Chat', slide: '', title: 'Copilot Chat · Work IQ on and off',
   outro: { title: 'Both answers are useful. On this one, run both.', body: 'The gap between the two is often the interesting bit.' },
   script: `@caption Work IQ on: grounded in our files, mail, meetings and chats
 > What are the main risks in expanding our internal nursing bank?
@@ -2695,7 +2717,7 @@ A useful checklist to test your own plan against.
 @caption Same prompt. Ours, on our numbers, or the general checklist.
 @mode on` },
 
-{ id: 'inbox-thread', section: 'The inbox', slide: '47', title: 'Catch up on a thread',
+{ id: 'inbox-thread', section: 'Outlook', slide: '', title: 'Outlook · Catch me up on a thread',
   outro: { title: 'Ask for the decision, not a summary.', body: 'Ask for a summary and you get a shorter version of the thread you didn’t want to read.' },
   script: `> I have been copied on the endoscopy decontamination thread for three weeks. What is the decision I actually need to make, and what are the open points?
 ~ Finding the thread "Endoscopy decon unit: options" (27 messages)
@@ -2721,7 +2743,7 @@ A useful checklist to test your own plan against.
 ? Draft a reply
 ? Who hasn't replied?` },
 
-{ id: 'inbox-reply', section: 'The inbox', slide: '47', title: 'Draft a reply',
+{ id: 'inbox-reply', section: 'Outlook', slide: '', title: 'Outlook · Draft a reply',
   outro: { title: 'Give it the position, not the words. It will find the words.' },
   script: `@instant
 > I have been copied on the endoscopy decontamination thread for three weeks. What is the decision I actually need to make, and what are the open points?
@@ -2746,7 +2768,7 @@ Jason
 ? Make it more formal
 ? Shorten it to three lines` },
 
-{ id: 'inbox-waiting', section: 'The inbox', slide: '47', title: 'Find who is waiting on me',
+{ id: 'inbox-waiting', section: 'Outlook', slide: '', title: 'Outlook · Who is waiting on me?',
   outro: { title: 'Nobody thinks to ask this. It stops things sitting for a week.' },
   script: `> Find emails from the past 48 hours where someone is waiting on a reply or a decision from me.
 ~ Searching your mailbox for the past 48 hours
@@ -2773,7 +2795,7 @@ Priya and Sarah have both followed up once already.
 ? Draft quick replies to the top three
 ? Which of these could I delegate?` },
 
-{ id: 'inbox-morning', section: 'The inbox', slide: '47', title: 'Sort the morning',
+{ id: 'inbox-morning', section: 'Outlook', slide: '', title: 'Outlook · Sort the morning',
   outro: { title: 'Ninety seconds, before you open anything.', body: 'It runs on the same content every day. Nothing to set up.' },
   script: `> Summarise my unread mail and flag anything that needs an action from me today.
 ~ Reading 31 unread emails
@@ -2801,7 +2823,7 @@ Priya and Sarah have both followed up once already.
 ? Draft replies for the four actions
 ? Block 30 minutes for these` },
 
-{ id: 'meet-prep', section: 'Meetings', slide: '48', title: 'Prepare before you walk in',
+{ id: 'meet-prep', section: 'Teams and meetings', slide: '', title: 'Teams · Prepare before you walk in',
   outro: { title: 'Ten seconds before you walk into a room.', body: 'It changes how you turn up.' },
   script: `> What is the background to my meeting with Priya Shah tomorrow? What did we agree last time and what is outstanding?
 ~ Finding your meeting with Priya Shah: Wed 10:00, Monthly finance review
@@ -2829,7 +2851,7 @@ Priya and Sarah have both followed up once already.
 ? Draft an agenda
 ? What numbers should I have to hand?` },
 
-{ id: 'meet-recap', section: 'Meetings', slide: '48', title: 'Recap one you missed',
+{ id: 'meet-recap', section: 'Teams and meetings', slide: '', title: 'Teams · Recap a meeting I missed',
   outro: { title: 'Recall is the feature people end up using most.', body: 'It just does not feel like AI.' },
   script: `> Recap the November capacity planning meeting and list what was agreed, who owns each action, and anything left unresolved.
 ~ Finding "November capacity planning": Tue 14:00, Teams, transcribed
@@ -2856,7 +2878,7 @@ Priya and Sarah have both followed up once already.
 ? Draft the recap email
 ? List only my actions` },
 
-{ id: 'meet-actions', section: 'Meetings', slide: '48', title: 'Pick up your own actions',
+{ id: 'meet-actions', section: 'Teams and meetings', slide: '', title: 'Teams · My actions from a meeting',
   outro: { title: '“Anything I committed to that isn’t written down.”', body: 'That last clause is the bit people miss, and usually the bit that bites.' },
   script: `> From the November capacity planning meeting, list the actions assigned to me with dates, and anything I committed to that is not written down.
 ~ Reading the transcript of November capacity planning
@@ -2879,7 +2901,7 @@ Priya and Sarah have both followed up once already.
 ? Add these to my To Do
 ? Draft a note to the recovery team` },
 
-{ id: 'meet-confirm', section: 'Meetings', slide: '48', title: 'Confirm it in writing',
+{ id: 'meet-confirm', section: 'Teams and meetings', slide: '', title: 'Teams · Confirm it in writing',
   outro: { title: 'Getting agreements in writing quickly is a control, not an admin task.' },
   script: `> Draft a message to the team confirming what we agreed in November capacity planning. Short, neutral, no blame.
 ~ Reading the transcript of November capacity planning
@@ -2907,7 +2929,7 @@ Jason
 ? Post it in the Teams channel instead
 ? Make it shorter` },
 
-{ id: 'doc-policy', section: 'Documents', slide: '49', title: 'Read the long thing',
+{ id: 'doc-policy', section: 'Word and documents', slide: '', title: 'Word · Read the long thing',
   outro: { title: 'Ask for page references. It makes checking possible.', body: 'It is summarising, which it is good at. It is not verifying.' },
   script: `@attach Infection Prevention and Control Policy v7.pdf
 > Summarise this 40-page policy into the five things that change what my hospital has to do, with the page references.
@@ -2926,7 +2948,7 @@ Jason
 ? Draft a briefing for ward managers
 ? What do we need to change by when?` },
 
-{ id: 'doc-exec', section: 'Documents', slide: '49', title: 'Make the summary',
+{ id: 'doc-exec', section: 'Word and documents', slide: '', title: 'Word · Make the executive summary',
   outro: { title: 'Lead with the decision and the ask.', body: 'That is a board-paper instruction, not an AI instruction.' },
   script: `@attach Day-case unit redesign — options paper.docx
 > Turn this paper into a one-page executive summary for the board. Lead with the decision and the ask.
@@ -2950,7 +2972,7 @@ Jason
 ? Make it shorter
 ? Add a risk table` },
 
-{ id: 'doc-audience', section: 'Documents', slide: '49', title: 'Change the audience',
+{ id: 'doc-audience', section: 'Word and documents', slide: '', title: 'Word · Change the audience',
   outro: { title: 'Same content, different reader.', body: 'That is most of a hospital director’s writing week.' },
   script: `@attach Q2 variance commentary.docx
 > Rewrite this for a non-financial audience. Keep every number. Remove every piece of jargon or explain it in brackets.
@@ -2969,7 +2991,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Make it even simpler
 ? Turn it into three bullet points` },
 
-{ id: 'doc-compare', section: 'Documents', slide: '49', title: 'Compare versions',
+{ id: 'doc-compare', section: 'Word and documents', slide: '', title: 'Word · Compare two versions',
   outro: { title: 'Without the second clause you get a list. With it, you get a view.' },
   script: `@attach Laundry services agreement v4.docx; Laundry services agreement v5 (supplier markup).docx
 > Compare these two versions of the contract and list what changed, flagging anything that shifts risk or cost to us.
@@ -2996,7 +3018,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Draft a reply to the supplier
 ? Show the exact wording of each change` },
 
-{ id: 'xl-explain', section: 'Excel', slide: '50', title: 'Understand a model you inherited',
+{ id: 'xl-explain', section: 'Excel', slide: '', title: 'Excel · Explain a model I inherited',
   outro: { title: 'Ask where the hard-coded numbers are.', body: 'The most useful question you can put to a model you did not build.' },
   script: `@attach Agency cost model FY27.xlsx
 > Explain what this workbook does, sheet by sheet. Where are the hard-coded numbers and which assumptions drive the output?
@@ -3025,7 +3047,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Show me the formulas on the Gap sheet
 ? What if bank fill is 60%?` },
 
-{ id: 'xl-formula', section: 'Excel', slide: '50', title: 'Build the formula',
+{ id: 'xl-formula', section: 'Excel', slide: '', title: 'Excel · Build the formula',
   outro: { title: 'Describe the edge cases. Check the formula, not the answer.' },
   script: `@attach Site agency costs Sep.xlsx
 > I need a formula that returns the agency cost per bed-day by site, handling blanks and dividing by zero safely.
@@ -3048,7 +3070,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Add it to the workbook for me
 ? Format the result as currency` },
 
-{ id: 'xl-odd', section: 'Excel', slide: '50', title: 'Find what is odd',
+{ id: 'xl-odd', section: 'Excel', slide: '', title: 'Excel · Find what is odd',
   outro: { title: 'Its explanations are hypotheses to test, not findings.' },
   script: `@attach Ward costs Apr–Sep.xlsx
 > Highlight the rows where this month is more than 20% away from the three-month average, and suggest what might explain each.
@@ -3069,7 +3091,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Highlight these rows in the workbook
 ? Chart Ward 2 agency spend` },
 
-{ id: 'xl-clean', section: 'Excel', slide: '50', title: 'Clean it up',
+{ id: 'xl-clean', section: 'Excel', slide: '', title: 'Excel · Clean it up',
   outro: { title: 'Boring, and it will save someone an afternoon this month.' },
   script: `@attach Payroll export raw.xlsx
 > This export has merged cells, inconsistent dates and trailing spaces. Turn it into a clean table I can pivot.
@@ -3092,7 +3114,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Build the pivot for me
 ? Total cost by department` },
 
-{ id: 'deck-make', section: 'Decks, and finding things', slide: '51', title: 'Paper into deck',
+{ id: 'deck-make', section: 'PowerPoint', slide: '', title: 'PowerPoint · Paper into deck',
   outro: { title: 'Give it the constraint: one message per slide, thirty words.', body: 'Without a limit it moves your paragraphs onto slides and calls it a deck.' },
   script: `@attach Day-case unit redesign — options paper.docx
 > Turn this board paper into an eight-slide deck. One message per slide, no slide with more than thirty words.
@@ -3113,7 +3135,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Write speaker notes
 ? Make it six slides` },
 
-{ id: 'deck-notes', section: 'Decks, and finding things', slide: '51', title: 'Speaker notes',
+{ id: 'deck-notes', section: 'PowerPoint', slide: '', title: 'PowerPoint · Speaker notes',
   outro: { title: 'Best for a deck someone else built that you have to present.' },
   script: `@attach Q3 performance review.pptx
 > Write speaker notes for this deck, in my voice, assuming the audience has not read the paper.
@@ -3136,7 +3158,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Make the notes shorter
 ? Add likely questions and answers` },
 
-{ id: 'find-project', section: 'Decks, and finding things', slide: '51', title: 'Find it across everything',
+{ id: 'find-project', section: 'Search', slide: '', title: 'Search · Find everything about a project',
   outro: { title: 'It only ever shows you what you already have permission to see.', body: 'Ask it the question, not the search term.' },
   script: `> Find everything about the theatre expansion project from the last quarter (documents, emails and Teams messages) and tell me where it stands.
 ~ Searching files, email, meetings and Teams chats for "theatre expansion"
@@ -3163,7 +3185,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? What's the next deadline?
 ? Draft an update for the region` },
 
-{ id: 'find-version', section: 'Decks, and finding things', slide: '51', title: 'Which version is current?',
+{ id: 'find-version', section: 'Search', slide: '', title: 'Search · Which version is current?',
   outro: { title: 'Every month somebody works from the wrong version. This takes ten seconds.' },
   script: `> What is the latest version of the agency cost model, who changed it last, and what did they change?
 ~ Searching files for "agency cost model"
@@ -3181,7 +3203,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Summarise the effect on the forecast
 ? Tell the team which version to use` },
 
-{ id: 'day-morning', section: 'A day', slide: '52', title: '08:30 · Before you open anything',
+{ id: 'day-morning', section: 'A day with Copilot', slide: '', title: 'A day · 08:30 Before you open anything',
   outro: { title: 'Two asks, one prompt. A full morning briefing.', body: 'It works because the context for both lives in the same place.' },
   script: `@caption 08:30. Two asks stacked into one prompt
 > Summarise my emails flagging anything that needs an action from me today, and prepare notes for my 10:00 with Priya Shah.
@@ -3210,7 +3232,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Draft the four replies
 ? What should I decide before 10:00?` },
 
-{ id: 'day-chase', section: 'A day', slide: '52', title: '16:30 · The chase',
+{ id: 'day-chase', section: 'A day with Copilot', slide: '', title: 'A day · 16:30 The chase',
   outro: { title: 'Who is waiting on me, and what is the shortest reply that unblocks each one?' },
   script: `@caption 16:30. The chase
 > Who is waiting on me, and what is the shortest reply that unblocks each one?
@@ -3230,7 +3252,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Send all three as drafts
 ? Make them a little warmer` },
 
-{ id: 'day-close', section: 'A day', slide: '52', title: '17:30 · Close the loop',
+{ id: 'day-close', section: 'A day with Copilot', slide: '', title: 'A day · 17:30 Close the loop',
   outro: { title: 'None of these takes longer than making a coffee.', body: 'This is what a very good assistant would do for you. You have one now.' },
   script: `@caption 17:30. Close the loop
 > What did I not get to today that cannot slip, and what should be first tomorrow?
@@ -3251,7 +3273,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Block 08:30 to 09:00 for this
 ? Draft the email to region` },
 
-{ id: 'one-task', section: 'One task, start to finish', slide: '53', title: 'Month end, handed along',
+{ id: 'one-task', section: 'A day with Copilot', slide: '', title: 'Month end · One task, start to finish',
   outro: { title: 'Not four clever prompts. One piece of work that keeps its context.' },
   script: `@caption 1 · Start with the question
 > What are the budget holders actually asking me, and what is still outstanding from last month?
@@ -3291,7 +3313,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 @file September month end.pptx | PowerPoint · 3 slides
 @caption` },
 
-{ id: 'nb-find', section: 'Notebooks', slide: '57', title: 'Notebooks: where to find it',
+{ id: 'nb-find', section: 'Notebooks', slide: '', title: 'Notebooks · Where to find it',
   outro: { title: 'Name it after the job, not the month.', body: 'Two minutes to set up. Then it is there every month.', prompts: false },
   script: `@caption Copilot Chat, left-hand navigation. It has probably been there for weeks.
 @highlight notebooks | Notebooks
@@ -3304,7 +3326,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 @refs Month-end pack Sep.xlsx; Commentary — August.docx; Commentary format rules.docx; Budget holder queries | email
 @caption` },
 
-{ id: 'nb-context', section: 'Notebooks', slide: '58', title: 'Notebooks: set the context once',
+{ id: 'nb-context', section: 'Notebooks', slide: '', title: 'Notebooks · Set the context once',
   outro: { title: 'This is the C, pinned down. Set it once.', body: 'Instead of re-attaching the same four documents every Monday.' },
   script: `@instant
 @notebooks
@@ -3332,7 +3354,7 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 ? Now do Riverside
 ? Make it shorter` },
 
-{ id: 'gallery', section: 'Prompt Gallery', slide: '59', title: 'Save what works, share it with the team',
+{ id: 'gallery', section: 'Prompt Gallery', slide: '', title: 'Prompt Gallery · Save and share a prompt',
   outro: { title: 'Save the prompt that worked. Share it with the team.', body: 'That is how one person’s good idea becomes everyone’s default.', prompts: false },
   script: `@instant
 > Summarise my unread mail and flag anything that needs an action from me today.
@@ -3354,9 +3376,9 @@ The biggest single fix is filling more shifts from our own nurse bank (our inter
 @close
 @caption` },
 /* ---------- Mrs Smith: Copilot basics (standard Copilot Chat licence) ---------- */
-{ id: 'ms-writing', section: 'Mrs Smith · Copilot basics', slide: 'V3', title: 'Improve your writing with GCSE',
+{ id: 'ms-writing', section: 'Copilot basics (Mrs Smith)', slide: '', title: 'Writing · Improve an email with GCSE',
   look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
-  intro: { kicker: 'COPILOT BASICS · VIDEO 3', subtitle: 'Using Copilot to improve writing' },
+  intro: { kicker: 'COPILOT BASICS', subtitle: 'Using Copilot to improve writing' },
   outro: { kicker: 'THE GCSE FRAMEWORK', title: 'Goal. Context. Source. Expectation.', body: 'Four parts in one prompt, and the first draft is nearly there.', prompts: true },
   script: `@caption A good prompt has four parts: Goal, Context, Source, Expectation.
 @gcse on
@@ -3382,9 +3404,9 @@ Mrs Smith
 @pause 2500
 @caption` },
 
-{ id: 'ms-summarise', section: 'Mrs Smith · Copilot basics', slide: 'V4', title: 'Summarise a long document',
+{ id: 'ms-summarise', section: 'Copilot basics (Mrs Smith)', slide: '', title: 'Documents · Summarise a long document',
   look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
-  intro: { kicker: 'COPILOT BASICS · VIDEO 4', subtitle: 'Summarising long documents' },
+  intro: { kicker: 'COPILOT BASICS', subtitle: 'Summarising long documents' },
   outro: { kicker: 'REMEMBER', title: 'Only publicly available documents go into Copilot.', body: 'Then GCSE does the rest: what you want, for whom, from what, in what shape.', prompts: true },
   script: `@caption Mrs Smith has a long, publicly available NHS document to summarise.
 @pause 1200
@@ -3414,9 +3436,9 @@ Mrs Smith
 @pause 2500
 @caption` },
 
-{ id: 'ms-excel', section: 'Mrs Smith · Copilot basics', slide: 'V5', title: 'Ideas and solutions: the Excel problem',
+{ id: 'ms-excel', section: 'Copilot basics (Mrs Smith)', slide: '', title: 'Excel · Ideas and solutions',
   look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
-  intro: { kicker: 'COPILOT BASICS · VIDEO 5', subtitle: 'Generating ideas and solutions' },
+  intro: { kicker: 'COPILOT BASICS', subtitle: 'Generating ideas and solutions' },
   outro: { kicker: 'TRY IT', title: 'Stuck in an app? Describe the problem to Copilot.', body: 'What you see, what you expected, and what you have tried.', prompts: true },
   script: `@mood 😩 | “Why won't these dates sort? And the total says zero.” | 3500
 @excel Ward budget.xlsx | Date,Item,Amount ; !45321,Agency nursing,!1200 ; !45324,Consumables,!340 ; !45330,Bank shifts,!980 ; Total,,!0 | 4500
@@ -3442,9 +3464,9 @@ After that, SUM will add them up and Sort will order the rows by date.
 @mood 😊 | Sorted. The dates sort, and the total is right. | 3000
 @caption` },
 
-{ id: 'ms-mistakes', section: 'Mrs Smith · Copilot basics', slide: 'V6', title: 'Copilot makes mistakes: the certificates',
+{ id: 'ms-mistakes', section: 'Copilot basics (Mrs Smith)', slide: '', title: 'Mistakes · The certificates',
   look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
-  intro: { kicker: 'COPILOT BASICS · VIDEO 6', subtitle: 'Copilot making mistakes' },
+  intro: { kicker: 'COPILOT BASICS', subtitle: 'Copilot making mistakes' },
   outro: { kicker: 'LOOK CLOSELY', title: 'How many mistakes can you spot?', body: 'Copilot drafts. You check, every time, before anything goes out.', prompts: false },
   script: `@gcse on
 > [G:Create a certificate of achievement for a colleague who has completed our infection prevention training.] [C:It is for Sarah Whitlock, who completed Infection Prevention and Control Level 2 on 3 October 2026.] [S:Use only the details here.] [E:A simple landscape certificate with the hospital name at the top, signed by the Ward Manager.]
@@ -3459,9 +3481,9 @@ After that, SUM will add them up and Sort will order the rows by date.
 @pause 5000
 @caption` },
 
-{ id: 'ms-hallucination', section: 'Mrs Smith · Copilot basics', slide: 'V7', title: 'When Copilot is confidently wrong',
+{ id: 'ms-hallucination', section: 'Copilot basics (Mrs Smith)', slide: '', title: 'Mistakes · Confidently wrong',
   look: { product: 'chat', name: 'Mrs Smith', plan: 'Microsoft 365 Copilot Chat', photo: 'blank', tag: 'Work', greeting: 'Hi, how can I help?' },
-  intro: { kicker: 'COPILOT BASICS · VIDEO 7', subtitle: 'Copilot can hallucinate' },
+  intro: { kicker: 'COPILOT BASICS', subtitle: 'Copilot can hallucinate' },
   outro: { kicker: 'THE RULE', title: 'Confident is not the same as correct.', body: 'If a fact matters, check it against a source you trust.', prompts: true },
   script: `> Give me some basic facts about Ramsay Health Care UK: when it was founded, where its head office is, how many hospitals it has, and who runs it.
 ~ Searching the web

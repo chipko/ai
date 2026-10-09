@@ -27,6 +27,20 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 | Notebooks | 57–58 | Where to find it · Set the context once |
 | Prompt Gallery | 59 | Save what works, share it with the team |
 
+## Two products
+Under Look → Product, choose **Microsoft 365 Copilot** (Work IQ: it can see files, mail, meetings and chats) or **standard Copilot Chat** (web-grounded; the Work IQ toggle disappears). The choice also goes into the prompt the Ideas tab writes for an LLM, so generated scenes cite the right kinds of source.
+
+## Building a scene by hand (Build tab)
+Fill in what you have and press **Add turn**; the script is written for you. Prompt, attachments, thinking steps, the answer (paste it straight from a real Copilot session; the Copy button there gives Markdown), references, files it produced, images, follow-ups and an optional caption. **Add as a new scene** starts a scene from the same form.
+
+**Images and artefacts.** Add screenshots of real outputs (a chart, a generated deck, a page) to the scene; they are resized, stored with the scene, and travel with exports and standalone copies. `@image id | caption` in the script shows one inside Copilot's answer, after the text. **Use** on a thumbnail drops its id into the form.
+
+## Ideas tab
+Thirty scenario starters by role (Finance, HR & People, Clinical governance, Operations, Estates & IT, Exec & Board, Procurement, Comms, Every day), plus a box for your own. For each:
+- **Stub** makes a scene with the prompt, attachments and a placeholder answer to fill in from a real session.
+- **Copy prompt** copies instructions for any LLM (Copilot, ChatGPT, Claude) to write the whole scene as JSONL, including the product and the organisation and names from *Context for AI*. Paste the reply into Script → JSONL, or import it as a file.
+- **Generate** sends the same prompt to an OpenAI-compatible endpoint you set up at the bottom of the tab (OpenAI, Azure OpenAI or a local model) and adds the result as a scene. The key stays in this browser and is never exported.
+
 ## Writing your own scenes
 **☰ Scenes** lists the saved scenes by section. They're stored in this browser as you edit, and new built-in scenes from a later version of the page are added to your saved library automatically (a built-in you deleted stays deleted). **New scene**, **Duplicate**, ▲ ▼ and **Delete** manage them. **Export** and **Import** (.json or .jsonl) back them up or share them. **Download standalone HTML** makes a copy of the page with your scenes and look built in.
 
@@ -59,11 +73,12 @@ Open the file in Chrome or Edge. Press **Space** to play, **D** for the scenes a
 {"type":"response","markdown":"### What the board will challenge\n1. **Utilisation** [1]","refs":[{"title":"Board paper.docx","kind":"docx","meta":"You attached this"}],"followups":["Draft the risks section"],"files":[{"name":"Summary.docx","meta":"1 page"}]}
 ```
 - `context` lists the documents attached to that prompt.
+- `"images":[{"id":"agency-chart","caption":"…"}]` on a response shows an image stored with the scene (`"assets"` on the scene line carries the image data).
 - Every script command also works as a JSONL line, for example `{"type":"newchat"}`, `{"type":"pause","value":1500}` or `{"type":"caption","text":"…","ms":4000}`.
 - A .jsonl file with several `scene` lines imports as several scenes.
 - **Copy LLM prompt** copies instructions for writing a scene in this format. Add your topic, paste it into any LLM, then paste the reply into the JSONL box or import it.
 
-Other commands: `@mode off` / `@mode on` (the Work IQ toggle), `@type` / `@send`, `@newchat`, `@caption text | ms`, `@highlight model | label` / `@unhighlight`, `@click target`, `@pause ms`, `@scroll prompt`, `@save`, `@gallery Saved`, `@share`, `@close`, `@notebooks`, `@create Name`, `@refs a.xlsx; b.docx`, `@instructions text`, `@instant … @live` (sets up earlier turns with no animation) and `@theme dark`. The cheat sheet is in the Script tab.
+Other commands: `@image id | caption` (an image in the answer), `@mode off` / `@mode on` (the Work IQ toggle), `@type` / `@send`, `@newchat`, `@caption text | ms`, `@highlight model | label` / `@unhighlight`, `@click target`, `@pause ms`, `@scroll prompt`, `@save`, `@gallery Saved`, `@share`, `@close`, `@notebooks`, `@create Name`, `@refs a.xlsx; b.docx`, `@instructions text`, `@instant … @live` (sets up earlier turns with no animation) and `@theme dark`. The cheat sheet is in the Script tab.
 
 ## Recording for PowerPoint
 - **● Rec** (or **C**) records the current scene. **● Rec section** records every scene in the section, one file each, with a single "share this tab" prompt. Choose **this tab** when the browser asks.

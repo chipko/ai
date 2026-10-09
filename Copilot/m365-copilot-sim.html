@@ -337,7 +337,28 @@ body.rec #stage{box-shadow:none}
 body.drawer #drawer{transform:none}
 body.nobar #drawer{bottom:0}
 .dtabs{display:flex;border-bottom:1px solid #33373d;flex:none}
-.dtabs button{flex:1;background:none;border:0;padding:13px 0;color:#9aa1a9;font-weight:600;border-bottom:2px solid transparent}
+.dtabs button{flex:1;background:none;border:0;padding:13px 0;color:#9aa1a9;font-weight:600;border-bottom:2px solid transparent;font-size:13px}
+.rimg{margin:6px 0 14px;max-width:560px}
+.rimg img{display:block;width:100%;border-radius:10px;border:1px solid var(--line)}
+.rimg figcaption{font-size:12.5px;color:var(--mut);margin-top:6px}
+.bform textarea{min-height:54px}
+.bform textarea.big{min-height:160px}
+.assets{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.asset{width:108px;background:#15171a;border:1px solid #33373d;border-radius:8px;padding:6px;font-size:11.5px;color:#b9bfc6}
+.asset img{width:100%;height:60px;object-fit:cover;border-radius:5px;display:block;margin-bottom:4px}
+.asset b{display:block;color:#eee;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset .btns{display:flex;gap:4px;margin-top:4px}
+.asset .btns button{flex:1;background:#2d3238;border:1px solid #3c4249;border-radius:5px;color:#eee;font-size:11px;padding:2px 0}
+.idea{border:1px solid #33373d;border-radius:9px;padding:9px 10px;margin:6px 0;background:#15171a}
+.idea b{display:block;color:#eee;font-size:13px}
+.idea .pr{color:#b9bfc6;font-size:12.5px;margin:3px 0 6px;line-height:1.4}
+.idea .ctx{color:#8d949c;font-size:11.5px;margin-bottom:6px}
+.idea .acts{display:flex;gap:6px;flex-wrap:wrap}
+.idea .acts button{background:#2d3238;border:1px solid #3c4249;border-radius:6px;color:#e8e8e8;font-size:12px;padding:4px 9px}
+.idea .acts button.pri{background:#0f6cbd;border-color:#0f6cbd}
+.rolebar{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 4px}
+.rolebar button{background:#2d3238;border:1px solid #3c4249;border-radius:12px;color:#c8c8c8;font-size:12px;padding:3px 10px}
+.rolebar button.on{background:#0f6cbd;border-color:#0f6cbd;color:#fff}
 .dtabs button.on{color:#fff;border-bottom-color:#0f6cbd}
 .dpane{display:none;overflow-y:auto;padding:14px 16px 30px;flex:1}
 .dpane.on{display:block}
@@ -483,7 +504,7 @@ details.cheat pre{white-space:pre-wrap;font-family:"Cascadia Mono",Consolas,mono
 </div>
 
 <div id="drawer">
-  <div class="dtabs"><button data-p="pScenes" class="on">Scenes</button><button data-p="pScript">Script</button><button data-p="pLook">Look</button><button data-p="pRec">Record</button></div>
+  <div class="dtabs"><button data-p="pScenes" class="on">Scenes</button><button data-p="pScript">Script</button><button data-p="pBuild">Build</button><button data-p="pIdeas">Ideas</button><button data-p="pLook">Look</button><button data-p="pRec">Record</button></div>
 
   <div class="dpane on" id="pScenes">
     <h4>Saved scenes</h4>
@@ -569,8 +590,49 @@ A file with several "scene" lines imports as several scenes.</pre></details>
 // comment</pre></details>
   </div>
 
+  <div class="dpane bform" id="pBuild">
+    <h4>Add a turn to “<span id="bSceneName"></span>”</h4>
+    <p class="msg">Fill in what you have and press <b>Add turn</b>. The script is written for you. Paste the answer from a real Copilot session straight into the Answer box (Copilot’s Copy button gives Markdown).</p>
+    <div class="row"><label>Prompt</label><textarea data-b="prompt" placeholder="What the user types"></textarea></div>
+    <div class="row"><label>Attachments</label><input type="text" data-b="attach" placeholder="Board paper.docx; Pack.xlsx; Budget queries | email"></div>
+    <div class="row"><label>Thinking</label><textarea data-b="think" placeholder="One step per line, e.g. Reading Board paper.docx&#10;Checking the numbers {2500}"></textarea></div>
+    <div class="row"><label>Answer</label><textarea data-b="resp" class="big" placeholder="Markdown: ## headings, **bold**, - bullets, | tables |, [1] citations"></textarea></div>
+    <div class="row"><label>References</label><textarea data-b="refs" placeholder="One per line: Title | kind | meta&#10;Board paper.docx | docx | SharePoint · Finance&#10;kinds: docx xlsx pptx pdf email meeting teams web loop"></textarea></div>
+    <div class="row"><label>Files made</label><textarea data-b="files" placeholder="One per line: Summary.docx | Word document · 1 page"></textarea></div>
+    <div class="row"><label>Images</label><textarea data-b="images" placeholder="One per line: id | caption (add images below, then Use)"></textarea></div>
+    <div class="row"><label>Follow-ups</label><textarea data-b="fups" placeholder="One per line"></textarea></div>
+    <div class="row"><label>Caption</label><input type="text" data-b="caption" placeholder="Optional lower-third caption shown while this turn plays"></div>
+    <div class="row"><button class="btn pri" id="bAdd">+ Add turn</button><button class="btn" id="bAddNew">Add as a new scene</button><button class="btn" id="bClear">Clear form</button></div>
+    <p class="msg" id="buildMsg"></p>
+    <h4>Images and artefacts for this scene</h4>
+    <p class="msg">Screenshots of real outputs (a chart, a deck, a page) that Copilot shows inside an answer. They are stored with the scene and travel with exports. <code>@image id | caption</code> in the script places one.</p>
+    <div class="row"><label class="btn" style="cursor:pointer;width:auto">Add images…<input type="file" id="assetIn" accept="image/*" multiple hidden></label><span class="msg">Resized to 1400 px wide at most.</span></div>
+    <div class="assets" id="assetList"></div>
+  </div>
+
+  <div class="dpane" id="pIdeas">
+    <h4>Scenario ideas</h4>
+    <p class="msg">Pick an idea, then either <b>Stub</b> it (a scene with the prompt and a placeholder answer to fill in from a real session), <b>Copy prompt</b> (instructions for any LLM to write the whole scene as JSONL; paste its reply into Script → JSONL, or import it), or <b>Generate</b> (if an AI endpoint is set up below).</p>
+    <div class="rolebar" id="roleBar"></div>
+    <div id="ideaList"></div>
+    <h4>Your own idea</h4>
+    <div class="row"><textarea id="ownIdea" placeholder="e.g. A ward manager asks Copilot to summarise last week's incident reports and draft three actions, with the reports attached"></textarea></div>
+    <div class="row"><button class="btn" id="ownCopy">Copy prompt</button><button class="btn" id="ownStub">Stub</button><button class="btn pri" id="ownGen">Generate</button></div>
+    <h4>Context for AI</h4>
+    <div class="row"><label>Organisation</label><input type="text" data-s="org"></div>
+    <div class="row"><label>People</label><input type="text" data-s="people" placeholder="Names it may use, e.g. Priya Shah (finance), Mark Ellison (theatres)"></div>
+    <p class="msg">Used in the prompt so generated scenes sound like us. Invented names only; never real patient data.</p>
+    <h4>AI endpoint (optional)</h4>
+    <p class="msg">Any OpenAI-compatible chat endpoint (OpenAI, Azure OpenAI, a local model). The key is kept in this browser only and is never exported.</p>
+    <div class="row"><label>URL</label><input type="text" data-a="url" placeholder="https://api.openai.com/v1/chat/completions"></div>
+    <div class="row"><label>API key</label><input type="password" data-a="key"></div>
+    <div class="row"><label>Model</label><input type="text" data-a="model" placeholder="gpt-4o-mini"></div>
+    <p class="msg" id="aiMsg"></p>
+  </div>
+
   <div class="dpane" id="pLook">
     <h4>Copilot</h4>
+    <div class="row"><label>Product</label><select data-s="product"><option value="m365">Microsoft 365 Copilot (Work IQ)</option><option value="chat">Copilot Chat, standard (web only, no Work IQ)</option></select></div>
     <div class="row"><label>Theme</label><select data-s="theme"><option value="light">Light</option><option value="dark">Dark</option></select></div>
     <div class="row"><label>Name</label><input type="text" data-s="name"></div>
     <div class="row"><label>Account tag</label><input type="text" data-s="tag"></div>
@@ -716,7 +778,8 @@ const DEFAULTS = {
   theme: 'light', frame: '1920x1080', zoom: 1.25, speed: 1, cards: true,
   typeCps: 38, streamWps: 14, thinkMs: 1400, autoThink: true, scriptFmt: 'script', cursor: true, refsOpen: true,
   name: 'Jason', tag: 'Work', plan: 'M365 Copilot (Premium)', initials: 'J', photo: '',
-  workLabel: 'Work IQ', webLabel: 'Web', showWeb: false, modeStyle: 'toggle',
+  workLabel: 'Work IQ', webLabel: 'Web', showWeb: false, modeStyle: 'toggle', product: 'm365',
+  org: 'Ramsay Health Care UK, a private hospital group', people: 'Priya Shah (finance), Mark Ellison (theatres), Sarah Whitlock (nursing), Dr Helen Okafor (medical director)',
   greeting: 'What can I help with?', placeholder: 'Message Copilot', disclaimer: 'AI-generated content may be incorrect',
   models: 'Auto | Decides how long to think\nQuick response | Answers right away\nThink deeper | Think longer for better answers\n---\nGPT | OpenAI\n> GPT-5.6 Sol Quick response\n> GPT-5.6 Sol Think deeper\n> GPT-6.1 Sol',
   chips: 'File Insights\nInbox Triage\nPeople Search\nMeeting Prep',
@@ -751,7 +814,8 @@ const frameSize = () => { const [w, h] = String(S.frame).split('x').map(Number);
 /* ---------- library of saved scenes ---------- */
 function normScene(s) {
   s = s || {};
-  return Object.assign({ id: uid(), section: 'Scenes', slide: '', title: 'Untitled scene', theme: '', mode: 'work', model: '', script: '' }, s, {
+  return Object.assign({ id: uid(), section: 'Scenes', slide: '', title: 'Untitled scene', theme: '', mode: 'work', model: '', script: '', assets: {} }, s, {
+    assets: Object.assign({}, s.assets || {}),
     intro: Object.assign({ on: true, kicker: '', title: '', subtitle: '' }, s.intro || {}),
     outro: Object.assign({ on: true, kicker: '', title: '', body: '', prompts: true }, s.outro || {})
   });
@@ -806,13 +870,14 @@ function parseScript(src) {
       const m = rest.match(/^(.*?)\s*\{(\d+)\}$/);
       think.lines.push({ text: m ? m[1] : rest, ms: m ? +m[2] : 0 });
     }
-    else if (ch === '<') { think = null; resp = { t: 'resp', lines: rest ? [rest] : [], refs: [], fups: [], files: [] }; steps.push(resp); lastR = resp; }
+    else if (ch === '<') { think = null; resp = { t: 'resp', lines: rest ? [rest] : [], refs: [], fups: [], files: [], images: [] }; steps.push(resp); lastR = resp; }
     else if (ch === '^') { if (lastR) { const [title, kind, meta] = rest.split('|').map(x => x.trim()); lastR.refs.push({ title, kind: kind || kindOf(title), meta: meta || '' }); } }
     else if (ch === '?') { if (lastR) lastR.fups.push(rest); }
     else if (ch === '@') {
       const m = rest.match(/^(\w+)\s*([\s\S]*)$/); if (!m) continue;
       const cmd = m[1].toLowerCase(), arg = m[2].trim();
       if (cmd === 'file') { if (lastR) { const [name, meta] = arg.split('|').map(x => x.trim()); lastR.files.push({ name, meta: meta || '', kind: kindOf(name) }); } continue; }
+      if (cmd === 'image') { if (lastR) { const [id, caption] = arg.split('|').map(x => x.trim()); lastR.images.push({ id, caption: caption || '' }); } continue; }
       think = null; steps.push({ t: 'cmd', cmd, arg });
     }
   }
@@ -820,7 +885,7 @@ function parseScript(src) {
   return steps;
 }
 /* ---------- JSONL: one JSON object per line, converted to and from the script ---------- */
-const SCENE_KEYS = ['title', 'section', 'slide', 'theme', 'mode', 'model', 'intro', 'outro'];
+const SCENE_KEYS = ['title', 'section', 'slide', 'theme', 'mode', 'model', 'intro', 'outro', 'assets'];
 function sceneToJsonl(sc) {
   const head = { type: 'scene' }; SCENE_KEYS.forEach(k => { head[k] = clone(sc[k]); });
   const out = [JSON.stringify(head)];
@@ -830,7 +895,7 @@ function sceneToJsonl(sc) {
     if (s.t === 'cmd' && s.cmd === 'attach') { ctx = (ctx || []).concat(parseFiles(s.arg).map(f => f.kind === kindOf(f.name) ? f.name : { name: f.name, kind: f.kind })); continue; }
     if (s.t === 'prompt') { out.push(JSON.stringify(ctx ? { type: 'prompt', text: s.text, context: ctx } : { type: 'prompt', text: s.text })); ctx = null; }
     else if (s.t === 'think') out.push(JSON.stringify(Object.assign({ type: 'think', steps: s.lines.map(l => l.ms ? { text: l.text, ms: l.ms } : l.text) }, s.summary ? { summary: s.summary } : {})));
-    else if (s.t === 'resp') { const r = { type: 'response', markdown: s.md }; if (s.refs.length) r.refs = s.refs; if (s.files.length) r.files = s.files.map(f => ({ name: f.name, meta: f.meta })); if (s.fups.length) r.followups = s.fups; out.push(JSON.stringify(r)); }
+    else if (s.t === 'resp') { const r = { type: 'response', markdown: s.md }; if (s.refs.length) r.refs = s.refs; if (s.files.length) r.files = s.files.map(f => ({ name: f.name, meta: f.meta })); if (s.images.length) r.images = s.images; if (s.fups.length) r.followups = s.fups; out.push(JSON.stringify(r)); }
     else if (s.cmd === 'attach' || s.cmd === 'refs') out.push(JSON.stringify({ type: s.cmd, files: parseFiles(s.arg).map(f => f.kind === kindOf(f.name) ? f.name : f.name + ' | ' + f.kind) }));
     else out.push(JSON.stringify(s.arg ? { type: s.cmd, value: s.arg } : { type: s.cmd }));
   }
@@ -852,6 +917,7 @@ function recordsToScript(recs) {
       const lines = String(r.markdown || r.text || '').split('\n').map(l => /^(>|<|~|\^|\?|@|\/\/)/.test(l) ? ' ' + l : l);
       L.push('< ' + lines[0], ...lines.slice(1));
       (r.files || []).forEach(x => L.push('@file ' + (typeof x === 'string' ? x : x.name + (x.meta ? ' | ' + x.meta : ''))));
+      (r.images || []).forEach(x => L.push('@image ' + (typeof x === 'string' ? x : x.id + (x.caption ? ' | ' + x.caption : ''))));
       (r.refs || r.references || []).forEach(x => L.push('^ ' + (typeof x === 'string' ? x : [x.title, x.kind || kindOf(x.title), x.meta || ''].join(' | '))));
       (r.followups || []).forEach(x => L.push('? ' + x));
     }
@@ -876,7 +942,11 @@ function jsonlToScenes(text) {
   }
   return scenes.map(s => Object.assign({}, s.head, { slide: s.head.slide != null ? String(s.head.slide) : '', script: recordsToScript(s.recs) }));
 }
+const productLine = () => S.product === 'chat' ? 'The product is standard Microsoft Copilot Chat: grounded in the web and general knowledge, with NO access to the user\'s files, mail or meetings (reference kinds: web only; no Work IQ).' : 'The product is Microsoft 365 Copilot with Work IQ: it can see the user\'s files, mail, meetings and Teams chats and cites them as references.';
+const llmPrompt = idea => LLM_PROMPT.replace('{PRODUCT}', productLine()).replace('{ORG}', S.org || 'a UK organisation').replace('{PEOPLE}', S.people || 'invented names') + (idea || '');
 const LLM_PROMPT = `Write a scripted Microsoft 365 Copilot Chat demo as JSONL (one JSON object per line, no commentary, no code fences).
+{PRODUCT}
+The organisation: {ORG}. People you may name: {PEOPLE}. Invented figures and documents only; never real or patient data. UK English.
 First line: {"type":"scene","title":"…","section":"…","slide":"47","mode":"work","model":"Auto","outro":{"title":"one-line takeaway"}}
 Then, in order, any of:
 {"type":"model","value":"Think Deeper"}            // Auto | Quick Response | Think Deeper
@@ -887,7 +957,7 @@ Then, in order, any of:
 {"type":"response","markdown":"Copilot's answer in Markdown: ## headings, **bold**, - bullets, | tables |, citations like [1]","refs":[{"title":"Board paper.docx","kind":"docx","meta":"SharePoint · Finance"}],"files":[{"name":"Summary.docx","meta":"Word document · 1 page"}],"followups":["Make it shorter"]}
 {"type":"newchat"}  {"type":"pause","value":1500}  {"type":"highlight","target":"model","label":"Choose how hard it thinks"}
 Reference kinds: docx xlsx pptx pdf email meeting teams web loop.
-Keep answers realistic, concise and grounded in the cited sources. Use invented names and numbers, never real or patient data.
+Keep answers realistic, concise and grounded in the cited sources. Two or three prompt/think/response turns is usually right; the first turn may attach documents via "context".
 The scene is about: `;
 
 // The prompts a viewer actually sees typed (skips @instant set-up), for the end card
@@ -1019,6 +1089,7 @@ function applyChrome() {
 }
 function renderTop() {
   const toggle = S.modeStyle !== 'segments';
+  $('#modeSeg').style.display = S.product === 'chat' ? 'none' : '';
   $('#modeSeg').classList.toggle('toggle', toggle);
   $('#mWork').classList.toggle('on', ST.mode === 'work'); $('#mWork').classList.toggle('off', toggle && ST.mode !== 'work');
   $('#mWeb').classList.toggle('on', ST.mode === 'web');
@@ -1242,6 +1313,7 @@ async function doResp(s) {
     body.innerHTML = md(s.md);
   }
   for (const f of s.files) { await wait(250); body.appendChild(el('div', 'fcard', `${tile(f.kind)}<div class="fx"><b>${esc(f.name)}</b><small>${esc(f.meta)}</small></div><span class="open">Open</span>`)); }
+  for (const im of s.images) { const a = (scene().assets || {})[im.id]; if (!a) continue; await wait(250); body.appendChild(el('figure', 'rimg', `<img src="${a.data}" alt="${esc(a.name)}">${im.caption ? `<figcaption>${esc(im.caption)}</figcaption>` : ''}`)); }
   if (s.refs.length) {
     await wait(200);
     const r = el('div', 'refs' + (S.refsOpen ? ' open' : ''), `<span class="refT">${s.refs.length} reference${s.refs.length > 1 ? 's' : ''} ${ic('chevD')}</span><div class="refL">${s.refs.map((x, i) => `<div class="ref"><span class="cite">${i + 1}</span>${tile(x.kind)}<span>${esc(x.title)}</span>${x.meta ? `<span class="meta">· ${esc(x.meta)}</span>` : ''}</div>`).join('')}</div>`);
@@ -1539,6 +1611,7 @@ function syncForm() {
   $$('[data-s]').forEach(inp => { const v = S[inp.dataset.s]; if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v == null ? '' : v; });
   $('#sceneModel').value = sc.model || models()[0].name;
   checkScript(); syncFmt();
+  $('#bSceneName').textContent = sc.title; renderAssets();
 }
 function checkScript() {
   const steps = parseScript(scene().script), unknown = steps.filter(s => s.t === 'cmd' && !CMDS[s.cmd]).map(s => '@' + s.cmd);
@@ -1563,6 +1636,7 @@ function bindForm() {
     inp.addEventListener(ev, () => {
       const k = inp.dataset.s; let v = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (inp.type === 'number' || inp.dataset.num) v = Number(v);
+      if (k === 'product') { const plans = { m365: 'M365 Copilot (Premium)', chat: 'Microsoft 365 Copilot Chat' }; if (Object.values(plans).includes(S.plan)) S.plan = plans[v]; $('[data-s="plan"]').value = S.plan; }
       S[k] = v; saveSettings(); applyChrome();
       if (k === 'frame' || k === 'zoom') fit();
       if (!RUN.playing) resetUI(scene());
@@ -1858,6 +1932,146 @@ function standaloneHtml() {
   const re = new RegExp('(<script type="application/json" id="embedded-' + 'library">)[\\s\\S]*?(</' + 'script>)');
   return ORIGINAL_HTML.replace(re, (m, a, b) => a + data + b);
 }
+/* ---------- Build tab: a turn from a form; images stored with the scene ---------- */
+const bval = k => ($(`[data-b="${k}"]`).value || '').trim();
+const blines = k => bval(k).split('\n').map(l => l.trim()).filter(Boolean);
+function buildTurn() {
+  const L = [];
+  if (bval('caption')) L.push('@caption ' + bval('caption'));
+  if (bval('attach')) L.push('@attach ' + bval('attach'));
+  if (bval('prompt')) L.push('> ' + bval('prompt').replace(/\s*\n\s*/g, ' '));
+  blines('think').forEach(t => L.push('~ ' + t));
+  if (bval('resp')) { const lines = bval('resp').split('\n').map(l => /^(>|<|~|\^|\?|@|\/\/)/.test(l) ? ' ' + l : l); L.push('< ' + lines[0], ...lines.slice(1)); }
+  blines('files').forEach(t => L.push('@file ' + t));
+  blines('images').forEach(t => L.push('@image ' + t));
+  blines('refs').forEach(t => L.push('^ ' + t));
+  blines('fups').forEach(t => L.push('? ' + t));
+  if (bval('caption')) L.push('@caption');
+  return L.join('\n');
+}
+function renderAssets() {
+  const a = scene().assets || {};
+  $('#assetList').innerHTML = Object.keys(a).length ? Object.entries(a).map(([id, x]) => `<div class="asset"><img src="${x.data}" alt=""><b title="${esc(x.name)}">${esc(id)}</b><span>${esc(x.name)}</span><div class="btns"><button data-use="${esc(id)}">Use</button><button data-del="${esc(id)}">✕</button></div></div>`).join('') : '<span class="msg">No images yet.</span>';
+}
+function addAsset(file) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1400 / img.width), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const png = /png|gif/i.test(file.type) && file.size < 400000;
+      const data = png ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.86);
+      const sc = scene(); sc.assets = sc.assets || {};
+      let id = slug(file.name.replace(/\.[^.]+$/, '')).slice(0, 24) || 'img'; let n = 1; while (sc.assets[id + (n > 1 ? n : '')]) n++; id = id + (n > 1 ? n : '');
+      sc.assets[id] = { name: file.name, data }; saveLib(); URL.revokeObjectURL(img.src); res(id);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+function initBuild() {
+  $('#bAdd').onclick = () => {
+    const t = buildTurn(); if (!t) { $('#buildMsg').textContent = 'Nothing to add yet.'; return; }
+    const sc = scene(); sc.script = (sc.script.trim() ? sc.script.replace(/\s+$/, '') + '\n\n' : '') + t; saveLib(); syncForm();
+    $('#buildMsg').className = 'msg ok'; $('#buildMsg').textContent = 'Turn added to the script. Press Space to play it.';
+    ['prompt', 'think', 'resp', 'refs', 'files', 'images', 'fups', 'caption'].forEach(k => { $(`[data-b="${k}"]`).value = ''; });
+  };
+  $('#bAddNew').onclick = () => {
+    const t = buildTurn(); if (!t) { $('#buildMsg').textContent = 'Nothing to add yet.'; return; }
+    const title = bval('prompt').split(/[.?!]/)[0].slice(0, 60) || 'New scene';
+    const used = blines('images').map(l => l.split('|')[0].trim()), assets = {};
+    used.forEach(id => { if ((scene().assets || {})[id]) assets[id] = scene().assets[id]; });   // the images this turn uses come along
+    const s = normScene({ section: scene().section, title, script: t, assets }); LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true);
+    $('#buildMsg').className = 'msg ok'; $('#buildMsg').textContent = `New scene “${title}” created.`;
+  };
+  $('#bClear').onclick = () => { $$('[data-b]').forEach(e => { e.value = ''; }); $('#buildMsg').textContent = ''; };
+  $('#assetIn').onchange = async e => { for (const f of e.target.files) await addAsset(f); e.target.value = ''; renderAssets(); };
+  $('#assetList').onclick = e => {
+    const u = e.target.closest('[data-use]'), d = e.target.closest('[data-del]');
+    if (u) { const ta = $('[data-b="images"]'); ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + u.dataset.use + ' | '; ta.focus(); }
+    if (d && confirm('Remove this image from the scene?')) { delete scene().assets[d.dataset.del]; saveLib(); renderAssets(); }
+  };
+}
+
+/* ---------- Ideas: scenario starters, by role ---------- */
+const IDEAS = [
+  ['Finance', 'Month-end commentary in our format', 'Draft the month-end commentary from this pack in our house format: driver, amount, action, owner. Lead with the biggest variance.', ['Month-end pack Sep.xlsx', 'Commentary format rules.docx']],
+  ['Finance', 'Explain a model you inherited', 'Explain what this workbook does, sheet by sheet. Where are the hard-coded numbers and which assumptions drive the output?', ['Agency cost model FY27.xlsx']],
+  ['Finance', 'Where is agency spend rising fastest?', 'Across the last six months of ward cost reports, where is agency spend rising fastest, and what explains it?', []],
+  ['Finance', 'What are the budget holders asking me?', 'What are the budget holders actually asking me this month, and what is still outstanding from last month?', []],
+  ['HR & People', 'Sickness absence by ward', 'Summarise sickness absence by ward for the quarter from this report and flag anything above 5%, with the trend.', ['Absence report Q2.xlsx']],
+  ['HR & People', 'Job description into an advert', 'Turn this job description into a recruitment advert for our careers page: warm, specific, under 250 words, no jargon.', ['Ward Manager JD.docx']],
+  ['HR & People', 'Onboarding plan for a new manager', 'Draft a first-30-days plan for a new ward manager starting on the 3rd, using our induction checklist and the team structure.', ['Induction checklist.docx', 'Team structure.pptx']],
+  ['HR & People', 'Prepare for a difficult conversation', 'I have a performance conversation with [name] on Thursday. From our recent emails and the last two 1:1 notes, what has been agreed, what has slipped, and what should I say?', []],
+  ['Clinical governance', 'CQC evidence check', 'From our policies library, which documents evidence the Safe domain, and when was each last reviewed? Flag anything older than two years.', []],
+  ['Clinical governance', 'Themes across incident reports', 'Summarise the themes across these twelve incident reports (anonymised) and suggest three actions with an owner for each.', ['Incidents Aug (anonymised).xlsx']],
+  ['Clinical governance', 'Policy versions compared', 'Compare version 6 and version 7 of this policy and list what changes what we have to do, with page references.', ['IPC policy v6.pdf', 'IPC policy v7.pdf']],
+  ['Clinical governance', 'Audit actions from the meeting', 'From the clinical audit meeting, list every action with an owner and a date, and anything agreed without an owner.', []],
+  ['Operations', 'Theatre lists under 70%', 'Which theatre lists ran under 70% utilisation last month, and what does the detail suggest is driving each one?', ['Theatre utilisation Sep.xlsx']],
+  ['Operations', 'Prepare the capacity meeting', 'Prepare notes for the November capacity planning meeting using last month’s recap, the theatre dashboard and the emails about Saturday lists.', []],
+  ['Operations', 'Cost of Saturday lists', 'What would three Saturday lists a month cost in staffing, using the rota rates in this sheet, and what income would they need to break even?', ['Rota rates.xlsx']],
+  ['Estates & IT', 'Backlog maintenance summary', 'Summarise the backlog maintenance register: total by risk rating, the ten biggest items, and anything overdue.', ['Backlog register.xlsx']],
+  ['Estates & IT', 'Recap an incident thread', 'I have been copied on the network outage thread for a week. What happened, what is the root cause, and what are the open actions?', []],
+  ['Estates & IT', 'Comms for a system change', 'Draft a staff notice about the move to the new rostering system on the 14th: what changes, what to do before, where to get help. Plain English, under 200 words.', ['Rostering go-live plan.docx']],
+  ['Exec & Board', 'Paper into an executive summary', 'Turn this paper into a one-page executive summary for the board. Lead with the decision and the ask.', ['Day-case redesign options paper.docx']],
+  ['Exec & Board', 'Paper into a deck', 'Turn this board paper into an eight-slide deck. One message per slide, no slide with more than thirty words.', ['Day-case redesign options paper.docx']],
+  ['Exec & Board', 'Find everything about a project', 'Find everything about the theatre expansion from the last quarter — documents, emails and Teams messages — and tell me where it stands.', []],
+  ['Exec & Board', 'Risk register review', 'Review the risk register: what moved since last month, what is overdue, and what the board will ask about first.', ['Risk register Oct.xlsx']],
+  ['Procurement', 'Contract versions compared', 'Compare these two versions of the contract and list what changed, flagging anything that shifts risk or cost to us.', ['Agreement v4.docx', 'Agreement v5 (supplier markup).docx']],
+  ['Procurement', 'Supplier performance summary', 'Summarise this supplier’s performance over the year from the KPI reports and the complaints emails, and draft the points for the review meeting.', ['Supplier KPIs FY26.xlsx']],
+  ['Comms', 'Rewrite for a non-clinical audience', 'Rewrite this for a non-clinical audience. Keep every number. Remove every piece of jargon or explain it in brackets.', ['Quality report Q2.docx']],
+  ['Comms', 'Draft a staff update', 'Draft a monthly staff update from these three items: the CQC visit date, the car park works, and the new wellbeing service. Warm, short, one call to action.', []],
+  ['Every day', 'Sort the morning', 'Summarise my unread mail and flag anything that needs an action from me today.', []],
+  ['Every day', 'Who is waiting on me?', 'Find emails from the past 48 hours where someone is waiting on a reply or a decision from me.', []],
+  ['Every day', 'Recap a meeting I missed', 'Recap the [meeting] and list what was agreed, who owns each action, and anything left unresolved.', []],
+  ['Every day', 'Prepare for tomorrow', 'What is the background to my meeting with [name] tomorrow? What did we agree last time and what is outstanding?', []]
+].map(([role, title, prompt, ctx]) => ({ role, title, prompt, ctx }));
+let ideaRole = 'All';
+const ideaText = i => `${i.title}. The user's prompt: "${i.prompt}"${i.ctx.length ? ` with these documents attached: ${i.ctx.join(', ')}` : ''}.`;
+function stubScene(title, prompt, ctx) {
+  const lines = [];
+  if (ctx && ctx.length) lines.push('@attach ' + ctx.join('; '));
+  lines.push('> ' + prompt, '~ Searching your files and email', '~ Reading the sources', '< **Paste the answer here** — from a real session, or write it. Markdown works: headings, bullets, | tables | and [1] citations.', ...(ctx || []).map(c => '^ ' + c + ' | ' + kindOf(c) + ' | You attached this'), '? A follow-up suggestion');
+  const s = normScene({ section: scene().section, title, script: lines.join('\n') });
+  LIB.scenes.splice(CUR + 1, 0, s); saveLib(); selectScene(CUR + 1, true); openDrawer('pBuild');
+  toast('Stub scene created. Fill in the answer in Build or Script.', 4000);
+}
+const AI = Object.assign({ url: 'https://api.openai.com/v1/chat/completions', key: '', model: 'gpt-4o-mini' }, store.get('ai', {}));
+async function generateScene(idea) {
+  const m = $('#aiMsg');
+  if (!AI.key && !/localhost|127\.0\.0\.1/.test(AI.url)) { m.className = 'msg err'; m.textContent = 'Set up the AI endpoint first (URL, key, model), or use Copy prompt with any LLM.'; openDrawer('pIdeas'); return; }
+  m.className = 'msg'; m.textContent = 'Generating…';
+  try {
+    const r = await fetch(AI.url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, AI.key ? { Authorization: 'Bearer ' + AI.key, 'api-key': AI.key } : {}),
+      body: JSON.stringify({ model: AI.model, temperature: 0.7, messages: [{ role: 'system', content: 'You write demo scripts as JSONL exactly in the format requested. Output only JSONL lines.' }, { role: 'user', content: llmPrompt(idea) }] }) });
+    if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 200));
+    const j = await r.json(); let text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+    text = text.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+    const scenes = jsonlToScenes(text); if (!scenes.length) throw new Error('no scene in the reply');
+    const add = scenes.map(s => normScene(Object.assign({ section: scene().section }, s, { id: uid() })));
+    LIB.scenes.splice(CUR + 1, 0, ...add); saveLib(); selectScene(CUR + 1, true);
+    m.className = 'msg ok'; m.textContent = `Generated “${add[0].title}”. Press Space to play it; edit it in Script.`; toast(m.textContent, 4000);
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Could not generate: ' + e.message; }
+}
+function renderIdeas() {
+  const roles = ['All', ...new Set(IDEAS.map(i => i.role))];
+  $('#roleBar').innerHTML = roles.map(r => `<button data-r="${esc(r)}" class="${r === ideaRole ? 'on' : ''}">${esc(r)}</button>`).join('');
+  $('#ideaList').innerHTML = IDEAS.map((i, k) => i.role === ideaRole || ideaRole === 'All' ? `<div class="idea"><b>${esc(i.title)}</b><div class="pr">“${esc(i.prompt)}”</div>${i.ctx.length ? `<div class="ctx">Attached: ${esc(i.ctx.join(', '))}</div>` : ''}<div class="acts"><button data-k="${k}" data-do="copy">Copy prompt</button><button data-k="${k}" data-do="stub">Stub</button><button data-k="${k}" data-do="gen" class="pri">Generate</button></div></div>` : '').join('');
+}
+function initIdeas() {
+  renderIdeas();
+  $('#roleBar').onclick = e => { const b = e.target.closest('[data-r]'); if (b) { ideaRole = b.dataset.r; renderIdeas(); } };
+  $('#ideaList').onclick = e => {
+    const b = e.target.closest('[data-do]'); if (!b) return; const i = IDEAS[+b.dataset.k];
+    if (b.dataset.do === 'copy') copyText(llmPrompt(ideaText(i)), 'Prompt copied. Paste it into any LLM, then paste the JSONL reply into Script → JSONL or import it');
+    else if (b.dataset.do === 'stub') stubScene(i.title, i.prompt, i.ctx);
+    else generateScene(ideaText(i));
+  };
+  const own = () => $('#ownIdea').value.trim();
+  $('#ownCopy').onclick = () => own() ? copyText(llmPrompt(own()), 'Prompt copied. Paste it into any LLM, then paste the JSONL reply into Script → JSONL or import it') : toast('Describe the idea first');
+  $('#ownStub').onclick = () => own() ? stubScene(own().slice(0, 60), own(), []) : toast('Describe the idea first');
+  $('#ownGen').onclick = () => own() ? generateScene(own()) : toast('Describe the idea first');
+  $$('[data-a]').forEach(inp => { inp.value = AI[inp.dataset.a] || ''; inp.addEventListener('input', () => { AI[inp.dataset.a] = inp.value.trim(); store.set('ai', AI); }); });
+}
 function copyText(t, msg) {
   const done = () => toast(msg, 4000);
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(done, () => fallback());
@@ -1918,7 +2132,8 @@ function init() {
     } catch (e) { const m = $('#scriptMsg'); m.className = 'msg err'; m.textContent = 'JSONL: ' + e.message; }
   });
   $('#jCopy').onclick = () => copyText(sceneToJsonl(scene()), 'Scene copied as JSONL');
-  $('#jLLM').onclick = () => copyText(LLM_PROMPT, 'LLM prompt copied. Add your topic at the end, then paste the reply into the JSONL box or import it');
+  $('#jLLM').onclick = () => copyText(llmPrompt(scene().title), 'LLM prompt copied. Paste the reply into the JSONL box or import it');
+  initBuild(); initIdeas();
   $('#lExportL').onclick = () => download('copilot-scenes.jsonl', LIB.scenes.map(sceneToJsonl).join('\n\n'), 'application/x-ndjson');
   $('#sEnd').onclick = jumpToEnd;
   $('#lExport').onclick = () => download('copilot-scenes.json', JSON.stringify({ version: 1, scenes: LIB.scenes, look: S }, null, 2), 'application/json');
